@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mq-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mq}
+      POSTGRES_DB: ${POSTGRES_DB:-mq}
+    volumes:
+      - mq_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mq} -d ${POSTGRES_DB:-mq}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    image: golang:1.23-alpine
+    container_name: mq-migrate
+    working_dir: /app
+    volumes:
+      - ./backend/api:/app
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-mq}:${POSTGRES_PASSWORD:-mq}@postgres:5432/${POSTGRES_DB:-mq}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "go install github.com/pressly/goose/v3/cmd/goose@latest &&
+             goose -dir migrations postgres \"$$DATABASE_URL\" up"
+    profiles:
+      - full
+
+  api:
+    build:
+      context: ./backend/api
+      dockerfile: Dockerfile
+    container_name: mq-api
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-mq}:${POSTGRES_PASSWORD:-mq}@postgres:5432/${POSTGRES_DB:-mq}?sslmode=disable
+      HTTP_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - full
+
+volumes:
+  mq_postgres_data:

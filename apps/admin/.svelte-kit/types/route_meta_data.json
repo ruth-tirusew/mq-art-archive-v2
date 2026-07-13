@@ -1,0 +1,11 @@
+{
+	"/": [],
+	"/applications": [
+		"src/routes/applications/+page.ts"
+	],
+	"/applications/[id]": [
+		"src/routes/applications/[id]/+page.ts"
+	],
+	"/auth/callback": [],
+	"/login": []
+}

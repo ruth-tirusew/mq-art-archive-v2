@@ -138,8 +138,6 @@ make web-test / admin-test
 make web-test-e2e / admin-test-e2e
 ```
 
-CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
-
 Operations: [`docs/operations.md`](docs/operations.md)
 
 ## Authentication

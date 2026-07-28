@@ -56,4 +56,22 @@ func TestArticleRepository_integration(t *testing.T) {
 	list, err := repo.ListPublished(ctx, content.PublicListFilter())
 	assist.NoError(t, err)
 	assist.GreaterOrEqual(t, len(list), 1)
+
+	byID, err := repo.GetByID(ctx, draft.ID)
+	assist.NoError(t, err)
+	assist.Equal(t, "Integration Draft", byID.Title)
+
+	draftStatus := content.ArticleStatusDraft
+	adminList, err := repo.ListAdmin(ctx, &draftStatus, 50, 0)
+	assist.NoError(t, err)
+	assist.GreaterOrEqual(t, len(adminList), 1)
+
+	byID.Title = "Integration Draft Updated"
+	byID.Body = "updated body"
+	byID.Category = "Legal"
+	byID.UpdatedAt = time.Now().UTC()
+	updated, err := repo.Update(ctx, *byID)
+	assist.NoError(t, err)
+	assist.Equal(t, "Integration Draft Updated", updated.Title)
+	assist.Equal(t, "Legal", updated.Category)
 }

@@ -1,6 +1,6 @@
 <svelte:head>
-	<title>About — Mäkdäs</title>
-	<meta name="description" content="Mäkdäs is a community-held archive of modern Ethiopian art." />
+	<title>About — Artiv</title>
+	<meta name="description" content="Artiv is a community-held archive of modern Ethiopian art." />
 </svelte:head>
 
 <section class="mx-auto max-w-3xl px-6 py-24 md:py-32">
@@ -10,7 +10,7 @@
 	</h1>
 	<div class="mt-12 space-y-6 text-lg leading-relaxed text-foreground">
 		<p>
-			Mäkdäs — <em class="italic text-muted-foreground">a sanctuary, a holding place</em> — began as a folder
+			Artiv — <em class="italic text-muted-foreground">a living archive for Ethiopian art</em> — began as a folder
 			on a hard drive in Addis Ababa. Today it is a community archive of modern Ethiopian art, stewarded by
 			the artists, scholars, and audiences who care about it most.
 		</p>

@@ -58,9 +58,12 @@
 	});
 </script>
 
-<section bind:this={heroEl} class="relative overflow-hidden border-b border-border/60 bg-ink">
+<section
+	bind:this={heroEl}
+	class="relative flex h-[100vh] min-h-[100vh] flex-col overflow-hidden border-b border-border/60 bg-ink"
+>
 	<div
-		class="relative z-20 mx-auto flex max-w-[1600px] items-center justify-between px-6 pt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-cream/70 md:px-10"
+		class="relative z-20 mx-auto flex w-full max-w-[1600px] shrink-0 items-center justify-between px-6 pt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-cream/70 md:px-10"
 	>
 		<span class="flex items-center gap-3">
 			<span class="text-accent">●</span> Featured artist · Vol. 04
@@ -70,11 +73,11 @@
 	</div>
 
 	<div
-		class="relative mx-auto grid max-w-[1600px] grid-cols-12 gap-4 px-6 pt-6 pb-10 md:gap-6 md:px-10 md:pt-10 md:pb-16"
+		class="relative mx-auto grid min-h-0 w-full max-w-[1600px] flex-1 grid-cols-12 gap-4 px-6 pt-6 pb-8 md:gap-6 md:px-10 md:pt-8 md:pb-10"
 	>
 		<a
 			href="/artists/{artistSlug(artist)}"
-			class="group relative col-span-12 aspect-[4/5] overflow-hidden rounded-sm bg-card md:col-span-8 md:aspect-[16/11]"
+			class="group relative col-span-12 min-h-[42vh] overflow-hidden rounded-sm bg-card md:col-span-8 md:min-h-0 md:h-full"
 		>
 			{#if coverUrl}
 				<img
@@ -89,7 +92,7 @@
 				<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-cream/70">
 					Now showing / {featuredWork?.title ?? artistName(artist)}
 				</p>
-				<h1 class="mt-2 font-display text-[14vw] leading-[0.9] tracking-tight text-cream md:text-[7.5vw]">
+				<h1 class="mt-2 font-display text-[12vw] leading-[0.9] tracking-tight text-cream md:text-[6.5vw] lg:text-[5.5vw]">
 					{nameParts.first}
 					<br />
 					<span class="italic text-cream/90">{nameParts.last}</span>
@@ -107,10 +110,10 @@
 			{/if}
 		</a>
 
-		<aside class="col-span-12 flex flex-col justify-between gap-8 md:col-span-4">
+		<aside class="col-span-12 flex min-h-0 flex-col justify-between gap-6 md:col-span-4 md:gap-8">
 			<div>
-				<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">01 / Featured</p>
-				<p class="mt-4 font-display text-2xl leading-snug text-cream md:text-3xl">
+				<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">02 / Featured</p>
+				<p class="mt-4 font-display text-xl leading-snug text-cream md:text-2xl lg:text-3xl">
 					{artistTagline(artist)}
 				</p>
 			</div>

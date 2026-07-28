@@ -65,8 +65,7 @@ func TestHTTP_listPublishedArticles_integration(t *testing.T) {
 func TestHTTP_createArticle_integration(t *testing.T) {
 	app := integration.NewApp(t)
 	router := app.Router()
-	authorID := uuid.New()
-	integration.InsertUser(t, app.Pool, authorID, identity.RoleContributor)
+	authorID := integration.InsertAdminUser(t, app.Pool)
 
 	body := `{"title":"HTTP Draft","body":"from integration test"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/articles", strings.NewReader(body))
@@ -104,7 +103,7 @@ func TestHTTP_listArtistPosts_integration(t *testing.T) {
 
 	artistID, _ := integration.InsertArtistProfile(t, app.Pool, "posts-artist", "Posts Artist")
 
-	created, err := app.Art.CreateDraft(ctx, artistID, "Wall Study", "Charcoal", "charcoal")
+	created, err := app.Art.CreateDraft(ctx, artistID, art.ArtPostWrite{Title: "Wall Study", Description: "Charcoal", Medium: "charcoal"})
 	assist.NoError(t, err)
 	publishedAt := time.Now().UTC()
 	_, err = app.Pool.Exec(ctx, `
@@ -192,7 +191,7 @@ func TestHTTP_getPostByID_integration(t *testing.T) {
 	ctx := context.Background()
 
 	artistID, userID := integration.InsertArtistProfile(t, app.Pool, "get-post-artist", "Get Post Artist")
-	created, err := app.Art.CreateDraft(ctx, artistID, "Visible Work", "desc", "ink")
+	created, err := app.Art.CreateDraft(ctx, artistID, art.ArtPostWrite{Title: "Visible Work", Description: "desc", Medium: "ink"})
 	assist.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+created.ID.String(), nil)
@@ -233,13 +232,16 @@ func TestHTTP_reviewApplication_integration(t *testing.T) {
 	router := app.Router()
 	ctx := context.Background()
 
+	applicantID := uuid.New()
+	integration.InsertUser(t, app.Pool, applicantID, identity.RolePublic)
+
 	appID := uuid.New()
 	now := time.Now().UTC()
 	_, err := app.Pool.Exec(ctx, `
 		INSERT INTO onboarding_applications (
-			id, applicant_id, applicant_type, display_name, status, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, appID, uuid.New(), string(onboarding.ApplicantTypeArtist), "HTTP Review App",
+			id, applicant_id, applicant_type, display_name, requested_handle, status, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, appID, applicantID, string(onboarding.ApplicantTypeArtist), "HTTP Review App", "http_review_app",
 		string(onboarding.ApprovalStatusPending), now, now)
 	assist.NoError(t, err)
 
@@ -257,4 +259,54 @@ func TestHTTP_reviewApplication_integration(t *testing.T) {
 	assist.NoError(t, err)
 	assist.Equal(t, onboarding.ApprovalStatusApproved, got.Status)
 	assist.Equal(t, "welcome aboard", got.Notes)
+}
+
+func TestHTTP_eventsAndSearch_integration(t *testing.T) {
+	app := integration.NewApp(t)
+	router := app.Router()
+	ctx := context.Background()
+
+	eventID := uuid.New()
+	startsAt := time.Now().UTC().Add(48 * time.Hour)
+	_, err := app.Pool.Exec(ctx, `
+		INSERT INTO events (
+			id, title, description, source_url, slug, event_type, venue, city,
+			starts_at, scraped_at, status, created_at, updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+	`, eventID, "Ceramic Fair Integration", "ceramics in Addis",
+		"https://example.com/http-ceramic", "ceramic-fair-integration", "Opening",
+		"Gallery", "Addis Ababa", startsAt, time.Now().UTC(),
+		"approved", time.Now().UTC(), time.Now().UTC())
+	assist.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/events", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assist.Equal(t, http.StatusOK, rec.Code)
+	assist.Contains(t, rec.Body.String(), "Ceramic Fair Integration")
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/events/ceramic-fair-integration", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assist.Equal(t, http.StatusOK, rec.Code)
+
+	adminID := integration.InsertAdminUser(t, app.Pool)
+	req = httptest.NewRequest(http.MethodGet, "/admin/v1/events", nil)
+	req.Header.Set("X-User-ID", adminID.String())
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assist.Equal(t, http.StatusOK, rec.Code)
+
+	req = httptest.NewRequest(http.MethodPost, "/admin/v1/events/sync", nil)
+	req.Header.Set("X-User-ID", adminID.String())
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assist.Equal(t, http.StatusOK, rec.Code)
+	assist.Contains(t, rec.Body.String(), `"upserted":0`)
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/search?q=Ceramic", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assist.Equal(t, http.StatusOK, rec.Code)
+	assist.Contains(t, rec.Body.String(), "Ceramic Fair Integration")
 }

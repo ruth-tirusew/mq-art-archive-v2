@@ -16,7 +16,8 @@ import (
 const ProviderGoogle = "google"
 
 type GoogleProvider struct {
-	config *oauth2.Config
+	config      *oauth2.Config
+	userInfoURL string
 }
 
 func NewGoogleProvider(clientID, clientSecret, callbackURL string) *GoogleProvider {
@@ -28,6 +29,7 @@ func NewGoogleProvider(clientID, clientSecret, callbackURL string) *GoogleProvid
 			Scopes:       []string{"openid", "email", "profile"},
 			Endpoint:     google.Endpoint,
 		},
+		userInfoURL: "https://www.googleapis.com/oauth2/v3/userinfo",
 	}
 }
 
@@ -46,7 +48,7 @@ func (p *GoogleProvider) Exchange(ctx context.Context, code string) (*outbound.O
 	}
 
 	client := p.config.Client(ctx, token)
-	resp, err := client.Get("https://www.googleapis.com/oauth2/v3/userinfo")
+	resp, err := client.Get(p.userInfoURL)
 	if err != nil {
 		return nil, fmt.Errorf("fetch userinfo: %w", err)
 	}

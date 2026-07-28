@@ -20,7 +20,7 @@ func NewOnboardingRepository(pool *Pool) outbound.OnboardingRepository {
 }
 
 const onboardingColumns = `
-	id, applicant_id, applicant_type, display_name, notes,
+	id, applicant_id, applicant_type, display_name, COALESCE(requested_handle, ''), notes,
 	status, reviewed_by, reviewed_at, created_at, updated_at
 `
 
@@ -70,21 +70,41 @@ func (r *OnboardingRepository) GetByID(ctx context.Context, id uuid.UUID) (*onbo
 	return &app, nil
 }
 
+func (r *OnboardingRepository) GetLatestByApplicantID(ctx context.Context, applicantID uuid.UUID) (*onboarding.OnboardingApplication, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT `+onboardingColumns+`
+		FROM onboarding_applications
+		WHERE applicant_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, applicantID)
+
+	app, err := scanOnboardingApplication(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get latest onboarding application: %w", err)
+	}
+	return &app, nil
+}
+
 func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.OnboardingApplication) (*onboarding.OnboardingApplication, error) {
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO onboarding_applications (
-			id, applicant_id, applicant_type, display_name, notes,
+			id, applicant_id, applicant_type, display_name, requested_handle, notes,
 			status, reviewed_by, reviewed_at, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 		ON CONFLICT (id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
+			requested_handle = EXCLUDED.requested_handle,
 			notes = EXCLUDED.notes,
 			status = EXCLUDED.status,
 			reviewed_by = EXCLUDED.reviewed_by,
 			reviewed_at = EXCLUDED.reviewed_at,
 			updated_at = EXCLUDED.updated_at
 		RETURNING `+onboardingColumns,
-		app.ID, app.ApplicantID, string(app.ApplicantType), app.DisplayName, app.Notes,
+		app.ID, app.ApplicantID, string(app.ApplicantType), app.DisplayName, nullableString(app.RequestedHandle), app.Notes,
 		string(app.Status), app.ReviewedBy, app.ReviewedAt, app.CreatedAt, app.UpdatedAt,
 	)
 
@@ -99,7 +119,7 @@ func scanOnboardingApplication(row scannable) (onboarding.OnboardingApplication,
 	var app onboarding.OnboardingApplication
 	var applicantType, status string
 	err := row.Scan(
-		&app.ID, &app.ApplicantID, &applicantType, &app.DisplayName, &app.Notes,
+		&app.ID, &app.ApplicantID, &applicantType, &app.DisplayName, &app.RequestedHandle, &app.Notes,
 		&status, &app.ReviewedBy, &app.ReviewedAt, &app.CreatedAt, &app.UpdatedAt,
 	)
 	if err != nil {
@@ -108,4 +128,11 @@ func scanOnboardingApplication(row scannable) (onboarding.OnboardingApplication,
 	app.ApplicantType = onboarding.ApplicantType(applicantType)
 	app.Status = onboarding.ApprovalStatus(status)
 	return app, nil
+}
+
+func nullableString(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }

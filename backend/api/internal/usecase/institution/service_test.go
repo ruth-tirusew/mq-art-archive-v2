@@ -10,9 +10,11 @@ import (
 )
 
 type mockInstitutionRepo struct {
-	getBySlug func(ctx context.Context, slug string) (*domain.Institution, error)
-	getByID   func(ctx context.Context, id uuid.UUID) (*domain.Institution, error)
-	save      func(ctx context.Context, inst domain.Institution) (*domain.Institution, error)
+	getBySlug          func(ctx context.Context, slug string) (*domain.Institution, error)
+	getByID            func(ctx context.Context, id uuid.UUID) (*domain.Institution, error)
+	getByUserID        func(ctx context.Context, userID uuid.UUID) (*domain.Institution, error)
+	save               func(ctx context.Context, inst domain.Institution) (*domain.Institution, error)
+	createDraftForUser func(ctx context.Context, userID uuid.UUID, displayName string) (*domain.Institution, error)
 }
 
 func (m *mockInstitutionRepo) GetBySlug(ctx context.Context, slug string) (*domain.Institution, error) {
@@ -23,8 +25,22 @@ func (m *mockInstitutionRepo) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	return m.getByID(ctx, id)
 }
 
+func (m *mockInstitutionRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*domain.Institution, error) {
+	if m.getByUserID != nil {
+		return m.getByUserID(ctx, userID)
+	}
+	return nil, nil
+}
+
 func (m *mockInstitutionRepo) Save(ctx context.Context, inst domain.Institution) (*domain.Institution, error) {
 	return m.save(ctx, inst)
+}
+
+func (m *mockInstitutionRepo) CreateDraftForUser(ctx context.Context, userID uuid.UUID, displayName string) (*domain.Institution, error) {
+	if m.createDraftForUser != nil {
+		return m.createDraftForUser(ctx, userID, displayName)
+	}
+	return &domain.Institution{UserID: userID, Name: displayName}, nil
 }
 
 func TestService_GetBySlug_delegatesToRepository(t *testing.T) {

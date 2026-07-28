@@ -1,18 +1,20 @@
-import { ArtistsApi } from '$lib/adapters/api/artistsApi';
-import { ArtApi } from '$lib/adapters/api/artApi';
-import { ArticleApi } from '$lib/adapters/api/articleApi';
-import { EventsApi } from '$lib/adapters/api/eventsApi';
-
-const artistsApi = new ArtistsApi();
-const artApi = new ArtApi();
-const articleApi = new ArticleApi();
-const eventsApi = new EventsApi();
+import { apiFetch } from '$lib/adapters/api/client';
+import {
+  normalizeArticles,
+  normalizeProfiles,
+  normalizeArtPosts,
+  normalizeEvents
+} from '$lib/adapters/api/normalize';
+import type { ArtistProfile } from '$lib/core/domain/profile';
+import type { ArtPost } from '$lib/core/domain/art';
+import type { Article } from '$lib/core/domain/content';
+import type { Event } from '$lib/core/domain/events';
 
 export type SearchResults = {
-  artists: Awaited<ReturnType<ArtistsApi['list']>>;
-  posts: Awaited<ReturnType<ArtApi['list']>>;
-  articles: Awaited<ReturnType<ArticleApi['listPublished']>>;
-  events: Awaited<ReturnType<EventsApi['list']>>;
+  artists: ArtistProfile[];
+  posts: ArtPost[];
+  articles: Article[];
+  events: Event[];
 };
 
 export async function searchAll(query: string, limit = 5): Promise<SearchResults> {
@@ -21,12 +23,13 @@ export async function searchAll(query: string, limit = 5): Promise<SearchResults
     return { artists: [], posts: [], articles: [], events: [] };
   }
 
-  const [artists, posts, articles, events] = await Promise.all([
-    artistsApi.list({ q, limit }).catch(() => []),
-    artApi.list({ q, limit }).catch(() => []),
-    articleApi.listPublished({ q, limit }).catch(() => []),
-    eventsApi.list({ q, limit, upcoming: false }).catch(() => [])
-  ]);
-
-  return { artists, posts, articles, events };
+  const response = await apiFetch<Record<string, unknown>>(
+    `/api/v1/search?q=${encodeURIComponent(q)}&limit=${limit}`
+  );
+  return {
+    artists: normalizeProfiles(response.artists),
+    posts: normalizeArtPosts(response.posts),
+    articles: normalizeArticles(response.articles),
+    events: normalizeEvents(response.events)
+  };
 }

@@ -1,6 +1,6 @@
 import { apiFetch } from '$lib/adapters/api/client';
 import { normalizeEvent, normalizeEvents } from '$lib/adapters/api/normalize';
-import type { Event, EventListParams } from '$lib/core/domain/events';
+import type { Event, EventListParams, EventSubmission } from '$lib/core/domain/events';
 
 function toQuery(params?: EventListParams): string {
   if (!params) return '';
@@ -21,5 +21,13 @@ export class EventsApi {
 
   getBySlug(slug: string): Promise<Event> {
     return apiFetch<Record<string, unknown>>(`/api/v1/events/${slug}`).then(normalizeEvent);
+  }
+
+  submit(payload: EventSubmission): Promise<Event> {
+    return apiFetch<Record<string, unknown>>('/api/v1/events/submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(normalizeEvent);
   }
 }

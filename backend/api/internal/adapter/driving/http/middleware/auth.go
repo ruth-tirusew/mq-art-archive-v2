@@ -92,6 +92,25 @@ func RequireRole(role string) gin.HandlerFunc {
 	}
 }
 
+func RequireAnyRole(roles ...string) gin.HandlerFunc {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, role := range roles {
+		allowed[role] = struct{}{}
+	}
+	return func(c *gin.Context) {
+		value, ok := c.Get(requestauth.ContextUserRole)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		if _, ok := allowed[string(value.(identity.Role))]; !ok {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": apperrors.ErrForbidden.Error()})
+			return
+		}
+		c.Next()
+	}
+}
+
 // OptionalAuthenticate sets user context when a valid token is present but does not reject.
 func OptionalAuthenticate(cfg AuthConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {

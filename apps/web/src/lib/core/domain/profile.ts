@@ -26,9 +26,14 @@ export interface ArtistProfile {
   years_active?: string;
   portrait_url?: string;
   featured?: boolean;
+  influences?: string[];
+  in_residence?: boolean;
+  residency_place?: string;
+  open_for_commission?: boolean;
   contact?: ContactInfo;
   social?: SocialLinks;
   status?: ProfileStatus;
+  approved_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

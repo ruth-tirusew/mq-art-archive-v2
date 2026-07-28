@@ -2,14 +2,15 @@ import { artPostService } from '$lib/application/artPosts';
 import { artistsService } from '$lib/application/artists';
 import type { PageLoad } from './$types';
 
-const DEMO_HANDLE = 'demo';
-
 export const load: PageLoad = async () => {
-	const profile = await artistsService.getByHandle(DEMO_HANDLE);
-	const posts = await artPostService.listByArtistSlug(profile.slug).catch(() => []);
+	const profiles = await artistsService.list({ featured: true, limit: 1 }).catch(() => []);
+	const profile = profiles[0] ?? null;
+	const posts = profile
+		? await artPostService.listByArtistSlug(profile.slug).catch(() => [])
+		: [];
 
 	return {
-		handle: DEMO_HANDLE,
+		handle: profile?.handle ?? profile?.slug ?? null,
 		artist: profile,
 		posts
 	};

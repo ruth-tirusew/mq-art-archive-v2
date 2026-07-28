@@ -1,4 +1,4 @@
-import { apiFetch } from '$lib/adapters/api/client';
+import { apiFetch, apiResponse } from '$lib/adapters/api/client';
 import { normalizeProfile, normalizeProfiles } from '$lib/adapters/api/normalize';
 import type { ArtistListParams, ArtistProfile } from '$lib/core/domain/profile';
 
@@ -16,6 +16,14 @@ function toQuery(params?: ArtistListParams): string {
 export class ArtistsApi {
   list(params?: ArtistListParams): Promise<ArtistProfile[]> {
     return apiFetch<unknown>(`/api/v1/artists${toQuery(params)}`).then(normalizeProfiles);
+  }
+
+  async listPage(params?: ArtistListParams): Promise<{ data: ArtistProfile[]; total: number }> {
+    const response = await apiResponse(`/api/v1/artists${toQuery(params)}`);
+    return {
+      data: normalizeProfiles(await response.json()),
+      total: Number(response.headers.get('X-Total-Count') ?? 0)
+    };
   }
 
   getByHandle(handle: string): Promise<ArtistProfile> {

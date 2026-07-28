@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import SearchTrigger from './GlobalSearch.svelte';
+	import { authService, currentUser, authLoading } from '$lib/application/auth';
 
-	const exploreNav = [
+	const primaryNav = [
 		{ href: '/artists', label: 'Artists' },
 		{ href: '/archive', label: 'Archive' },
-		{ href: '/events', label: 'Events' }
+		{ href: '/events', label: 'Events' },
+		{ href: '/wiki', label: 'Wiki' }
 	];
-
-	const learnNav = [{ href: '/wiki', label: 'Wiki' }];
 
 	const secondaryNav = [
 		{ href: '/about', label: 'About' },
@@ -16,7 +16,7 @@
 	];
 
 	const navLinkClass =
-		'relative text-foreground/85 transition after:absolute after:-bottom-1 after:left-0 after:h-px after:w-full after:origin-left after:scale-x-0 after:bg-accent after:transition-transform after:duration-300 hover:text-foreground hover:after:scale-x-100';
+		'relative text-foreground/85 transition after:absolute after:-bottom-1 after:left-0 after:h-px after:w-full after:origin-left after:scale-x-0 after:bg-foreground after:transition-transform after:duration-300 hover:text-foreground hover:after:scale-x-100';
 
 	const mobileLinkClass =
 		'block py-2.5 text-sm text-foreground/85 transition hover:text-foreground';
@@ -53,20 +53,25 @@
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape') closeMenu();
 	}
+
+	async function logout() {
+		await authService.logout();
+		closeMenu();
+	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<header class="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
+<header
+	data-testid="web-site-header"
+	class="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur"
+>
 	<div class="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-6 py-4 md:gap-4 md:px-10">
 		<a href="/" class="group flex min-w-0 items-baseline gap-2" onclick={closeMenu}>
 			<span
 				class="font-display text-2xl font-medium tracking-tight text-foreground transition group-hover:text-accent"
 			>
-				mäkdäs
-			</span>
-			<span class="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground sm:inline">
-				/ archive · wiki · events
+				artiv
 			</span>
 		</a>
 
@@ -109,29 +114,14 @@
 			</button>
 
 			<nav class="hidden items-center gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.2em] lg:flex">
-				<div class="flex items-center gap-3">
-					<span class="text-[9px] tracking-[0.3em] text-muted-foreground/70">Explore</span>
-					{#each exploreNav as n}
-						<a
-							href={n.href}
-							class="{navLinkClass} {isActive(n.href) ? 'text-foreground after:scale-x-100' : ''}"
-						>
-							{n.label}
-						</a>
-					{/each}
-				</div>
-
-				<div class="flex items-center gap-3">
-					<span class="text-[9px] tracking-[0.3em] text-muted-foreground/70">Learn</span>
-					{#each learnNav as n}
-						<a
-							href={n.href}
-							class="{navLinkClass} {isActive(n.href) ? 'text-foreground after:scale-x-100' : ''}"
-						>
-							{n.label}
-						</a>
-					{/each}
-				</div>
+				{#each primaryNav as n}
+					<a
+						href={n.href}
+						class="{navLinkClass} {isActive(n.href) ? 'text-foreground after:scale-x-100' : ''}"
+					>
+						{n.label}
+					</a>
+				{/each}
 
 				<span class="h-3 w-px bg-border" aria-hidden="true"></span>
 
@@ -145,6 +135,34 @@
 						{n.label}
 					</a>
 				{/each}
+
+				<span class="h-3 w-px bg-border" aria-hidden="true"></span>
+
+				{#if $currentUser?.role === 'artist'}
+					<a
+						href="/studio"
+						class="{navLinkClass} {isActive('/studio') ? 'text-foreground after:scale-x-100' : ''}"
+					>
+						Studio
+					</a>
+				{/if}
+
+				{#if $authLoading}
+					<span class="text-muted-foreground">…</span>
+				{:else if $currentUser}
+					<span class="hidden max-w-[10rem] truncate text-muted-foreground xl:inline" title={$currentUser.email}>
+						{$currentUser.email}
+					</span>
+					<button
+						type="button"
+						class="text-muted-foreground transition hover:text-foreground"
+						onclick={logout}
+					>
+						Sign out
+					</button>
+				{:else}
+					<a href="/login" class="text-muted-foreground transition hover:text-foreground">Sign in</a>
+				{/if}
 			</nav>
 		</div>
 	</div>
@@ -159,43 +177,19 @@
 			aria-label="Mobile navigation"
 		>
 			<div class="mx-auto max-w-[1600px] space-y-8">
-				<div>
-					<p class="mb-3 font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground/70">
-						Explore
-					</p>
-					<ul class="divide-y divide-border/60">
-						{#each exploreNav as n}
-							<li>
-								<a
-									href={n.href}
-									class="{mobileLinkClass} {isActive(n.href) ? 'text-foreground' : ''}"
-									onclick={closeMenu}
-								>
-									{n.label}
-								</a>
-							</li>
-						{/each}
-					</ul>
-				</div>
-
-				<div>
-					<p class="mb-3 font-mono text-[9px] uppercase tracking-[0.3em] text-muted-foreground/70">
-						Learn
-					</p>
-					<ul class="divide-y divide-border/60">
-						{#each learnNav as n}
-							<li>
-								<a
-									href={n.href}
-									class="{mobileLinkClass} {isActive(n.href) ? 'text-foreground' : ''}"
-									onclick={closeMenu}
-								>
-									{n.label}
-								</a>
-							</li>
-						{/each}
-					</ul>
-				</div>
+				<ul class="divide-y divide-border/60">
+					{#each primaryNav as n}
+						<li>
+							<a
+								href={n.href}
+								class="{mobileLinkClass} {isActive(n.href) ? 'text-foreground' : ''}"
+								onclick={closeMenu}
+							>
+								{n.label}
+							</a>
+						</li>
+					{/each}
+				</ul>
 
 				<ul class="divide-y divide-border/60 border-t border-border/60 pt-2">
 					{#each secondaryNav as n}
@@ -209,6 +203,26 @@
 							</a>
 						</li>
 					{/each}
+					{#if $currentUser?.role === 'artist'}
+						<li>
+							<a
+								href="/studio"
+								class="{mobileLinkClass} {isActive('/studio') ? 'text-foreground' : ''}"
+								onclick={closeMenu}
+							>
+								Studio
+							</a>
+						</li>
+					{/if}
+					<li>
+						{#if $currentUser}
+							<button type="button" class="{mobileLinkClass} w-full text-left" onclick={logout}>
+								Sign out ({$currentUser.email})
+							</button>
+						{:else}
+							<a href="/login" class="{mobileLinkClass}" onclick={closeMenu}>Sign in</a>
+						{/if}
+					</li>
 				</ul>
 			</div>
 		</nav>

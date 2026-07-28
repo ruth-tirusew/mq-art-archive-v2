@@ -1,5 +1,5 @@
 import { EventsApi } from '$lib/adapters/api/eventsApi';
-import type { Event, EventListParams } from '$lib/core/domain/events';
+import type { Event, EventListParams, EventSubmission } from '$lib/core/domain/events';
 
 const api = new EventsApi();
 
@@ -9,5 +9,8 @@ export const eventsService = {
   },
   getBySlug(slug: string): Promise<Event> {
     return api.getBySlug(slug);
+  },
+  submit(payload: EventSubmission): Promise<Event> {
+    return api.submit(payload);
   }
 };

@@ -37,7 +37,7 @@ func TestInstitutionRepository_integration(t *testing.T) {
 		Contact: institution.ContactInfo{
 			Location: "Addis Ababa",
 		},
-		Status:    institution.StatusApproved,
+		Status:    institution.InstitutionStatusApproved,
 		CreatedAt: now,
 		UpdatedAt: now,
 	})

@@ -10,4 +10,6 @@ var (
 	ErrUnauthorized   = errors.New("unauthorized")
 	ErrForbidden      = errors.New("forbidden")
 	ErrInvalidToken   = errors.New("invalid token")
+	ErrConflict       = errors.New("conflict")
+	ErrValidation     = errors.New("validation failed")
 )

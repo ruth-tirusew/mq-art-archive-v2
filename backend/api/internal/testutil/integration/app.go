@@ -24,6 +24,8 @@ import (
 	institutionuc "github.com/mq/api/internal/usecase/institution"
 	onboardinguc "github.com/mq/api/internal/usecase/onboarding"
 	profileuc "github.com/mq/api/internal/usecase/profile"
+	searchuc "github.com/mq/api/internal/usecase/search"
+	settingsuc "github.com/mq/api/internal/usecase/settings"
 )
 
 // App wires real Postgres repositories to use-case services, mirroring cmd/api.
@@ -36,7 +38,9 @@ type App struct {
 	Institution inbound.InstitutionService
 	Onboarding  inbound.OnboardingService
 	Events      inbound.EventsService
+	Search      inbound.SearchService
 	Auth        inbound.AuthService
+	Settings    inbound.SettingsService
 	TokenSvc    *auth.TokenService
 }
 
@@ -52,6 +56,9 @@ func NewApp(t *testing.T) *App {
 	oauthAccountRepo := postgres.NewOAuthAccountRepository(pool)
 	institutionRepo := postgres.NewInstitutionRepository(pool)
 	onboardingRepo := postgres.NewOnboardingRepository(pool)
+	passwordResetRepo := postgres.NewPasswordResetRepository(pool)
+	notifPrefsRepo := postgres.NewNotificationPreferencesRepository(pool)
+	scrapeSettingsRepo := postgres.NewScrapeSettingsRepository(pool)
 	eventRepo := postgres.NewEventRepository(pool)
 	eventLocationRepo := postgres.NewEventLocationRepository(pool)
 	eventSource := eventsadapter.NewScraperNoop()
@@ -59,18 +66,33 @@ func NewApp(t *testing.T) *App {
 	tokenSvc := auth.NewTokenService("integration-test-secret", config.Load().JWTAccessTTL)
 	stateSvc := auth.NewOAuthStateService("integration-test-secret", config.Load().JWTAccessTTL)
 	identitySvc := identityuc.NewService(userRepo)
-	authSvc := authuc.NewService(userRepo, oauthAccountRepo, tokenSvc, stateSvc, nil, []string{"http://localhost:5173"})
+	settingsSvc := settingsuc.NewService(scrapeSettingsRepo, nil, "")
+	authSvc := authuc.NewService(
+		userRepo,
+		oauthAccountRepo,
+		tokenSvc,
+		auth.NewBcryptPasswordHasher(),
+		stateSvc,
+		nil,
+		[]string{"http://localhost:5173"},
+		nil,
+		passwordResetRepo,
+		notifPrefsRepo,
+		"http://localhost:5173",
+	)
 
 	return &App{
 		Pool:        pool,
 		Content:     contentuc.NewService(articleRepo),
 		Art:         artuc.NewService(artPostRepo),
-		Profile:     profileuc.NewService(profileRepo),
+		Profile:     profileuc.NewService(profileRepo, userRepo, artPostRepo),
 		Identity:    identitySvc,
 		Institution: institutionuc.NewService(institutionRepo),
-		Onboarding:  onboardinguc.NewService(onboardingRepo),
+		Onboarding:  onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo),
 		Events:      eventsuc.NewService(eventRepo, eventLocationRepo, eventSource),
+		Search:      searchuc.NewService(articleRepo, eventRepo),
 		Auth:        authSvc,
+		Settings:    settingsSvc,
 		TokenSvc:    tokenSvc,
 	}
 }
@@ -96,8 +118,11 @@ func (a *App) Router() *gin.Engine {
 		Profile:     handler.NewProfileHandler(a.Profile),
 		Institution: handler.NewInstitutionHandler(a.Institution),
 		Art:         handler.NewArtHandler(a.Art, a.Profile),
+		Event:       handler.NewEventHandler(a.Events),
+		Search:      handler.NewSearchHandler(a.Search),
 		Onboarding:  handler.NewOnboardingHandler(a.Onboarding),
 		Auth:        handler.NewAuthHandler(a.Auth, cfg.AuthCookieName),
+		Settings:    handler.NewSettingsHandler(a.Settings),
 	}
 	return httpadapter.NewRouter(cfg, handlers, httpadapter.RouterDeps{
 		Identity: a.Identity,

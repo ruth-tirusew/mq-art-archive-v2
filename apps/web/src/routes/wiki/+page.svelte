@@ -4,7 +4,6 @@
 	import VerifiedChip from '$lib/components/VerifiedChip.svelte';
 	import EmptySectionPrompt from '$lib/components/home/EmptySectionPrompt.svelte';
 	import type { Article } from '$lib/core/domain/content';
-	import type { WikiArticle } from '$lib/data/wiki';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -16,30 +15,24 @@
 		goto(`/wiki?${params.toString()}`);
 	}
 
-	function articleExcerpt(article: Article | WikiArticle): string {
-		return article.excerpt ?? ('body' in article ? article.body.slice(0, 140) : '');
+	function articleExcerpt(article: Article): string {
+		return article.excerpt ?? article.body.slice(0, 140);
 	}
 
-	function articleDifficulty(article: Article | WikiArticle): string {
-		if ('difficulty' in article && article.difficulty) return article.difficulty;
-		return 'Beginner';
+	function articleDifficulty(article: Article): string | undefined {
+		return article.difficulty;
 	}
 
-	function articleReadingTime(article: Article | WikiArticle): number {
-		if ('reading_time' in article && article.reading_time) return article.reading_time;
-		if ('readingTime' in article) return article.readingTime;
-		return 10;
+	function articleReadingTime(article: Article): number | undefined {
+		return article.reading_time;
 	}
 
-	function articleContributors(article: Article | WikiArticle): number {
-		if ('contributors' in article && article.contributors) return article.contributors;
-		return 1;
+	function articleContributors(article: Article): number {
+		return article.contributors ?? 0;
 	}
 
-	function articleUpdated(article: Article | WikiArticle): string {
-		if ('updated_at' in article && article.updated_at) return article.updated_at;
-		if ('updated' in article) return article.updated;
-		return new Date().toISOString();
+	function articleUpdated(article: Article): string | undefined {
+		return article.updated_at || undefined;
 	}
 
 	const contributorTotal = $derived(
@@ -48,7 +41,7 @@
 </script>
 
 <svelte:head>
-	<title>Wiki — Mäkdäs</title>
+	<title>Wiki — Artiv</title>
 	<meta
 		name="description"
 		content="A crowdsourced handbook for navigating life as an Ethiopian creative — legal, material, financial, and practical."
@@ -97,13 +90,25 @@
 </section>
 
 <section class="mx-auto max-w-[1600px] px-6 py-14 md:px-10 md:py-16">
-	{#if data.articles.length > 0}
+	{#if data.error}
+		<div class="rounded-sm border border-border bg-card/40 px-6 py-12 text-center">
+			<h2 class="font-display text-2xl text-foreground">Wiki temporarily unavailable</h2>
+			<p class="mt-3 text-sm text-muted-foreground">We couldn't load the handbook from the API.</p>
+			<button
+				type="button"
+				onclick={() => location.reload()}
+				class="mt-6 rounded-full bg-foreground px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.2em] text-background"
+			>
+				Retry
+			</button>
+		</div>
+	{:else if data.articles.length > 0}
 		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{#each data.articles as a}
-				{@const updatedLabel = new Date(articleUpdated(a)).toLocaleDateString('en-GB', {
-					month: 'short',
-					year: 'numeric'
-				})}
+				{@const updated = articleUpdated(a)}
+				{@const updatedLabel = updated
+					? new Date(updated).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+					: ''}
 				{@const diffTone =
 					articleDifficulty(a) === 'Beginner'
 						? 'text-emerald-700'
@@ -129,15 +134,21 @@
 						<div
 							class="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground"
 						>
-							<span class="inline-flex items-center gap-1.5">
-								<span aria-hidden="true">◷</span> {articleReadingTime(a)} min
-							</span>
-							<span class="inline-flex items-center gap-1.5 {diffTone}">
-								<span aria-hidden="true">▲</span> {articleDifficulty(a)}
-							</span>
-							<span class="inline-flex items-center gap-1.5">
-								<span aria-hidden="true">↻</span> {updatedLabel}
-							</span>
+							{#if articleReadingTime(a)}
+								<span class="inline-flex items-center gap-1.5">
+									<span aria-hidden="true">◷</span> {articleReadingTime(a)} min
+								</span>
+							{/if}
+							{#if articleDifficulty(a)}
+								<span class="inline-flex items-center gap-1.5 {diffTone}">
+									<span aria-hidden="true">▲</span> {articleDifficulty(a)}
+								</span>
+							{/if}
+							{#if updatedLabel}
+								<span class="inline-flex items-center gap-1.5">
+									<span aria-hidden="true">↻</span> {updatedLabel}
+								</span>
+							{/if}
 						</div>
 					</div>
 					<div

@@ -93,7 +93,15 @@ func (r *EventRepository) List(ctx context.Context, filter events.ListFilter) ([
 	args := []any{}
 	argPos := 1
 
-	if filter.Status != nil {
+	if len(filter.Statuses) > 0 {
+		query += fmt.Sprintf(" AND e.status = ANY($%d)", argPos)
+		statusArgs := make([]string, len(filter.Statuses))
+		for i, s := range filter.Statuses {
+			statusArgs[i] = string(s)
+		}
+		args = append(args, statusArgs)
+		argPos++
+	} else if filter.Status != nil {
 		query += fmt.Sprintf(" AND e.status = $%d", argPos)
 		args = append(args, string(*filter.Status))
 		argPos++
@@ -139,8 +147,8 @@ func (r *EventRepository) GetBySlug(ctx context.Context, slug string) (*events.E
 		SELECT `+eventSelectColumns+`, `+eventLocationJoinColumns+`
 		FROM events e
 		LEFT JOIN event_locations l ON l.id = e.location_id
-		WHERE e.slug = $1 AND e.status = $2
-	`, slug, string(events.EventStatusApproved))
+		WHERE e.slug = $1 AND e.status = ANY($2)
+	`, slug, []string{string(events.EventStatusApproved), string(events.EventStatusPending)})
 
 	event, err := scanEventWithLocation(row)
 	if err != nil {
@@ -174,8 +182,8 @@ func (r *EventRepository) Search(ctx context.Context, query string, limit int) (
 }
 
 func normalizeEventListFilter(filter events.ListFilter) events.ListFilter {
-	if filter.Status == nil && !filter.UpcomingOnly && filter.Limit == 0 {
-		return events.PublicUpcomingFilter()
+	if filter.Status == nil && len(filter.Statuses) == 0 && !filter.UpcomingOnly && filter.Limit == 0 {
+		return events.PublicDiscoverableFilter()
 	}
 	return filter
 }
@@ -213,6 +221,7 @@ func (r *EventRepository) Save(ctx context.Context, event events.Event) (*events
 		ON CONFLICT (id) DO UPDATE SET
 			title = EXCLUDED.title,
 			description = EXCLUDED.description,
+			source_url = EXCLUDED.source_url,
 			image_url = EXCLUDED.image_url,
 			location_id = EXCLUDED.location_id,
 			slug = EXCLUDED.slug,
@@ -239,6 +248,17 @@ func (r *EventRepository) Save(ctx context.Context, event events.Event) (*events
 		return nil, fmt.Errorf("save event: %w", err)
 	}
 	return r.attachLocation(ctx, saved)
+}
+
+func (r *EventRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM events WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete event: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *EventRepository) LastScrapedAt(ctx context.Context) (time.Time, error) {

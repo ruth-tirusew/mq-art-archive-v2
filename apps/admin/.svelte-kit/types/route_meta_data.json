@@ -6,6 +6,41 @@
 	"/applications/[id]": [
 		"src/routes/applications/[id]/+page.ts"
 	],
+	"/artists": [
+		"src/routes/artists/+page.ts"
+	],
+	"/artists/new": [],
+	"/artists/[id]": [
+		"src/routes/artists/[id]/+page.ts"
+	],
 	"/auth/callback": [],
-	"/login": []
+	"/events": [
+		"src/routes/events/+page.ts"
+	],
+	"/events/new": [],
+	"/events/[id]": [
+		"src/routes/events/[id]/+page.ts"
+	],
+	"/login": [],
+	"/posts": [
+		"src/routes/posts/+page.ts"
+	],
+	"/posts/new": [
+		"src/routes/posts/new/+page.ts"
+	],
+	"/posts/[id]": [
+		"src/routes/posts/[id]/+page.ts"
+	],
+	"/settings": [
+		"src/routes/settings/+page.ts"
+	],
+	"/users": [],
+	"/wiki": [
+		"src/routes/wiki/+page.ts"
+	],
+	"/wiki/new": [],
+	"/wiki/submissions": [],
+	"/wiki/[id]": [
+		"src/routes/wiki/[id]/+page.ts"
+	]
 }

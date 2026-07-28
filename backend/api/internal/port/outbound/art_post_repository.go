@@ -9,7 +9,11 @@ import (
 
 type ArtPostRepository interface {
 	ListByArtist(ctx context.Context, artistID uuid.UUID) ([]art.ArtPost, error)
+	ListOwnedByArtist(ctx context.Context, artistID uuid.UUID) ([]art.ArtPost, error)
 	ListPublished(ctx context.Context, filter art.ListFilter) ([]art.ArtPostWithArtist, error)
+	ListAll(ctx context.Context, status *art.ArtStatus, limit, offset int) ([]art.ArtPostWithArtist, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*art.ArtPost, error)
 	Create(ctx context.Context, post art.ArtPost) (*art.ArtPost, error)
+	Update(ctx context.Context, post art.ArtPost) (*art.ArtPost, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }

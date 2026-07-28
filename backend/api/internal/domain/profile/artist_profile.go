@@ -28,21 +28,26 @@ type SocialLinks struct {
 }
 
 type ArtistProfile struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	Slug        string
-	Handle      string
-	DisplayName string
-	Bio         string
-	Born        string
-	Discipline  string
-	Tagline     string
-	YearsActive string
-	PortraitURL string
-	Featured    bool
-	Contact     ContactInfo
-	Social      SocialLinks
-	Status      ProfileStatus
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Slug              string
+	Handle            string
+	DisplayName       string
+	Bio               string
+	Born              string
+	Discipline        string
+	Tagline           string
+	YearsActive       string
+	PortraitURL       string
+	Featured          bool
+	Influences        []string
+	InResidence       bool
+	ResidencyPlace    string
+	OpenForCommission bool
+	Contact           ContactInfo
+	Social            SocialLinks
+	Status            ProfileStatus
+	ApprovedAt        *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }

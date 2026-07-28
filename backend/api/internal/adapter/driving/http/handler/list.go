@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -56,9 +57,13 @@ func queryInt(c *gin.Context, key string) *int {
 }
 
 func profileListFilter(c *gin.Context) profile.ListFilter {
+	limit := queryLimit(c, 24)
+	if limit > 50 {
+		limit = 50
+	}
 	return profile.ListFilter{
 		Query:    c.Query("q"),
-		Limit:    queryLimit(c, 50),
+		Limit:    limit,
 		Offset:   queryOffset(c),
 		Featured: queryBool(c, "featured"),
 	}
@@ -87,9 +92,8 @@ func articleListFilter(c *gin.Context) content.ListFilter {
 }
 
 func eventListFilter(c *gin.Context) events.ListFilter {
-	status := events.EventStatusApproved
 	filter := events.ListFilter{
-		Status:    &status,
+		Statuses:   []events.EventStatus{events.EventStatusApproved, events.EventStatusPending},
 		EventType: c.Query("type"),
 		Query:     c.Query("q"),
 		Limit:     queryLimit(c, 50),
@@ -104,11 +108,24 @@ func eventListFilter(c *gin.Context) events.ListFilter {
 }
 
 func (h *ProfileHandler) List(c *gin.Context) {
-	profiles, err := h.profiles.ListApproved(c.Request.Context(), profileListFilter(c))
+	filter := profileListFilter(c)
+	profiles, err := h.profiles.ListApproved(c.Request.Context(), filter)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
+	total := len(profiles)
+	if counter, ok := h.profiles.(interface {
+		CountApproved(context.Context, profile.ListFilter) (int, error)
+	}); ok {
+		total, err = counter.CountApproved(c.Request.Context(), filter)
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+	}
+	c.Header("X-Total-Count", strconv.Itoa(total))
+	c.Header("Access-Control-Expose-Headers", "X-Total-Count")
 	c.JSON(http.StatusOK, dto.ToArtistProfileResponses(profiles))
 }
 
@@ -155,3 +172,19 @@ func (h *EventHandler) GetBySlug(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, dto.ToEventResponse(*event))
 }
+
+func (h *EventHandler) Submit(c *gin.Context) {
+	var req dto.EventSubmissionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+	event, err := h.events.Submit(c.Request.Context(), req.ToWrite())
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, dto.ToEventResponse(*event))
+}
+
+

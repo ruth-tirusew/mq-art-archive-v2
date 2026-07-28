@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { ArtPost } from '$lib/core/domain/art';
-	import type { Work } from '$lib/data/archive';
 	import {
 		acquisitionArtistName,
 		acquisitionArtistSlug,
@@ -14,7 +13,7 @@
 	} from '$lib/utils/fields';
 
 	type Props = {
-		item: Work | ArtPost;
+		item: ArtPost;
 		artistName?: string;
 		featured?: boolean;
 		compact?: boolean;

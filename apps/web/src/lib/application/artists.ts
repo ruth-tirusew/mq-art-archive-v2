@@ -7,6 +7,9 @@ export const artistsService = {
   list(params?: ArtistListParams): Promise<ArtistProfile[]> {
     return api.list(params);
   },
+  listPage(params?: ArtistListParams): Promise<{ data: ArtistProfile[]; total: number }> {
+    return api.listPage(params);
+  },
   getByHandle(handle: string): Promise<ArtistProfile> {
     return api.getByHandle(handle);
   }

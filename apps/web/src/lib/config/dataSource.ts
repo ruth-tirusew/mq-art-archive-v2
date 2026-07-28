@@ -1,4 +1,9 @@
 import { PUBLIC_API_URL } from '$env/static/public';
 
-/** When true, route loaders fetch from the mq Go API instead of static seed data. */
-export const useApi = Boolean(PUBLIC_API_URL);
+export function getApiBaseUrl(): string {
+	const baseUrl = PUBLIC_API_URL.trim().replace(/\/$/, '');
+	if (!baseUrl) {
+		throw new Error('PUBLIC_API_URL is required to load Artiv product data');
+	}
+	return baseUrl;
+}

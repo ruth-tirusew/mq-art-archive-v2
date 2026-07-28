@@ -18,7 +18,7 @@ services:
       retries: 5
 
   migrate:
-    image: golang:1.23-alpine
+    image: golang:1.25.12-bookworm
     container_name: mq-migrate
     working_dir: /app
     volumes:
@@ -43,15 +43,72 @@ services:
     ports:
       - "${HTTP_PORT:-8080}:8080"
     environment:
+      APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgres://${POSTGRES_USER:-mq}:${POSTGRES_PASSWORD:-mq}@postgres:5432/${POSTGRES_DB:-mq}?sslmode=disable
       HTTP_PORT: 8080
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-1h}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-mq_access_token}
+      AUTH_DEV_MODE: ${AUTH_DEV_MODE:-true}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      WEB_APP_URL: ${WEB_APP_URL:-http://localhost:5173}
+      ERROR_MONITOR_DSN: ${ERROR_MONITOR_DSN:-}
+      CLOUDINARY_ENABLED: ${CLOUDINARY_ENABLED:-false}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-mq}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      OAUTH_CALLBACK_URL: ${OAUTH_CALLBACK_URL:-http://localhost:8080/api/v1/auth/google/callback}
+      SCRAPE_ENABLED: ${SCRAPE_ENABLED:-false}
+      SCRAPE_SOURCES: ${SCRAPE_SOURCES:-}
+      TELEGRAM_ENABLED: ${TELEGRAM_ENABLED:-false}
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_SESSION_PATH: /data/telegram.session
+      TELEGRAM_CHANNELS: ${TELEGRAM_CHANNELS:-}
+      TELEGRAM_KEYWORDS: ${TELEGRAM_KEYWORDS:-}
+    volumes:
+      - mq_telegram_session:/data
     depends_on:
       postgres:
         condition: service_healthy
     profiles:
       - full
 
+  scraper:
+    build:
+      context: ./backend/api
+      dockerfile: Dockerfile.scraper
+    container_name: mq-scraper
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-mq}:${POSTGRES_PASSWORD:-mq}@postgres:5432/${POSTGRES_DB:-mq}?sslmode=disable
+      SCRAPE_ENABLED: ${SCRAPE_ENABLED:-false}
+      SCRAPE_SOURCES: ${SCRAPE_SOURCES:-}
+      SCRAPE_INTERVAL: ${SCRAPE_INTERVAL:-6h}
+      SCRAPE_USER_AGENT: ${SCRAPE_USER_AGENT:-mq-scraper/1.0}
+      TELEGRAM_ENABLED: ${TELEGRAM_ENABLED:-false}
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_SESSION_PATH: /data/telegram.session
+      TELEGRAM_CHANNELS: ${TELEGRAM_CHANNELS:-}
+      TELEGRAM_KEYWORDS: ${TELEGRAM_KEYWORDS:-}
+      TELEGRAM_FETCH_LIMIT: ${TELEGRAM_FETCH_LIMIT:-50}
+    volumes:
+      - mq_telegram_session:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles:
+      - full
+
 volumes:
   mq_postgres_data:
+  mq_telegram_session:

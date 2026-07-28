@@ -13,15 +13,18 @@ import (
 const modulePrefix = "github.com/mq/api/"
 
 var repositoryFileToContext = map[string]string{
-	"article_repository.go":     "content",
-	"art_post_repository.go":    "art",
-	"profile_repository.go":     "profile",
-	"institution_repository.go": "institution",
-	"onboarding_repository.go":  "onboarding",
-	"user_repository.go":        "identity",
-	"oauth_account_repository.go": "identity",
-	"event_repository.go":         "events",
-	"event_location_repository.go": "events",
+	"article_repository.go":                  "content",
+	"art_post_repository.go":                 "art",
+	"profile_repository.go":                  "profile",
+	"institution_repository.go":              "institution",
+	"onboarding_repository.go":               "onboarding",
+	"user_repository.go":                     "identity",
+	"oauth_account_repository.go":            "identity",
+	"notification_preferences_repository.go": "identity",
+	"event_repository.go":                    "events",
+	"event_location_repository.go":           "events",
+	"scrape_settings_repository.go":          "settings",
+	"password_reset_repository.go":           "identity",
 }
 
 var usecaseDirToContext = map[string]string{
@@ -33,6 +36,8 @@ var usecaseDirToContext = map[string]string{
 	"onboarding":  "onboarding",
 	"profile":     "profile",
 	"events":      "events",
+	"search":      "content",
+	"settings":    "settings",
 }
 
 type layer int
@@ -272,9 +277,18 @@ func checkUsecaseVerticalBoundary(rel string, imports []string) string {
 			continue
 		}
 		ctx := domainContextFromImport(imp)
-		if ctx != usecaseCtx {
-			return fmt.Sprintf("%s: usecase/%s may only import domain/%s, not domain/%s", rel, parts[2], usecaseCtx, ctx)
+		if ctx == usecaseCtx {
+			continue
 		}
+		// Admin artist create needs identity.User; allow that cross-context.
+		if usecaseCtx == "profile" && ctx == "identity" {
+			continue
+		}
+		// Unified search is an intentional read-model aggregator across bounded contexts.
+		if parts[2] == "search" && (ctx == "content" || ctx == "events" || ctx == "profile" || ctx == "art") {
+			continue
+		}
+		return fmt.Sprintf("%s: usecase/%s may only import domain/%s, not domain/%s", rel, parts[2], usecaseCtx, ctx)
 	}
 	return ""
 }

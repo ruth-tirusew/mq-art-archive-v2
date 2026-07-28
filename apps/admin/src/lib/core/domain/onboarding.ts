@@ -6,6 +6,7 @@ export interface OnboardingApplication {
   applicant_id?: string;
   applicant_type: ApplicantType;
   display_name: string;
+  requested_handle?: string;
   notes?: string;
   status: ApprovalStatus;
   reviewed_by?: string | null;

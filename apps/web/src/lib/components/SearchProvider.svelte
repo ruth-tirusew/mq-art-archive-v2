@@ -21,22 +21,10 @@
 		return getContext<{ open: boolean; setOpen: (v: boolean) => void }>(SEARCH_KEY);
 	}
 
-	type SearchResult = {
-		label: string;
-		meta: string;
-		href: string;
-		group: string;
-		keywords: string;
-	};
-
-	export function buildSearchIndex(): SearchResult[] {
-		return [];
-	}
 </script>
 
 <script lang="ts">
 	import { searchAll, type SearchResults } from '$lib/application/search';
-	import { useApi } from '$lib/config/dataSource';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
 
@@ -49,26 +37,9 @@
 
 	let query = $state('');
 	let loading = $state(false);
+	let searchError = $state(false);
 	let apiResults = $state<SearchResults>({ artists: [], posts: [], articles: [], events: [] });
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
-
-	const staticIndex = buildSearchIndex();
-
-	const staticFiltered = $derived.by(() => {
-		const q = query.trim().toLowerCase();
-		if (!q) return staticIndex;
-		return staticIndex.filter((r) => r.keywords.toLowerCase().includes(q));
-	});
-
-	const staticGrouped = $derived.by(() => {
-		const map = new Map<string, typeof staticFiltered>();
-		for (const r of staticFiltered) {
-			const list = map.get(r.group) ?? [];
-			list.push(r);
-			map.set(r.group, list);
-		}
-		return map;
-	});
 
 	const apiHasResults = $derived(
 		apiResults.artists.length +
@@ -79,18 +50,22 @@
 	);
 
 	$effect(() => {
-		if (!useApi) return;
 		const q = query.trim();
 		clearTimeout(debounceTimer);
 		if (!q) {
 			apiResults = { artists: [], posts: [], articles: [], events: [] };
 			loading = false;
+			searchError = false;
 			return;
 		}
 		debounceTimer = setTimeout(async () => {
 			loading = true;
+			searchError = false;
 			try {
 				apiResults = await searchAll(q);
+			} catch {
+				apiResults = { artists: [], posts: [], articles: [], events: [] };
+				searchError = true;
 			} finally {
 				loading = false;
 			}
@@ -102,6 +77,7 @@
 		if (!open) {
 			query = '';
 			apiResults = { artists: [], posts: [], articles: [], events: [] };
+			searchError = false;
 		}
 	});
 
@@ -150,9 +126,10 @@
 				/>
 			</div>
 			<div class="max-h-[50vh] overflow-y-auto p-2">
-				{#if useApi}
-					{#if loading}
+				{#if loading}
 						<p class="px-3 py-6 text-center text-sm text-muted-foreground">Searching…</p>
+					{:else if searchError}
+						<p class="px-3 py-6 text-center text-sm text-muted-foreground">Search is temporarily unavailable.</p>
 					{:else if query.trim() && !apiHasResults}
 						<p class="px-3 py-6 text-center text-sm text-muted-foreground">No results found.</p>
 					{:else}
@@ -224,27 +201,6 @@
 								</button>
 							{/each}
 						{/if}
-					{/if}
-				{:else if staticFiltered.length === 0}
-					<p class="px-3 py-6 text-center text-sm text-muted-foreground">No results found.</p>
-				{:else}
-					{#each [...staticGrouped.entries()] as [group, items]}
-						<p class="px-3 py-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground">
-							{group}
-						</p>
-						{#each items as item}
-							<button
-								type="button"
-								class="flex w-full items-center gap-3 rounded-sm px-3 py-2 text-left transition hover:bg-muted"
-								onclick={() => selectResult(item.href)}
-							>
-								<span class="min-w-0 flex-1 font-display text-sm">{item.label}</span>
-								<span class="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-									{item.meta}
-								</span>
-							</button>
-						{/each}
-					{/each}
 				{/if}
 			</div>
 		</div>

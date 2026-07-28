@@ -1,13 +1,19 @@
 <script lang="ts">
 	import '../app.css';
+	import { onMount } from 'svelte';
 	import SearchProvider from '$lib/components/SearchProvider.svelte';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import { page } from '$app/stores';
+	import { authService } from '$lib/application/auth';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
 
 	const isHandlePage = $derived($page.url.pathname.startsWith('/@'));
+
+	onMount(() => {
+		void authService.load();
+	});
 </script>
 
 <svelte:head>
@@ -24,9 +30,11 @@
 		{#if !isHandlePage}
 			<SiteHeader />
 		{/if}
-		{@render children()}
-		{#if !isHandlePage}
-			<SiteFooter />
-		{/if}
+		<div class="overflow-x-clip">
+			{@render children()}
+			{#if !isHandlePage}
+				<SiteFooter />
+			{/if}
+		</div>
 	</div>
 </SearchProvider>

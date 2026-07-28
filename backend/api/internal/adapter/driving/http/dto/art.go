@@ -28,6 +28,8 @@ type ArtPostResponse struct {
 	Dimensions          string               `json:"dimensions,omitempty"`
 	City                string               `json:"city,omitempty"`
 	Style               string               `json:"style,omitempty"`
+	Residency           string               `json:"residency,omitempty"`
+	Exhibition          string               `json:"exhibition,omitempty"`
 	FeaturedAcquisition bool                 `json:"featured_acquisition"`
 	Palette             []string             `json:"palette,omitempty"`
 	Media               []MediaAssetResponse `json:"media"`
@@ -63,6 +65,8 @@ func ToArtPostResponse(post domain.ArtPost) ArtPostResponse {
 		Dimensions:          post.Dimensions,
 		City:                post.City,
 		Style:               post.Style,
+		Residency:           post.Residency,
+		Exhibition:          post.Exhibition,
 		FeaturedAcquisition: post.FeaturedAcquisition,
 		Palette:             post.Palette,
 		Media:               ToMediaAssetResponses(post.Media),
@@ -97,7 +101,98 @@ func ToArtPostWithArtistResponses(posts []domain.ArtPostWithArtist) []ArtPostRes
 }
 
 type CreateArtPostRequest struct {
-	Title       string `json:"title" binding:"required"`
-	Description string `json:"description"`
-	Medium      string `json:"medium"`
+	Title       string   `json:"title" binding:"required"`
+	Description string   `json:"description"`
+	Medium      string   `json:"medium"`
+	Year        *int     `json:"year"`
+	Dimensions  string   `json:"dimensions"`
+	City        string   `json:"city"`
+	Style       string   `json:"style"`
+	Residency   string   `json:"residency"`
+	Exhibition  string   `json:"exhibition"`
+	Palette     []string `json:"palette"`
+	MediaURLs   []string `json:"media_urls"`
+}
+
+func (r CreateArtPostRequest) ToWrite() domain.ArtPostWrite {
+	return domain.ArtPostWrite{
+		Title:       r.Title,
+		Description: r.Description,
+		Medium:      r.Medium,
+		Year:        r.Year,
+		Dimensions:  r.Dimensions,
+		City:        r.City,
+		Style:       r.Style,
+		Residency:   r.Residency,
+		Exhibition:  r.Exhibition,
+		Palette:     r.Palette,
+		MediaURLs:   r.MediaURLs,
+	}
+}
+
+type UpdateArtPostRequest struct {
+	Title       string   `json:"title" binding:"required"`
+	Description string   `json:"description"`
+	Medium      string   `json:"medium"`
+	Year        *int     `json:"year"`
+	Dimensions  string   `json:"dimensions"`
+	City        string   `json:"city"`
+	Style       string   `json:"style"`
+	Residency   string   `json:"residency"`
+	Exhibition  string   `json:"exhibition"`
+	Palette     []string `json:"palette"`
+	MediaURLs   []string `json:"media_urls"`
+}
+
+func (r UpdateArtPostRequest) ToWrite() domain.ArtPostWrite {
+	return domain.ArtPostWrite{
+		Title:       r.Title,
+		Description: r.Description,
+		Medium:      r.Medium,
+		Year:        r.Year,
+		Dimensions:  r.Dimensions,
+		City:        r.City,
+		Style:       r.Style,
+		Residency:   r.Residency,
+		Exhibition:  r.Exhibition,
+		Palette:     r.Palette,
+		MediaURLs:   r.MediaURLs,
+	}
+}
+
+type AdminUpdateArtPostRequest struct {
+	Status              *string `json:"status"`
+	FeaturedAcquisition *bool   `json:"featured_acquisition"`
+}
+
+type AdminCreateArtPostRequest struct {
+	ArtistID    uuid.UUID `json:"artist_id" binding:"required"`
+	Title       string    `json:"title" binding:"required"`
+	Description string    `json:"description"`
+	Medium      string    `json:"medium"`
+	Year        *int      `json:"year"`
+	Dimensions  string    `json:"dimensions"`
+	City        string    `json:"city"`
+	Style       string    `json:"style"`
+	Residency   string    `json:"residency"`
+	Exhibition  string    `json:"exhibition"`
+	Palette     []string  `json:"palette"`
+	MediaURLs   []string  `json:"media_urls"`
+	Status      *string   `json:"status"`
+}
+
+func (r AdminCreateArtPostRequest) ToWrite() domain.ArtPostWrite {
+	return domain.ArtPostWrite{
+		Title:       r.Title,
+		Description: r.Description,
+		Medium:      r.Medium,
+		Year:        r.Year,
+		Dimensions:  r.Dimensions,
+		City:        r.City,
+		Style:       r.Style,
+		Residency:   r.Residency,
+		Exhibition:  r.Exhibition,
+		Palette:     r.Palette,
+		MediaURLs:   r.MediaURLs,
+	}
 }

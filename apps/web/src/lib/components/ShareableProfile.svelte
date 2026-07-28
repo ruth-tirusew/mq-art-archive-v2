@@ -8,6 +8,7 @@
 		artistHandle,
 		artistLocation,
 		artistName,
+		artistOpenForCommission,
 		artistPortrait
 	} from '$lib/utils/fields';
 
@@ -22,6 +23,11 @@
 	let { artist, works, framed = false, showHeader = true, demo = false }: Props = $props();
 
 	const handle = $derived(artistHandle(artist));
+	const name = $derived(artistName(artist));
+	const portrait = $derived(artistPortrait(artist));
+	const discipline = $derived(artistDiscipline(artist) ?? '');
+	const location = $derived(artistLocation(artist));
+	const archiveHref = $derived(`/artists/${artist.slug}`);
 
 	type ContactButton = {
 		label: string;
@@ -31,26 +37,49 @@
 	};
 
 	const contactButtons = $derived.by(() => {
-		const buttons: ContactButton[] = [
-			{ label: 'Request a commission', sub: null, primary: true }
-		];
-		if (artist.social?.telegram) {
-			const href = artist.social.telegram.startsWith('http')
-				? artist.social.telegram
-				: `https://t.me/${artist.social.telegram.replace('@', '')}`;
+		const buttons: ContactButton[] = [];
+		const email = artist.contact?.email;
+		const open = artistOpenForCommission(artist);
+		if (email && open) {
+			buttons.push({
+				label: 'Request a commission',
+				sub: 'Open for commission',
+				primary: true,
+				href: `mailto:${email}?subject=${encodeURIComponent(`Commission inquiry — ${name}`)}`
+			});
+		} else if (email) {
+			buttons.push({
+				label: 'Contact',
+				sub: null,
+				primary: true,
+				href: `mailto:${email}?subject=${encodeURIComponent(`Hello — ${name}`)}`
+			});
+		} else if (open) {
+			buttons.push({
+				label: 'Open for commission',
+				sub: 'No email listed yet',
+				primary: true
+			});
+		}
+		const telegram = artist.social?.telegram;
+		if (telegram) {
+			const href = telegram.startsWith('http')
+				? telegram
+				: `https://t.me/${telegram.replace('@', '')}`;
 			buttons.push({
 				label: 'Telegram',
-				sub: artist.social.telegram.replace('https://t.me/', '@'),
+				sub: telegram.replace('https://t.me/', '@'),
 				href
 			});
 		}
-		if (artist.social?.instagram) {
-			const href = artist.social.instagram.startsWith('http')
-				? artist.social.instagram
-				: `https://instagram.com/${artist.social.instagram.replace('@', '')}`;
+		const instagram = artist.social?.instagram;
+		if (instagram) {
+			const href = instagram.startsWith('http')
+				? instagram
+				: `https://instagram.com/${instagram.replace('@', '')}`;
 			buttons.push({
 				label: 'Instagram',
-				sub: artist.social.instagram.replace('https://instagram.com/', '@'),
+				sub: instagram.replace('https://instagram.com/', '@'),
 				href
 			});
 		}
@@ -64,25 +93,25 @@
 	<div class="rounded-[1.6rem] bg-background p-5">
 		{#if showHeader}
 			<div class="flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
-				<span class="truncate">makdas.et / @{handle}</span>
+				<span class="truncate">artiv.et / @{handle}</span>
 				<span>⌘ share</span>
 			</div>
 		{/if}
 
 		<div class="mt-5 flex items-center gap-3">
-			{#if artistPortrait(artist)}
+			{#if portrait}
 				<img
-					src={artistPortrait(artist)}
-					alt={artistName(artist)}
+					src={portrait}
+					alt={name}
 					class="h-14 w-14 shrink-0 rounded-full object-cover"
 				/>
 			{/if}
 			<div class="min-w-0">
 				<div class="flex items-center gap-2">
-					<p class="truncate font-display text-lg text-foreground">{artistName(artist)}</p>
+					<p class="truncate font-display text-lg text-foreground">{name}</p>
 				</div>
 				<p class="truncate font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-					{artistDiscipline(artist) ?? ''}{#if artistLocation(artist)} · {artistLocation(artist)}{/if}
+					{discipline}{#if location} · {location}{/if}
 				</p>
 			</div>
 		</div>
@@ -95,10 +124,11 @@
 			<div class="mt-5 space-y-2">
 				{#each contactButtons as b}
 					{#if b.href}
+						{@const external = b.href.startsWith('http')}
 						<a
 							href={b.href}
-							target="_blank"
-							rel="noopener noreferrer"
+							target={external ? '_blank' : undefined}
+							rel={external ? 'noopener noreferrer' : undefined}
 							class="block w-full rounded-sm border px-3 py-2.5 text-left transition {b.primary
 								? 'border-accent bg-accent text-accent-foreground hover:opacity-90'
 								: 'border-border bg-card/50 text-foreground hover:border-foreground'}"
@@ -149,7 +179,7 @@
 					</a>
 				{:else}
 					<a
-						href="/artists/{artist.slug}"
+						href={archiveHref}
 						class="mt-3 block text-center font-mono text-[10px] uppercase tracking-[0.25em] text-accent hover:underline"
 					>
 						View full archive →

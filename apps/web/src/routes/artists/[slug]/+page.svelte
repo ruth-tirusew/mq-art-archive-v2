@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
+	import { recordPageView } from '$lib/application/analytics';
 	import ArtistTimeline from '$lib/components/artist/ArtistTimeline.svelte';
-	import ShareableProfile from '$lib/components/ShareableProfile.svelte';
 	import {
 		acquisitionImage,
+		acquisitionPalette,
 		acquisitionTitle,
 		artistBorn,
 		artistDiscipline,
@@ -28,17 +30,30 @@
 	);
 
 	const timeline = $derived(
-		galleryItems.map((item) => ({
-			year: item.year ?? new Date().getFullYear(),
-			kind: 'work' as const,
-			title: acquisitionTitle(item),
-			detail: item.medium
-		}))
+		galleryItems.map((item) => {
+			const image = acquisitionImage(item);
+			const title = acquisitionTitle(item);
+			return {
+				year: item.year ?? new Date().getFullYear(),
+				kind: 'work' as const,
+				title,
+				detail: item.medium,
+				work: image
+					? {
+							image,
+							title,
+							palette: acquisitionPalette(item)
+						}
+					: undefined
+			};
+		})
 	);
+
+	onMount(() => recordPageView('artist', artist.id));
 </script>
 
 <svelte:head>
-	<title>{artistName(artist)} — Mäkdäs</title>
+	<title>{artistName(artist)} — Artiv</title>
 	<meta name="description" content={(artistTagline(artist) || '').slice(0, 160)} />
 </svelte:head>
 
@@ -82,20 +97,36 @@
 					{/if}
 				</div>
 			</div>
-			<div class="mt-4 flex flex-wrap gap-2">
-				{#each artistInfluences(artist) as i}
-					<span
-						class="rounded-full border border-cream/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.15em] text-cream/80"
-					>
-						{i}
-					</span>
-				{/each}
-			</div>
+			{#if artistInfluences(artist).length > 0}
+				<div class="mt-4 flex flex-wrap gap-2">
+					{#each artistInfluences(artist) as i}
+						<span
+							class="rounded-full border border-cream/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.15em] text-cream/80"
+						>
+							{i}
+						</span>
+					{/each}
+				</div>
+			{/if}
 		</div>
 	</div>
 </section>
 
-<ArtistTimeline entries={timeline} artistName={artistName(artist)} />
+{#if timeline.length > 0}
+	<ArtistTimeline entries={timeline} artistName={artistName(artist)} />
+{:else}
+	<section class="border-b border-border/60">
+		<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-24">
+			<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">Works</p>
+			<p class="mt-4 font-display text-2xl text-foreground md:text-3xl">
+				No works archived for this file yet.
+			</p>
+			<p class="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+				Check back as new acquisitions land, or visit the shareable profile for contact.
+			</p>
+		</div>
+	</section>
+{/if}
 
 <section class="bg-card/40">
 	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-24">

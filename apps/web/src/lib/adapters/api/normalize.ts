@@ -34,6 +34,12 @@ export function normalizeProfile(raw: RawRecord): ArtistProfile {
     years_active: str(raw.years_active ?? raw.YearsActive),
     portrait_url: str(raw.portrait_url ?? raw.PortraitURL),
     featured: bool(raw.featured ?? raw.Featured),
+    influences: Array.isArray(raw.influences ?? raw.Influences)
+      ? ((raw.influences ?? raw.Influences) as string[])
+      : [],
+    in_residence: bool(raw.in_residence ?? raw.InResidence) ?? false,
+    residency_place: str(raw.residency_place ?? raw.ResidencyPlace),
+    open_for_commission: bool(raw.open_for_commission ?? raw.OpenForCommission) ?? false,
     contact: contact
       ? {
           email: str(contact.email ?? contact.Email),
@@ -76,6 +82,8 @@ export function normalizeArtPost(raw: RawRecord): ArtPost {
     dimensions: str(raw.dimensions ?? raw.Dimensions),
     city: str(raw.city ?? raw.City),
     style: str(raw.style ?? raw.Style),
+    residency: str(raw.residency ?? raw.Residency),
+    exhibition: str(raw.exhibition ?? raw.Exhibition),
     featured_acquisition: bool(raw.featured_acquisition ?? raw.FeaturedAcquisition),
     palette: Array.isArray(paletteRaw) ? (paletteRaw as string[]) : undefined,
     status: (raw.status ?? raw.Status) as ArtPost['status'],
@@ -129,6 +137,7 @@ export function normalizeEvent(raw: RawRecord): Event {
     title: String(raw.title ?? raw.Title ?? ''),
     description: str(raw.description ?? raw.Description),
     image_url: str(raw.image_url ?? raw.ImageURL) ?? null,
+    source_url: str(raw.source_url ?? raw.SourceURL) ?? null,
     event_type: String(raw.event_type ?? raw.EventType ?? 'Event'),
     venue: str(raw.venue ?? raw.Venue),
     city: str(raw.city ?? raw.City),

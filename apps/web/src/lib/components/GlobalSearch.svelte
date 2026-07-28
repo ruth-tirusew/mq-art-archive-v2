@@ -6,6 +6,7 @@
 
 <button
 	type="button"
+	data-testid="web-search-trigger"
 	onclick={() => ctx.setOpen(true)}
 	class="inline-flex items-center gap-2 rounded-full border border-border bg-muted/60 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground transition hover:border-foreground/20 hover:bg-muted hover:text-foreground sm:gap-2.5 sm:px-3.5"
 	aria-label="Open search ({searchShortcutLabel()})"

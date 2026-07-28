@@ -15,5 +15,6 @@ type EventRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*events.Event, error)
 	GetBySlug(ctx context.Context, slug string) (*events.Event, error)
 	Save(ctx context.Context, event events.Event) (*events.Event, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 	LastScrapedAt(ctx context.Context) (time.Time, error)
 }

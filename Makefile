@@ -1,8 +1,8 @@
-.PHONY: help up down logs postgres migrate api web admin env test test-integration arch-check web-install admin-install
+.PHONY: help up down logs postgres migrate api web admin env test test-integration arch-check web-install admin-install web-test admin-test web-test-integration admin-test-integration web-test-live admin-test-live web-test-e2e admin-test-e2e openapi-check migrate-check ci verify govulncheck
 
 # Use local Go when available; Docker image is fallback only (no GOTOOLCHAIN download).
 GO := $(shell command -v go 2>/dev/null)
-GO_DOCKER_IMAGE ?= golang:1.25-bookworm
+GO_DOCKER_IMAGE ?= golang:1.25.12-bookworm
 
 help:
 	@echo "mq — Ethiopian artists platform"
@@ -19,6 +19,14 @@ help:
 	@echo "  make api       Run Go API locally (port 8080)"
 	@echo "  make web       Run public SvelteKit app (port 5173)"
 	@echo "  make admin     Run admin SvelteKit app (port 5174)"
+	@echo "  make web-test / admin-test                  Vitest unit + MSW integration"
+	@echo "  make web-test-integration / admin-test-integration  MSW integration only"
+	@echo "  make web-test-live / admin-test-live        Live API integration (API must be up)"
+	@echo "  make web-test-e2e / admin-test-e2e          Playwright @smoke e2e"
+	@echo "  make openapi-check  Parse and validate contracts/openapi.yaml"
+	@echo "  make migrate-check  Apply migrations to a clean Postgres DB"
+	@echo "  make verify         Local quality gate (unit + arch + openapi + frontend tests/checks)"
+	@echo "  make ci             Full CI gate including integration tests"
 ifneq ($(GO),)
 	@echo ""
 	@echo "  Go: $(GO) (local)"
@@ -68,7 +76,8 @@ migrate: env
 	fi
 
 api: env
-	@if [ -n "$(GO)" ]; then \
+	@set -a && . ./.env && set +a && \
+	if [ -n "$(GO)" ]; then \
 		cd backend/api && GOTOOLCHAIN=local $(GO) run ./cmd/api; \
 	else \
 		echo "Go is not installed. Install Go or use: docker compose --profile full up"; \
@@ -102,3 +111,51 @@ arch-check:
 			-v "$(CURDIR)/backend/api:/app" -w /app \
 			$(GO_DOCKER_IMAGE) go test ./internal/arch/...; \
 	fi
+
+web-test: web-install
+	cd apps/web && npm run test
+
+admin-test: admin-install
+	cd apps/admin && npm run test
+
+web-test-integration: web-install
+	cd apps/web && npm run test:integration
+
+admin-test-integration: admin-install
+	cd apps/admin && npm run test:integration
+
+web-test-live: web-install
+	cd apps/web && LIVE_API=1 PUBLIC_API_URL=$${PUBLIC_API_URL:-http://localhost:8080} npm run test:integration:live
+
+admin-test-live: admin-install
+	cd apps/admin && LIVE_API=1 PUBLIC_API_URL=$${PUBLIC_API_URL:-http://localhost:8080} npm run test:integration:live
+
+web-test-e2e: web-install
+	cd apps/web && npm run test:e2e:smoke
+
+admin-test-e2e: admin-install
+	cd apps/admin && npm run test:e2e:smoke
+
+openapi-check:
+	@python3 scripts/check_openapi.py
+
+migrate-check: env
+	@set -a && . ./.env && set +a && \
+	bash scripts/migrate_check.sh
+
+govulncheck:
+	@if [ -n "$(GO)" ]; then \
+		cd backend/api && GOTOOLCHAIN=local $(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...; \
+	else \
+		docker run --rm \
+			-v "$(CURDIR)/backend/api:/app" -w /app \
+			$(GO_DOCKER_IMAGE) sh -c 'go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...'; \
+	fi
+
+verify: arch-check test openapi-check web-test admin-test
+	cd apps/web && npm run check
+	cd apps/admin && npm run check
+	@echo "verify OK"
+
+ci: verify test-integration migrate-check
+	@echo "ci OK"

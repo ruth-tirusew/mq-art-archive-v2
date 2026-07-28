@@ -21,6 +21,8 @@ export interface ArtPost {
   dimensions?: string;
   city?: string;
   style?: string;
+  residency?: string;
+  exhibition?: string;
   featured_acquisition?: boolean;
   palette?: string[];
   media?: MediaAsset[];

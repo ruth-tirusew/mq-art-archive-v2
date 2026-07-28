@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { ArtPost } from '$lib/core/domain/art';
-	import type { Work } from '$lib/data/archive';
 	import {
 		acquisitionArtistName,
 		acquisitionArtistSlug,
@@ -14,7 +13,7 @@
 
 	let { data }: { data: PageData } = $props();
 
-	const items = $derived(data.posts as (Work | ArtPost)[]);
+	const items = $derived(data.posts as ArtPost[]);
 
 	const filterGroups: { key: FilterKey; label: string; options: (string | number)[] }[] = $derived([
 		{ key: 'city', label: 'City', options: data.cities },
@@ -33,8 +32,8 @@
 			if (active.medium && !w.medium?.startsWith(active.medium)) return false;
 			if (active.year && w.year !== Number(active.year)) return false;
 			if (active.style && w.style !== active.style) return false;
-			if (active.residency && 'residency' in w && w.residency !== active.residency) return false;
-			if (active.exhibition && 'exhibition' in w && w.exhibition !== active.exhibition) return false;
+			if (active.residency && w.residency !== active.residency) return false;
+			if (active.exhibition && w.exhibition !== active.exhibition) return false;
 			return true;
 		})
 	);
@@ -50,10 +49,10 @@
 </script>
 
 <svelte:head>
-	<title>Archive — Mäkdäs</title>
+	<title>Archive — Artiv</title>
 	<meta
 		name="description"
-		content="Every work currently held in the Mäkdäs archive of modern Ethiopian art."
+		content="Every work currently held in the Artiv archive of modern Ethiopian art."
 	/>
 </svelte:head>
 
@@ -63,7 +62,7 @@
 	</p>
 	<h1 class="mt-4 font-display text-4xl text-foreground md:text-6xl">The archive</h1>
 	<p class="mt-4 max-w-2xl text-muted-foreground">
-		Browse the full collection. Filter by city, medium, year, style, residency, or exhibition.
+		Browse the full collection. Filter by city, medium, year, or style.
 	</p>
 
 	<div

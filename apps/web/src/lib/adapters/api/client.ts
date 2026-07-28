@@ -1,4 +1,4 @@
-import { PUBLIC_API_URL } from '$env/static/public';
+import { getApiBaseUrl } from '$lib/config/dataSource';
 
 export class ApiError extends Error {
   constructor(
@@ -11,7 +11,15 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${PUBLIC_API_URL}${path}`, {
+  const response = await apiResponse(path, init);
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  return (await response.json()) as T;
+}
+
+export async function apiResponse(path: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     credentials: 'include',
     ...init
   });
@@ -26,7 +34,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(message, response.status);
   }
   if (response.status === 204) {
-    return undefined as T;
+    return response;
   }
-  return (await response.json()) as T;
+  return response;
 }

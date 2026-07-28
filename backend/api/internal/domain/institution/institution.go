@@ -6,12 +6,12 @@ import (
 	"github.com/google/uuid"
 )
 
-type Status string
+type InstitutionStatus string
 
 const (
-	StatusDraft    Status = "draft"
-	StatusPending  Status = "pending"
-	StatusApproved Status = "approved"
+	InstitutionStatusDraft    InstitutionStatus = "draft"
+	InstitutionStatusPending  InstitutionStatus = "pending"
+	InstitutionStatusApproved InstitutionStatus = "approved"
 )
 
 type ContactInfo struct {
@@ -28,7 +28,7 @@ type Institution struct {
 	Name        string
 	Description string
 	Contact     ContactInfo
-	Status      Status
+	Status      InstitutionStatus
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

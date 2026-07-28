@@ -1,16 +1,35 @@
 <script lang="ts">
-	import type { TimelineEntry, Work } from '$lib/data/archive';
+	export type ArtistTimelineKind =
+		| 'birth'
+		| 'study'
+		| 'exhibition'
+		| 'residency'
+		| 'work'
+		| 'note';
 
-	type Entry = TimelineEntry & { work?: Work };
+	export type ArtistTimelineWork = {
+		image: string;
+		title: string;
+		palette: string[];
+	};
+
+	export type ArtistTimelineEntry = {
+		year: number;
+		kind: ArtistTimelineKind;
+		title: string;
+		place?: string;
+		detail?: string;
+		work?: ArtistTimelineWork;
+	};
 
 	type Props = {
-		entries: Entry[];
+		entries: ArtistTimelineEntry[];
 		artistName: string;
 	};
 
 	let { entries, artistName }: Props = $props();
 
-	const KIND_LABEL: Record<TimelineEntry['kind'], string> = {
+	const KIND_LABEL: Record<ArtistTimelineKind, string> = {
 		birth: 'Born',
 		study: 'Study',
 		exhibition: 'Exhibition',
@@ -89,21 +108,45 @@
 	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-24">
 		<div class="grid gap-8 md:grid-cols-12">
 			<aside class="hidden md:col-span-2 md:block">
-				<div class="sticky top-32 space-y-1 font-mono text-[10px] uppercase tracking-[0.25em]">
-					{#each entries as e, i}
-						<button
-							type="button"
-							onclick={() => itemEls[i]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-							class="flex w-full items-center gap-3 py-1 text-left transition {i === activeIdx
-								? 'text-foreground'
-								: 'text-muted-foreground hover:text-foreground'}"
-						>
-							<span
-								class="h-px transition-all {i === activeIdx ? 'w-8 bg-accent' : 'w-3 bg-border'}"
-							></span>
-							<span>{e.year}</span>
-						</button>
-					{/each}
+				<div class="sticky top-32 font-mono text-[10px] uppercase tracking-[0.25em]">
+					<div class="relative">
+						<div
+							class="pointer-events-none absolute left-0 top-0 w-px bg-border"
+							style:height="100%"
+							aria-hidden="true"
+						></div>
+						<div
+							class="pointer-events-none absolute left-0 w-px bg-accent transition-[top,height] duration-500 ease-out"
+							style:top="{(activeIdx / Math.max(entries.length, 1)) * 100}%"
+							style:height="{100 / Math.max(entries.length, 1)}%"
+							aria-hidden="true"
+						></div>
+						<nav class="space-y-0.5 pl-4" aria-label="Timeline years">
+							{#each entries as e, i}
+								<button
+									type="button"
+									onclick={() => itemEls[i]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+									class="group flex w-full items-center gap-3 py-1.5 text-left transition-colors duration-300 {i ===
+									activeIdx
+										? 'text-foreground'
+										: 'text-muted-foreground hover:text-foreground'}"
+								>
+									<span
+										class="h-px origin-left transition-all duration-500 ease-out {i === activeIdx
+											? 'w-6 scale-x-100 bg-accent'
+											: 'w-3 scale-x-100 bg-border group-hover:w-4 group-hover:bg-foreground/40'}"
+									></span>
+									<span
+										class="transition-transform duration-500 ease-out {i === activeIdx
+											? 'translate-x-0.5'
+											: ''}"
+									>
+										{e.year}
+									</span>
+								</button>
+							{/each}
+						</nav>
+					</div>
 				</div>
 			</aside>
 

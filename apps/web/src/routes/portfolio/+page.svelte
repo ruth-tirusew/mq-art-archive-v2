@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>Portfolio Builder — Mäkdäs</title>
+	<title>Portfolio Builder — Artiv</title>
 	<meta
 		name="description"
 		content="A link-in-bio built for Ethiopian creatives — portfolio, contact, and Telegram in one shareable link."
@@ -30,18 +30,22 @@
 			</p>
 
 			<div class="mt-8 flex flex-wrap items-center gap-3">
-				<CtaLink href="/about" variant="primary">Claim your @handle →</CtaLink>
-				<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-					makdas.et / @{data.handle}
-				</span>
+				<CtaLink href="/apply" variant="primary">Claim your @handle →</CtaLink>
+				{#if data.handle}
+					<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+						artiv.et / @{data.handle}
+					</span>
+				{/if}
 			</div>
 
-			<a
-				href="/@{data.handle}"
-				class="mt-4 inline-block font-mono text-[10px] uppercase tracking-[0.2em] text-accent underline decoration-accent underline-offset-4 hover:text-foreground"
-			>
-				Open live demo →
-			</a>
+			{#if data.handle}
+				<a
+					href="/@{data.handle}"
+					class="mt-4 inline-block font-mono text-[10px] uppercase tracking-[0.2em] text-accent underline decoration-accent underline-offset-4 hover:text-foreground"
+				>
+					Open featured artist →
+				</a>
+			{/if}
 
 			<ul class="mt-10 grid grid-cols-2 gap-x-6 gap-y-3 text-sm text-foreground/90">
 				{#each [
@@ -61,9 +65,17 @@
 		</div>
 
 		<div class="md:col-span-5">
-			<a href="/@{data.handle}" class="block transition hover:opacity-95">
-				<ShareableProfile artist={data.artist} works={data.posts} demo framed />
-			</a>
+			{#if data.artist}
+				<div class="transition hover:opacity-95">
+					<ShareableProfile artist={data.artist} works={data.posts} demo framed />
+				</div>
+			{:else}
+				<div class="flex min-h-[420px] items-center justify-center rounded-sm border border-border bg-card/40 p-8 text-center">
+					<p class="max-w-xs text-sm leading-relaxed text-muted-foreground">
+						The featured artist preview is temporarily unavailable.
+					</p>
+				</div>
+			{/if}
 		</div>
 	</div>
 </section>

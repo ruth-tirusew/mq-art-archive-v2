@@ -14,21 +14,22 @@ const (
 	ArticleStatusArchived  ArticleStatus = "archived"
 )
 
-type ContributionStatus string
-
-const (
-	ContributionPending  ContributionStatus = "pending"
-	ContributionAccepted ContributionStatus = "accepted"
-	ContributionRejected ContributionStatus = "rejected"
-)
-
-type Revision struct {
-	ID        uuid.UUID
-	ArticleID uuid.UUID
-	AuthorID  uuid.UUID
-	Body      string
-	Status    ContributionStatus
-	CreatedAt time.Time
+// ArticleRevision is an immutable snapshot of an article at a given version.
+type ArticleRevision struct {
+	ID          uuid.UUID
+	ArticleID   uuid.UUID
+	Version     int
+	EditorID    uuid.UUID
+	Title       string
+	Body        string
+	Slug        string
+	Category    string
+	Excerpt     string
+	ReadingTime int
+	Difficulty  string
+	Verified    bool
+	Status      ArticleStatus
+	CreatedAt   time.Time
 }
 
 type Article struct {
@@ -44,7 +45,7 @@ type Article struct {
 	Contributors int
 	AuthorID     uuid.UUID
 	Status       ArticleStatus
-	Revisions    []Revision
+	Version      int
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

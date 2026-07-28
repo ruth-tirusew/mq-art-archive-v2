@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -59,6 +60,23 @@ func (r *InstitutionRepository) GetByID(ctx context.Context, id uuid.UUID) (*ins
 	return &inst, nil
 }
 
+func (r *InstitutionRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*institution.Institution, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT `+institutionColumns+`
+		FROM institution_profiles
+		WHERE user_id = $1
+	`, userID)
+
+	inst, err := scanInstitution(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get institution by user id: %w", err)
+	}
+	return &inst, nil
+}
+
 func (r *InstitutionRepository) Save(ctx context.Context, inst institution.Institution) (*institution.Institution, error) {
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO institution_profiles (
@@ -89,6 +107,20 @@ func (r *InstitutionRepository) Save(ctx context.Context, inst institution.Insti
 	return &saved, nil
 }
 
+func (r *InstitutionRepository) CreateDraftForUser(ctx context.Context, userID uuid.UUID, displayName string) (*institution.Institution, error) {
+	now := time.Now().UTC()
+	slug := slugify(displayName)
+	return r.Save(ctx, institution.Institution{
+		ID:        uuid.New(),
+		UserID:    userID,
+		Slug:      slug,
+		Name:      displayName,
+		Status:    institution.InstitutionStatusDraft,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+}
+
 func scanInstitution(row scannable) (institution.Institution, error) {
 	var inst institution.Institution
 	var status string
@@ -100,6 +132,6 @@ func scanInstitution(row scannable) (institution.Institution, error) {
 	if err != nil {
 		return institution.Institution{}, err
 	}
-	inst.Status = institution.Status(status)
+	inst.Status = institution.InstitutionStatus(status)
 	return inst, nil
 }

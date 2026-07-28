@@ -8,9 +8,11 @@
 	});
 </script>
 
-<section class="relative overflow-hidden border-b border-border/60 bg-ink">
+<section
+	class="relative flex h-[100vh] min-h-[100vh] flex-col justify-between overflow-hidden border-b border-border/60 bg-ink"
+>
 	<div
-		class="relative z-20 mx-auto flex max-w-[1600px] items-center justify-between px-6 pt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-cream/70 md:px-10"
+		class="relative z-20 mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 pt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-cream/70 md:px-10"
 	>
 		<span class="flex items-center gap-3">
 			<span class="text-accent">●</span> Editorial archive
@@ -18,10 +20,10 @@
 		<span>{today}</span>
 	</div>
 
-	<div class="relative mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-24">
-		<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">01 / Welcome</p>
+	<div class="relative mx-auto flex w-full max-w-[1600px] flex-1 flex-col justify-center px-6 py-16 md:px-10 md:py-24">
+		<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">02 / Welcome</p>
 		<h1 class="mt-6 max-w-4xl font-display text-[14vw] leading-[0.9] tracking-tight text-cream md:text-[7.5vw]">
-			Mäkdäs
+			Artiv
 		</h1>
 		<p class="mt-6 max-w-2xl font-display text-2xl leading-snug text-cream/90 md:text-3xl">
 			Modern Ethiopian art, held in common.

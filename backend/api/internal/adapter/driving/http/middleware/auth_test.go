@@ -86,3 +86,123 @@ func TestRequireRole_allowsAdmin(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	assist.Equal(t, http.StatusOK, w.Code)
 }
+
+func TestAuthenticate_cookieToken(t *testing.T) {
+	userID := uuid.New()
+	tokenSvc := auth.NewTokenService("secret", time.Hour)
+	token, err := tokenSvc.Issue(t.Context(), &identity.User{
+		ID: userID, Email: "user@example.com", Role: identity.RoleArtist,
+	})
+	assist.NoError(t, err)
+
+	identitySvc := &identityStub{
+		users: map[uuid.UUID]*identity.User{
+			userID: {ID: userID, Email: "user@example.com", Role: identity.RoleArtist},
+		},
+	}
+
+	r := gin.New()
+	r.Use(Authenticate(AuthConfig{
+		Verifier:   tokenSvc,
+		Identity:   identitySvc,
+		CookieName: "mq_access_token",
+	}))
+	r.GET("/", func(c *gin.Context) {
+		id, err := requestauth.UserIDFromContext(c)
+		assist.NoError(t, err)
+		assist.Equal(t, userID, id)
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "mq_access_token", Value: token})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assist.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestAuthenticate_devModeHeader(t *testing.T) {
+	userID := uuid.New()
+	identitySvc := &identityStub{
+		users: map[uuid.UUID]*identity.User{
+			userID: {ID: userID, Email: "user@example.com", Role: identity.RoleArtist},
+		},
+	}
+
+	r := gin.New()
+	r.Use(Authenticate(AuthConfig{
+		Identity: identitySvc,
+		DevMode:  true,
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-User-ID", userID.String())
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assist.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestAuthenticate_unauthorized(t *testing.T) {
+	r := gin.New()
+	r.Use(Authenticate(AuthConfig{CookieName: "mq_access_token"}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	assist.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestOptionalAuthenticate_setsUserWhenPresent(t *testing.T) {
+	userID := uuid.New()
+	tokenSvc := auth.NewTokenService("secret", time.Hour)
+	token, err := tokenSvc.Issue(t.Context(), &identity.User{
+		ID: userID, Email: "user@example.com", Role: identity.RoleArtist,
+	})
+	assist.NoError(t, err)
+
+	identitySvc := &identityStub{
+		users: map[uuid.UUID]*identity.User{
+			userID: {ID: userID, Email: "user@example.com", Role: identity.RoleArtist},
+		},
+	}
+
+	r := gin.New()
+	r.Use(OptionalAuthenticate(AuthConfig{
+		Verifier:   tokenSvc,
+		Identity:   identitySvc,
+		CookieName: "mq_access_token",
+	}))
+	r.GET("/", func(c *gin.Context) {
+		id, err := requestauth.UserIDFromContext(c)
+		assist.NoError(t, err)
+		assist.Equal(t, userID, id)
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	assist.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestOptionalAuthenticate_continuesWithoutAuth(t *testing.T) {
+	r := gin.New()
+	r.Use(OptionalAuthenticate(AuthConfig{CookieName: "mq_access_token"}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	assist.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestRequireRole_missingRole(t *testing.T) {
+	r := gin.New()
+	r.Use(RequireRole("admin"))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	assist.Equal(t, http.StatusUnauthorized, w.Code)
+}

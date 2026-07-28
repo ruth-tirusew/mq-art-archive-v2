@@ -21,6 +21,8 @@ export const load: PageLoad = async ({ url }) => {
 	const cities = [...new Set(posts.map((p) => p.city).filter(Boolean))].sort() as string[];
 	const mediums = [...new Set(posts.map((p) => p.medium).filter(Boolean))].sort() as string[];
 	const styles = [...new Set(posts.map((p) => p.style).filter(Boolean))].sort() as string[];
+	const residencies = [...new Set(posts.map((p) => p.residency).filter(Boolean))].sort() as string[];
+	const exhibitions = [...new Set(posts.map((p) => p.exhibition).filter(Boolean))].sort() as string[];
 	const years = [...new Set(posts.map((p) => p.year).filter((y): y is number => y != null))].sort(
 		(a, b) => b - a
 	);
@@ -31,9 +33,9 @@ export const load: PageLoad = async ({ url }) => {
 		cities,
 		mediums,
 		styles,
+		residencies,
+		exhibitions,
 		years,
-		residencies: [] as string[],
-		exhibitions: [] as string[],
 		filters: { city, medium, style, year }
 	};
 };

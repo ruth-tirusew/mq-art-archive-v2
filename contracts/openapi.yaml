@@ -25,8 +25,18 @@ tags:
     description: Artwork posts
   - name: onboarding
     description: Admin vetting
+  - name: events
+    description: Art events
+  - name: search
+    description: Unified full-text search
   - name: auth
     description: OAuth login and session
+  - name: settings
+    description: Admin scrape and MTProto configuration
+  - name: media
+    description: Direct Cloudinary uploads
+  - name: analytics
+    description: Privacy-preserving visitor counts
 
 paths:
   /health:
@@ -60,7 +70,7 @@ paths:
           $ref: "#/components/responses/InternalError"
     post:
       tags: [content]
-      summary: Create a draft wiki article
+      summary: Create a draft wiki article (admin only)
       operationId: createArticle
       security:
         - bearerAuth: []
@@ -82,6 +92,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -122,13 +134,16 @@ paths:
           schema: { type: boolean }
         - name: limit
           in: query
-          schema: { type: integer, default: 50 }
+          schema: { type: integer, default: 24, maximum: 50 }
         - name: offset
           in: query
           schema: { type: integer, default: 0 }
       responses:
         "200":
           description: Artist roster
+          headers:
+            X-Total-Count:
+              schema: { type: integer }
           content:
             application/json:
               schema:
@@ -321,6 +336,317 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /admin/v1/artists:
+    get:
+      tags: [admin]
+      summary: List artist profiles (admin)
+      operationId: listArtistsAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, pending, approved]
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Artist profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArtistProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/v1/artists/{id}:
+    get:
+      tags: [admin]
+      summary: Get artist profile (admin)
+      operationId: getArtistAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Artist profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtistProfile"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [admin]
+      summary: Update artist status or featured flag
+      operationId: patchArtistAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [draft, pending, approved]
+                featured: { type: boolean }
+      responses:
+        "200":
+          description: Updated artist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtistProfile"
+
+  /admin/v1/posts:
+    get:
+      tags: [admin]
+      summary: List art posts (admin)
+      operationId: listPostsAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, archived]
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Art posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArtPost"
+
+  /admin/v1/posts/{id}:
+    get:
+      tags: [admin]
+      summary: Get art post (admin)
+      operationId: getPostAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Art post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPost"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [admin]
+      summary: Update art post status or featured acquisition
+      operationId: patchPostAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [draft, published, archived]
+                featured_acquisition: { type: boolean }
+      responses:
+        "200":
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPost"
+
+  /admin/v1/articles:
+    get:
+      tags: [admin]
+      summary: List wiki articles (admin)
+      operationId: listArticlesAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, archived]
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: offset
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Wiki articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Article"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [admin]
+      summary: Create a wiki article (admin)
+      operationId: createArticleAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminArticleWriteRequest"
+      responses:
+        "201":
+          description: Article created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Article"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/v1/articles/{id}:
+    get:
+      tags: [admin]
+      summary: Get wiki article by ID (admin)
+      operationId: getArticleAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Article"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [admin]
+      summary: Update wiki article content (admin)
+      operationId: updateArticleAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminArticleWriteRequest"
+      responses:
+        "200":
+          description: Updated article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Article"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [admin]
+      summary: Update wiki article status or verified flag
+      operationId: patchArticleAdmin
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPatchArticleRequest"
+      responses:
+        "200":
+          description: Updated article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Article"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /admin/v1/applications:
     get:
       tags: [onboarding]
@@ -405,13 +731,126 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /admin/v1/events:
+    get:
+      tags: [events]
+      summary: List pending events awaiting review
+      operationId: listPendingEvents
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Pending events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/v1/events/sync:
+    post:
+      tags: [events]
+      summary: Trigger event scraper sync
+      operationId: syncEvents
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncEventsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /admin/v1/events/{id}:
+    get:
+      tags: [events]
+      summary: Get event by ID for admin review
+      operationId: getEventByID
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Event found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [events]
+      summary: Review an event
+      operationId: reviewEvent
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewEventRequest"
+      responses:
+        "200":
+          description: Event reviewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
   /api/v1/events:
     get:
       tags: [events]
-      summary: List approved events
+      summary: List approved and pending events
       operationId: listEvents
       parameters:
         - name: type
@@ -436,10 +875,33 @@ paths:
                 items:
                   $ref: "#/components/schemas/Event"
 
+  /api/v1/events/submissions:
+    post:
+      tags: [events]
+      summary: Submit a community event for review
+      operationId: submitEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventSubmissionRequest"
+      responses:
+        "201":
+          description: Event submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          description: Rate limited
+
   /api/v1/events/{slug}:
     get:
       tags: [events]
-      summary: Get event by slug
+      summary: Get approved or pending event by slug
       operationId: getEventBySlug
       parameters:
         - name: slug
@@ -455,6 +917,353 @@ paths:
                 $ref: "#/components/schemas/Event"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /api/v1/search:
+    get:
+      tags: [search]
+      summary: Search published articles and approved events
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/applications:
+    post:
+      tags: [onboarding]
+      summary: Submit an artist or institution onboarding application
+      operationId: submitApplication
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitApplicationRequest"
+      responses:
+        "201":
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingApplication"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/applications/me:
+    get:
+      tags: [onboarding]
+      summary: Get the current user's latest onboarding application
+      operationId: getMyApplication
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Latest application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingApplication"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/profile:
+    get:
+      tags: [profile]
+      summary: Get the authenticated artist's profile
+      operationId: getMyProfile
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Artist profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtistProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [profile]
+      summary: Update the authenticated artist's profile
+      operationId: updateMyProfile
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateArtistProfileRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtistProfile"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/posts:
+    get:
+      tags: [art]
+      summary: List artwork posts for the authenticated artist (including drafts)
+      operationId: listMyPosts
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Artist posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArtPost"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/posts/{id}:
+    get:
+      tags: [art]
+      summary: Get an owned artwork post by ID
+      operationId: getMyPost
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Owned art post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPost"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [art]
+      summary: Update an owned artwork post
+      operationId: updateMyPost
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateArtPostRequest"
+      responses:
+        "200":
+          description: Updated art post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPost"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [art]
+      summary: Delete an owned artwork post (draft or archived only)
+      operationId: deleteMyPost
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Post deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/posts/{id}/publish:
+    post:
+      tags: [art]
+      summary: Publish an owned artwork post
+      operationId: publishMyPost
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Published art post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPost"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/posts/{id}/unpublish:
+    post:
+      tags: [art]
+      summary: Unpublish an owned artwork post
+      operationId: unpublishMyPost
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Unpublished art post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPost"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/me/posts/{id}/archive:
+    post:
+      tags: [art]
+      summary: Archive an owned artwork post
+      operationId: archiveMyPost
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Archived art post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtPost"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/auth/google:
     get:
@@ -501,6 +1310,97 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      summary: Register with email and password
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CredentialsRequest"
+      responses:
+        "201":
+          description: Registered; sets auth cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Sign in with email and password
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CredentialsRequest"
+      responses:
+        "200":
+          description: Signed in; sets auth cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/forgot-password:
+    post:
+      tags: [auth]
+      summary: Request a password reset email
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "204":
+          description: Always succeeds (no email enumeration)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/auth/reset-password:
+    post:
+      tags: [auth]
+      summary: Reset password with token
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        "204":
+          description: Password updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
   /api/v1/auth/logout:
     post:
       tags: [auth]
@@ -509,6 +1409,31 @@ paths:
       responses:
         "204":
           description: Logged out
+
+  /api/v1/auth/verify-email:
+    post:
+      tags: [auth]
+      summary: Verify an email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "204": { description: Email verified }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/v1/auth/resend-verification:
+    post:
+      tags: [auth]
+      summary: Resend email verification
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "204": { description: Verification sent or already verified }
 
   /api/v1/auth/me:
     get:
@@ -528,6 +1453,324 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/auth/me/profile:
+    put:
+      tags: [auth]
+      summary: Update current user display name and avatar
+      operationId: updateMyProfile
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name: { type: string }
+                avatar_url: { type: string }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/me/email:
+    put:
+      tags: [auth]
+      summary: Change email (requires current password)
+      operationId: changeEmail
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, current_password]
+              properties:
+                email: { type: string, format: email }
+                current_password: { type: string }
+      responses:
+        "200":
+          description: Email updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/auth/me/password:
+    put:
+      tags: [auth]
+      summary: Change password (requires current password)
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 8 }
+      responses:
+        "204":
+          description: Password updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/me/notifications:
+    get:
+      tags: [auth]
+      summary: Get notification preferences
+      operationId: getNotificationPreferences
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      tags: [auth]
+      summary: Update notification preferences
+      operationId: updateNotificationPreferences
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferences"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/v1/settings/scrape:
+    get:
+      tags: [settings]
+      summary: Get scrape / MTProto settings
+      operationId: getScrapeSettings
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Scrape settings (API hash masked)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [settings]
+      summary: Update scrape / MTProto settings
+      operationId: updateScrapeSettings
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScrapeSettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/handles/{handle}/available:
+    get:
+      tags: [onboarding]
+      summary: Check whether an artist handle is available
+      parameters:
+        - {name: handle, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: Availability result, content: {application/json: {schema: {$ref: "#/components/schemas/HandleAvailability"}}}}
+
+  /api/v1/me/media/sign:
+    post:
+      tags: [media]
+      summary: Sign a constrained Cloudinary image upload
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Upload signature, content: {application/json: {schema: {$ref: "#/components/schemas/MediaUploadSignature"}}}}
+        "429": {description: Rate limited}
+  /api/v1/me/media/complete:
+    post:
+      tags: [media]
+      summary: Validate and persist a completed upload
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MediaCompletion"}}}}
+      responses:
+        "201": {description: Persisted asset, content: {application/json: {schema: {$ref: "#/components/schemas/MediaAsset"}}}}
+        "429": {description: Rate limited}
+  /admin/v1/media/sign:
+    post:
+      tags: [media]
+      summary: Sign an admin image upload
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Upload signature, content: {application/json: {schema: {$ref: "#/components/schemas/MediaUploadSignature"}}}}
+  /admin/v1/media/complete:
+    post:
+      tags: [media]
+      summary: Complete an admin image upload
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MediaCompletion"}}}}
+      responses:
+        "201": {description: Persisted asset, content: {application/json: {schema: {$ref: "#/components/schemas/MediaAsset"}}}}
+
+  /api/v1/me/wiki/submissions:
+    get:
+      tags: [content]
+      summary: List my wiki submissions
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Submissions, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/WikiSubmission"}}}}}
+    post:
+      tags: [content]
+      summary: Submit a wiki contribution
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmissionInput"}}}}
+      responses:
+        "201": {description: Pending submission, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmission"}}}}
+  /admin/v1/wiki/submissions:
+    get:
+      tags: [content]
+      summary: List pending wiki submissions
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Pending submissions, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/WikiSubmission"}}}}}
+  /admin/v1/wiki/submissions/{id}/approve:
+    post:
+      tags: [content]
+      summary: Approve a wiki submission and publish its article revision
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Approved submission}
+  /admin/v1/wiki/submissions/{id}/reject:
+    post:
+      tags: [content]
+      summary: Reject a wiki submission
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Rejected submission}
+
+  /api/v1/analytics/view:
+    post:
+      tags: [analytics]
+      summary: Record a deduplicated, cookied page view
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PageViewInput"}}}}
+      responses:
+        "202": {description: View accepted}
+        "429": {description: Rate limited}
+  /api/v1/me/analytics:
+    get:
+      tags: [analytics]
+      summary: Query studio page-view counts
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Daily counts}
+  /admin/v1/analytics:
+    get:
+      tags: [analytics]
+      summary: Query page-view counts
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters:
+        - {name: entity_id, in: query, required: false, schema: {type: string, format: uuid}}
+        - {name: entity_type, in: query, required: false, schema: {type: string, enum: [artist, post, article]}}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+      responses:
+        "200": {description: Daily counts}
+
+  /admin/v1/users:
+    get:
+      tags: [auth]
+      summary: List users
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters:
+        - {name: role, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, default: 50}}
+        - {name: offset, in: query, schema: {type: integer, default: 0}}
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/User"}}
+
+  /admin/v1/users/{id}:
+    patch:
+      tags: [auth]
+      summary: Update a user role
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: {type: string, enum: [public, artist, institution, contributor, admin]}
+      responses:
+        "200":
+          description: Updated user
+          content: {application/json: {schema: {$ref: "#/components/schemas/User"}}}
+
 components:
   securitySchemes:
     bearerAuth:
@@ -538,7 +1781,7 @@ components:
       type: apiKey
       in: cookie
       name: mq_access_token
-      description: httpOnly JWT session cookie set after OAuth login.
+      description: httpOnly JWT session cookie set after OAuth or email/password login.
 
   parameters:
     UserIDHeader:
@@ -575,6 +1818,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     InternalError:
       description: Internal server error
       content:
@@ -600,7 +1849,7 @@ components:
 
     User:
       type: object
-      required: [id, email, role]
+      required: [id, email, role, has_password, email_verified]
       properties:
         id:
           type: string
@@ -611,6 +1860,91 @@ components:
         role:
           type: string
           enum: [public, artist, institution, contributor, admin]
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+        has_password:
+          type: boolean
+        email_verified:
+          type: boolean
+
+    NotificationPreferences:
+      type: object
+      required: [email_on_new_application, email_on_event_sync_summary, newsletter_enabled]
+      properties:
+        email_on_new_application: { type: boolean }
+        email_on_event_sync_summary: { type: boolean }
+        newsletter_enabled: { type: boolean }
+
+    ScrapeSettings:
+      type: object
+      required:
+        - scrape_enabled
+        - scrape_sources
+        - scrape_user_agent
+        - scrape_timeout_seconds
+        - scrape_interval_seconds
+        - telegram_enabled
+        - telegram_api_id
+        - telegram_api_hash_set
+        - telegram_channels
+        - telegram_keywords
+        - telegram_fetch_limit
+        - session_authorized
+      properties:
+        scrape_enabled: { type: boolean }
+        scrape_sources:
+          type: array
+          items: { type: string }
+        scrape_user_agent: { type: string }
+        scrape_timeout_seconds: { type: integer }
+        scrape_interval_seconds: { type: integer }
+        telegram_enabled: { type: boolean }
+        telegram_api_id: { type: integer }
+        telegram_api_hash_set: { type: boolean }
+        telegram_channels:
+          type: array
+          items: { type: string }
+        telegram_keywords:
+          type: array
+          items: { type: string }
+        telegram_fetch_limit: { type: integer }
+        session_authorized: { type: boolean }
+
+    ScrapeSettingsUpdate:
+      type: object
+      properties:
+        scrape_enabled: { type: boolean }
+        scrape_sources:
+          type: array
+          items: { type: string }
+        scrape_user_agent: { type: string }
+        scrape_timeout_seconds: { type: integer }
+        scrape_interval_seconds: { type: integer }
+        telegram_enabled: { type: boolean }
+        telegram_api_id: { type: integer }
+        telegram_api_hash:
+          type: string
+          description: Leave blank to keep the existing hash unchanged
+        telegram_channels:
+          type: array
+          items: { type: string }
+        telegram_keywords:
+          type: array
+          items: { type: string }
+        telegram_fetch_limit: { type: integer }
+
+    CredentialsRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
 
     Article:
       type: object
@@ -625,6 +1959,18 @@ components:
           type: string
         body:
           type: string
+        category:
+          type: string
+        excerpt:
+          type: string
+        reading_time:
+          type: integer
+        difficulty:
+          type: string
+        verified:
+          type: boolean
+        contributors:
+          type: integer
         author_id:
           type: string
           format: uuid
@@ -647,21 +1993,132 @@ components:
         body:
           type: string
 
+    AdminArticleWriteRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+        category:
+          type: string
+        excerpt:
+          type: string
+        difficulty:
+          type: string
+        verified:
+          type: boolean
+        status:
+          type: string
+          enum: [draft, published, archived]
+
+    AdminPatchArticleRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [draft, published, archived]
+        verified:
+          type: boolean
+
     ArtistProfile:
       type: object
       properties:
         id:
           type: string
           format: uuid
+        user_id:
+          type: string
+          format: uuid
         slug:
+          type: string
+        handle:
           type: string
         display_name:
           type: string
         bio:
           type: string
+        born:
+          type: string
+        discipline:
+          type: string
+        tagline:
+          type: string
+        years_active:
+          type: string
+        portrait_url:
+          type: string
+        featured:
+          type: boolean
+        influences:
+          type: array
+          items:
+            type: string
+        in_residence:
+          type: boolean
+        residency_place:
+          type: string
+        open_for_commission:
+          type: boolean
+        contact:
+          type: object
+          properties:
+            email: { type: string }
+            phone: { type: string }
+            website: { type: string }
+            location: { type: string }
+        social:
+          type: object
+          properties:
+            instagram: { type: string }
+            twitter: { type: string }
+            telegram: { type: string }
         status:
           type: string
           enum: [draft, pending, approved]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateArtistProfileRequest:
+      type: object
+      properties:
+        display_name: { type: string }
+        slug: { type: string }
+        handle: { type: string }
+        bio: { type: string }
+        born: { type: string }
+        discipline: { type: string }
+        tagline: { type: string }
+        years_active: { type: string }
+        portrait_url: { type: string }
+        influences:
+          type: array
+          items:
+            type: string
+        in_residence: { type: boolean }
+        residency_place: { type: string }
+        open_for_commission: { type: boolean }
+        contact:
+          type: object
+          properties:
+            email: { type: string }
+            phone: { type: string }
+            website: { type: string }
+            location: { type: string }
+        social:
+          type: object
+          properties:
+            instagram: { type: string }
+            twitter: { type: string }
+            telegram: { type: string }
+        status:
+          type: string
+          enum: [draft, pending]
 
     Institution:
       type: object
@@ -675,9 +2132,150 @@ components:
           type: string
         description:
           type: string
+        contact:
+          type: object
+          properties:
+            email: { type: string }
+            phone: { type: string }
+            website: { type: string }
+            location: { type: string }
         status:
           type: string
           enum: [draft, pending, approved]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EventSubmissionRequest:
+      type: object
+      required: [title, starts_at]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        source_url:
+          type: string
+        event_type:
+          type: string
+        venue:
+          type: string
+        city:
+          type: string
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        source_url:
+          type: string
+        image_url:
+          type: string
+          nullable: true
+        event_type:
+          type: string
+        venue:
+          type: string
+        city:
+          type: string
+        location:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            pin_coords:
+              type: array
+              items:
+                type: number
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        review_notes:
+          type: string
+        reviewed_by:
+          type: string
+          format: uuid
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        scraped_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ReviewEventRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+        notes:
+          type: string
+
+    SyncEventsResponse:
+      type: object
+      required: [upserted]
+      properties:
+        upserted:
+          type: integer
+
+    SearchResponse:
+      type: object
+      required: [articles, events, artists, posts]
+      properties:
+        articles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Article"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        artists:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtistProfile"
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtPost"
 
     ArtPost:
       type: object
@@ -694,6 +2292,10 @@ components:
           type: string
         medium:
           type: string
+        residency:
+          type: string
+        exhibition:
+          type: string
         status:
           type: string
           enum: [draft, published, archived]
@@ -708,6 +2310,59 @@ components:
           type: string
         medium:
           type: string
+        year:
+          type: integer
+          nullable: true
+        dimensions:
+          type: string
+        city:
+          type: string
+        style:
+          type: string
+        residency:
+          type: string
+        exhibition:
+          type: string
+        palette:
+          type: array
+          items:
+            type: string
+        media_urls:
+          type: array
+          items:
+            type: string
+
+    UpdateArtPostRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        medium:
+          type: string
+        year:
+          type: integer
+          nullable: true
+        dimensions:
+          type: string
+        city:
+          type: string
+        style:
+          type: string
+        residency:
+          type: string
+        exhibition:
+          type: string
+        palette:
+          type: array
+          items:
+            type: string
+        media_urls:
+          type: array
+          items:
+            type: string
 
     OnboardingApplication:
       type: object
@@ -715,14 +2370,50 @@ components:
         id:
           type: string
           format: uuid
+        applicant_id:
+          type: string
+          format: uuid
         applicant_type:
           type: string
           enum: [artist, institution]
         display_name:
           type: string
+        requested_handle:
+          type: string
+        notes:
+          type: string
         status:
           type: string
           enum: [pending, approved, rejected]
+        reviewed_by:
+          type: string
+          format: uuid
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SubmitApplicationRequest:
+      type: object
+      required: [applicant_type, display_name]
+      properties:
+        applicant_type:
+          type: string
+          enum: [artist, institution]
+        display_name:
+          type: string
+        requested_handle:
+          type: string
+          pattern: "^[a-z0-9_]{3,30}$"
+        notes:
+          type: string
 
     ReviewApplicationRequest:
       type: object
@@ -733,3 +2424,67 @@ components:
           enum: [approved, rejected]
         notes:
           type: string
+
+    HandleAvailability:
+      type: object
+      required: [handle, available]
+      properties:
+        handle: {type: string}
+        available: {type: boolean}
+    MediaUploadSignature:
+      type: object
+      required: [timestamp, signature, cloud_name, api_key, folder, public_id, expire_at]
+      properties:
+        timestamp: {type: integer, format: int64}
+        signature: {type: string}
+        cloud_name: {type: string}
+        api_key: {type: string}
+        folder: {type: string}
+        public_id: {type: string}
+        expire_at: {type: string, format: date-time}
+    MediaCompletion:
+      type: object
+      required: [public_id, secure_url, resource_type, format, width, height, bytes]
+      properties:
+        public_id: {type: string}
+        secure_url: {type: string, format: uri}
+        resource_type: {type: string, enum: [image]}
+        format: {type: string, enum: [jpg, jpeg, png, webp]}
+        width: {type: integer}
+        height: {type: integer}
+        bytes: {type: integer, maximum: 10485760}
+    MediaAsset:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        owner_user_id: {type: string, format: uuid}
+        public_id: {type: string}
+        secure_url: {type: string, format: uri}
+        resource_type: {type: string}
+        width: {type: integer, nullable: true}
+        height: {type: integer, nullable: true}
+        bytes: {type: integer, nullable: true}
+        folder: {type: string}
+    WikiSubmissionInput:
+      type: object
+      required: [title, body]
+      properties:
+        article_id: {type: string, format: uuid, nullable: true}
+        title: {type: string}
+        body: {type: string}
+    WikiSubmission:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        submitter_id: {type: string, format: uuid}
+        article_id: {type: string, format: uuid, nullable: true}
+        title: {type: string}
+        body: {type: string}
+        status: {type: string, enum: [pending, approved, rejected]}
+        review_notes: {type: string}
+    PageViewInput:
+      type: object
+      required: [entity_type, entity_id]
+      properties:
+        entity_type: {type: string, enum: [artist, post, article]}
+        entity_id: {type: string, format: uuid}

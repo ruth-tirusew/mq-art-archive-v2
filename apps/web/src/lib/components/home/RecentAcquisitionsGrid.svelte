@@ -1,10 +1,9 @@
 <script lang="ts">
 	import type { ArtPost } from '$lib/core/domain/art';
-	import type { Work } from '$lib/data/archive';
 	import AcquisitionCard from './AcquisitionCard.svelte';
 
 	type Props = {
-		items: (Work | ArtPost)[];
+		items: ArtPost[];
 	};
 
 	let { items }: Props = $props();

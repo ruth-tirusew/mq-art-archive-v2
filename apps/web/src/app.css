@@ -41,37 +41,39 @@
 :root {
 	--radius: 0.25rem;
 
-	--background: oklch(0.962 0.022 82);
-	--cream: oklch(0.962 0.022 82);
-	--foreground: oklch(0.22 0.03 40);
-	--ink: oklch(0.18 0.025 40);
+	/* Cream paper + ink, nudged toward discovery-hub mock */
+	--background: oklch(0.955 0.018 85);
+	--cream: oklch(0.955 0.018 85);
+	--foreground: oklch(0.2 0.025 45);
+	--ink: oklch(0.17 0.022 45);
 
-	--card: oklch(0.94 0.025 78);
-	--card-foreground: oklch(0.22 0.03 40);
+	--card: oklch(0.935 0.02 80);
+	--card-foreground: oklch(0.2 0.025 45);
 
-	--muted: oklch(0.9 0.02 75);
-	--muted-foreground: oklch(0.42 0.025 50);
+	--muted: oklch(0.91 0.016 78);
+	--muted-foreground: oklch(0.45 0.02 50);
 
-	--primary: oklch(0.28 0.04 45);
-	--primary-foreground: oklch(0.96 0.02 82);
+	--primary: oklch(0.26 0.035 45);
+	--primary-foreground: oklch(0.96 0.015 85);
 
 	--secondary: oklch(0.36 0.12 260);
 	--indigo-deep: oklch(0.36 0.12 260);
-	--secondary-foreground: oklch(0.96 0.02 82);
+	--secondary-foreground: oklch(0.96 0.015 85);
 
-	--accent: oklch(0.38 0.14 25);
-	--accent-foreground: oklch(0.96 0.02 82);
-	--oxblood: oklch(0.38 0.14 25);
-	--ochre: oklch(0.78 0.16 70);
+	/* Muted oxblood / terracotta accent */
+	--accent: oklch(0.45 0.14 28);
+	--accent-foreground: oklch(0.96 0.015 85);
+	--oxblood: oklch(0.45 0.14 28);
+	--ochre: oklch(0.78 0.14 72);
 
-	--terracotta: oklch(0.38 0.14 25);
+	--terracotta: oklch(0.45 0.14 28);
 
-	--destructive: oklch(0.55 0.22 28);
-	--destructive-foreground: oklch(0.96 0.02 82);
+	--destructive: oklch(0.55 0.2 28);
+	--destructive-foreground: oklch(0.96 0.015 85);
 
-	--border: oklch(0.84 0.025 70);
-	--input: oklch(0.84 0.025 70);
-	--ring: oklch(0.62 0.18 38);
+	--border: oklch(0.86 0.018 75);
+	--input: oklch(0.86 0.018 75);
+	--ring: oklch(0.55 0.12 32);
 }
 
 @layer base {

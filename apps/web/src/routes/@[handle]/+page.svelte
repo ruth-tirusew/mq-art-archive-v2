@@ -1,19 +1,22 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import ShareableProfile from '$lib/components/ShareableProfile.svelte';
+	import { recordPageView } from '$lib/application/analytics';
 
 	let { data }: { data: PageData } = $props();
 
 	const isDemo = $derived(data.handle === 'demo');
+	onMount(() => recordPageView('artist', data.artist.id));
 </script>
 
 <svelte:head>
-	<title>@{data.handle} — Mäkdäs</title>
+	<title>@{data.handle} — Artiv</title>
 </svelte:head>
 
 <header class="border-b border-border/60">
 	<div class="mx-auto flex max-w-lg items-center justify-between px-6 py-4">
-		<a href="/" class="font-display text-lg text-foreground">Mäkdäs</a>
+		<a href="/" class="font-display text-lg text-foreground">Artiv</a>
 		<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
 			@{data.handle}
 		</span>

@@ -33,6 +33,8 @@ type ArtPost struct {
 	Dimensions          string
 	City                string
 	Style               string
+	Residency           string
+	Exhibition          string
 	FeaturedAcquisition bool
 	Palette             []string
 	Media               []MediaAsset

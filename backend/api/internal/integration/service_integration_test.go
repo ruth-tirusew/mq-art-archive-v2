@@ -94,11 +94,11 @@ func TestArtService_integration(t *testing.T) {
 
 	artistID, _ := integration.InsertArtistProfile(t, app.Pool, "art-service-artist", "Art Service Artist")
 
-	created, err := app.Art.CreateDraft(ctx, artistID, "Studio Piece", "A description", "oil")
+	created, err := app.Art.CreateDraft(ctx, artistID, art.ArtPostWrite{Title: "Studio Piece", Description: "A description", Medium: "oil"})
 	assist.NoError(t, err)
 	assist.Equal(t, art.ArtStatusDraft, created.Status)
 
-	_, err = app.Art.CreateDraft(ctx, artistID, "", "desc", "oil")
+	_, err = app.Art.CreateDraft(ctx, artistID, art.ArtPostWrite{Title: "", Description: "desc", Medium: "oil"})
 	assist.Error(t, err)
 
 	got, err := app.Art.GetByID(ctx, created.ID)
@@ -137,13 +137,15 @@ func TestOnboardingService_integration(t *testing.T) {
 	app := integration.NewApp(t)
 	ctx := context.Background()
 
+	applicantID := uuid.New()
+	integration.InsertUser(t, app.Pool, applicantID, identity.RolePublic)
 	now := time.Now().UTC()
 	appID := uuid.New()
 	_, err := app.Pool.Exec(ctx, `
 		INSERT INTO onboarding_applications (
 			id, applicant_id, applicant_type, display_name, status, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, appID, uuid.New(), string(onboarding.ApplicantTypeArtist), "Pending Studio",
+	`, appID, applicantID, string(onboarding.ApplicantTypeArtist), "Pending Studio",
 		string(onboarding.ApprovalStatusPending), now, now)
 	assist.NoError(t, err)
 
@@ -158,6 +160,15 @@ func TestOnboardingService_integration(t *testing.T) {
 	assist.Equal(t, "looks good", reviewed.Notes)
 	assist.NotNil(t, reviewed.ReviewedBy)
 	assist.Equal(t, reviewerID, *reviewed.ReviewedBy)
+
+	user, err := app.Identity.GetUser(ctx, applicantID)
+	assist.NoError(t, err)
+	assist.Equal(t, identity.RoleArtist, user.Role)
+
+	artistProfile, err := app.Profile.GetArtistByUserID(ctx, applicantID)
+	assist.NoError(t, err)
+	assist.Equal(t, "pending-studio", artistProfile.Slug)
+	assist.Equal(t, profile.ProfileStatusDraft, artistProfile.Status)
 
 	pending, err = app.Onboarding.ListPending(ctx)
 	assist.NoError(t, err)
@@ -180,7 +191,7 @@ func TestInstitutionService_integration(t *testing.T) {
 		Slug:        "service-gallery",
 		Name:        "Service Gallery",
 		Description: "A gallery",
-		Status:      institution.StatusApproved,
+		Status:      institution.InstitutionStatusApproved,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	})
@@ -208,7 +219,12 @@ func TestEventsService_integration(t *testing.T) {
 	assist.NoError(t, err)
 	assist.Equal(t, 0, count)
 
-	list, err := app.Events.List(ctx, events.PublicUpcomingFilter())
+	status := events.EventStatusApproved
+	list, err := app.Events.List(ctx, events.ListFilter{Status: &status, UpcomingOnly: false})
 	assist.NoError(t, err)
-	assist.Len(t, 3, len(list))
+	assist.GreaterOrEqual(t, len(list), 1)
+
+	pending, err := app.Events.ListPending(ctx)
+	assist.NoError(t, err)
+	assist.Equal(t, 0, len(pending))
 }

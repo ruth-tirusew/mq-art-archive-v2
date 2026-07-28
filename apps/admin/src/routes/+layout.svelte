@@ -262,8 +262,8 @@
       <a
         href="/"
         class="mb-4 flex h-8 w-8 items-center justify-center font-display text-lg leading-none text-foreground"
-        title="artiv"
-        aria-label="artiv home"
+        title="artiv."
+        aria-label="artiv. home"
       >
         m
       </a>
@@ -314,7 +314,7 @@
       >
         <nav class="flex min-w-0 items-center gap-1.5 text-sm" aria-label="Breadcrumb">
           <a href="/" class="shrink-0 font-display text-base tracking-tight text-foreground"
-            >artiv</a
+            >artiv.</a
           >
           <span class="text-muted-foreground/50" aria-hidden="true">/</span>
           <span class="truncate text-muted-foreground">{activeSection.title}</span>

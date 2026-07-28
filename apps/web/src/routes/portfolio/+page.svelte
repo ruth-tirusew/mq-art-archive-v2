@@ -33,7 +33,7 @@
 				<CtaLink href="/apply" variant="primary">Claim your @handle →</CtaLink>
 				{#if data.handle}
 					<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-						artiv.et / @{data.handle}
+						artiv..et / @{data.handle}
 					</span>
 				{/if}
 			</div>

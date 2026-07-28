@@ -93,7 +93,7 @@
 	<div class="rounded-[1.6rem] bg-background p-5">
 		{#if showHeader}
 			<div class="flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
-				<span class="truncate">artiv.et / @{handle}</span>
+				<span class="truncate">artiv..et / @{handle}</span>
 				<span>⌘ share</span>
 			</div>
 		{/if}

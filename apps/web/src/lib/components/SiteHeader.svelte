@@ -71,7 +71,7 @@
 			<span
 				class="font-display text-2xl font-medium tracking-tight text-foreground transition group-hover:text-accent"
 			>
-				artiv
+				artiv.
 			</span>
 		</a>
 
@@ -113,7 +113,7 @@
 				{/if}
 			</button>
 
-			<nav class="hidden items-center gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.2em] lg:flex">
+			<nav class="hidden items-center gap-x-4 gap-y-2 font-medium text-[12px] uppercase lg:flex">
 				{#each primaryNav as n}
 					<a
 						href={n.href}

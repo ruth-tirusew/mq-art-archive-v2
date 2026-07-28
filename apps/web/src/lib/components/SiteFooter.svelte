@@ -14,7 +14,7 @@
 <footer class="border-t border-border/60">
 	<div class="mx-auto grid max-w-[1600px] gap-8 px-6 py-12 md:grid-cols-3 md:px-10">
 		<div>
-			<p class="font-display text-3xl text-foreground">artiv</p>
+			<p class="font-display text-3xl text-foreground">artiv.</p>
 			<p class="mt-2 max-w-xs text-sm text-muted-foreground">
 				Modern Ethiopian art, held in common.
 			</p>

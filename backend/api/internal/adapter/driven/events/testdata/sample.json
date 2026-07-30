@@ -1,0 +1,19 @@
+{
+  "version": "https://jsonfeed.org/version/1",
+  "title": "Addis Culture JSON",
+  "items": [
+    {
+      "id": "1",
+      "url": "https://example.com/json/ceramic-fair",
+      "title": "Ceramic Fair",
+      "summary": "Annual ceramic showcase in Addis Ababa",
+      "date_published": "2026-07-01T10:00:00Z"
+    },
+    {
+      "id": "2",
+      "title": "No URL item",
+      "summary": "skip me",
+      "date_published": "2026-07-02T10:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Addis Art Events</title>
+    <link>https://example.com/events</link>
+    <description>Ethiopian art openings</description>
+    <item>
+      <title>Blue Room Opening</title>
+      <link>https://example.com/events/blue-room</link>
+      <description>A group show of painters from Merkato.</description>
+      <pubDate>Mon, 15 Jun 2026 12:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Untitled Without Link</title>
+      <description>Should be skipped</description>
+      <pubDate>Mon, 16 Jun 2026 12:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Old Exhibition</title>
+      <link>https://example.com/events/old</link>
+      <description>Already scraped</description>
+      <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

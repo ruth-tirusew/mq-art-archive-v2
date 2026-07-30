@@ -1,0 +1,16 @@
+            t            | count 
+-------------------------+-------
+ art_post_media          |    13
+ art_posts               |    13
+ article_revisions       |     4
+ article_submissions     |     1
+ articles                |    11
+ artist_profiles         |     6
+ event_locations         |    10
+ events                  |    20
+ institution_profiles    |     0
+ media_assets            |     0
+ onboarding_applications |     0
+ users                   |     7
+(12 rows)
+

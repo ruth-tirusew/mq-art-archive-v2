@@ -54,13 +54,16 @@ func Load() Config {
 		fetchLimit = 50
 	}
 
+	webAppURL := getEnv("WEB_APP_URL", "http://localhost:5173")
+	corsOrigins := mergeCORSOrigins(splitCSV(getEnv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174")), webAppURL)
+
 	return Config{
 		AppEnv:              getEnv("APP_ENV", "development"),
 		DatabaseURL:         getEnv("DATABASE_URL", "postgres://mq:mq@localhost:5432/mq?sslmode=disable"),
 		HTTPPort:            port,
 		JWTSecret:           getEnv("JWT_SECRET", "change-me-in-production"),
 		JWTAccessTTL:        parseDuration(getEnv("JWT_ACCESS_TTL", "1h"), time.Hour),
-		CORSOrigins:         splitCSV(getEnv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174")),
+		CORSOrigins:         corsOrigins,
 		GoogleClientID:      getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret:  getEnv("GOOGLE_CLIENT_SECRET", ""),
 		OAuthCallbackURL:    getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/api/v1/auth/google/callback"),
@@ -68,7 +71,7 @@ func Load() Config {
 		AuthDevMode:         getEnv("AUTH_DEV_MODE", "true") == "true",
 		ResendAPIKey:        getEnv("RESEND_API_KEY", ""),
 		MailFrom:            getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>"),
-		WebAppURL:           getEnv("WEB_APP_URL", "http://localhost:5173"),
+		WebAppURL:           webAppURL,
 		ErrorMonitorDSN:     getEnv("ERROR_MONITOR_DSN", ""),
 		CloudinaryEnabled:   getEnv("CLOUDINARY_ENABLED", "false") == "true",
 		CloudinaryCloudName: getEnv("CLOUDINARY_CLOUD_NAME", ""),
@@ -138,4 +141,18 @@ func splitCSV(raw string) []string {
 		}
 	}
 	return out
+}
+
+// mergeCORSOrigins ensures the public web app origin can call the API with credentials.
+func mergeCORSOrigins(origins []string, webAppURL string) []string {
+	webAppURL = strings.TrimSpace(webAppURL)
+	if webAppURL == "" {
+		return origins
+	}
+	for _, origin := range origins {
+		if origin == webAppURL {
+			return origins
+		}
+	}
+	return append(origins, webAppURL)
 }

@@ -138,6 +138,8 @@ make web-test / admin-test
 make web-test-e2e / admin-test-e2e
 ```
 
+CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+
 Operations: [`docs/operations.md`](docs/operations.md)
 
 ## Authentication
@@ -148,7 +150,7 @@ Operations: [`docs/operations.md`](docs/operations.md)
 
 1. Configure Google OAuth credentials and redirect URI `http://localhost:8080/api/v1/auth/google/callback`.
 2. Copy `.env.example` → `.env` and set secrets.
-3. `make migrate` seeds dev admin `admin@mq.local` / `admin123`
+3. `make migrate` seeds dev admin `admin@mq.local` / `admin123`.
 
 | Variable | Purpose |
 |----------|---------|

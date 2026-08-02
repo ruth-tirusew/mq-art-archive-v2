@@ -19,6 +19,15 @@ func TestLoad_defaults(t *testing.T) {
 	assist.Equal(t, 2, len(cfg.CORSOrigins))
 }
 
+func TestLoad_webAppURLAddedToCORS(t *testing.T) {
+	t.Setenv("CORS_ORIGINS", "http://a.test")
+	t.Setenv("WEB_APP_URL", "https://mq-art-archive-v2.vercel.app")
+
+	cfg := Load()
+	assist.Equal(t, 2, len(cfg.CORSOrigins))
+	assist.Equal(t, "https://mq-art-archive-v2.vercel.app", cfg.CORSOrigins[1])
+}
+
 func TestLoad_fromEnv(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://custom/db")
 	t.Setenv("HTTP_PORT", "9090")

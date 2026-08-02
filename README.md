@@ -1,6 +1,6 @@
 # mq
 
-A wiki-style archive and community platform for Ethiopian artists. Artists share knowledge (legal advice, techniques, and more), post artwork, and build shareable public profiles. Institutions and artists are onboarded through a separate admin vetting app. An event scraper can ingest RSS/JSON feeds and optional Telegram channels.
+A wiki-style archive and community platform for Ethiopian artists. Artists share knowledge (legal advice, techniques, and more), post artwork, and build shareable public profiles. Institutions and artists are onboarded through a separate admin vetting app. An event scraper can ingest RSS/JSON feeds and optional Telegram channels..
 
 ## Stack
 

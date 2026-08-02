@@ -9,7 +9,7 @@
 
 	let { data }: { data: PageData } = $props();
 
-	const spreads = $derived(data.editorialSpreads ?? data.editorialWalls ?? []);
+	const editorialSpreads = $derived(data.editorialSpreads ?? data.editorialWalls ?? []);
 	const featuredArtist = $derived(data.featuredArtist);
 	const wikiPreview = $derived((data.articles ?? []).slice(0, 3));
 	const marqueeItems = $derived(data.marqueeItems ?? []);
@@ -31,8 +31,8 @@
 	/>
 </svelte:head>
 
-{#if spreads.length > 0}
-	<EditorialCanvas {spreads} />
+{#if data.showEditorialHero}
+	<EditorialCanvas spreads={editorialSpreads} />
 {:else}
 	<HomeFallbackHero />
 {/if}

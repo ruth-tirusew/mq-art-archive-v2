@@ -159,3 +159,5 @@ Operations: [`docs/operations.md`](docs/operations.md)
 | `AUTH_DEV_MODE` | When `true`, allows `X-User-ID` header fallback for tests |
 | `CLOUDINARY_*` | Pilot media uploads |
 | `PUBLIC_API_URL` | Required by web/admin for all product content |
+
+

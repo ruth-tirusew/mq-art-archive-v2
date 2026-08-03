@@ -110,12 +110,15 @@ export const load: PageServerLoad = async ({ fetch }) => {
 		}
 	}
 
+	const editorialSpreadsPayload = JSON.stringify(editorialSpreads);
+
 	return {
 		source: 'api' as const,
 		featuredArtist,
 		featuredPosts,
 		acquisitions,
 		editorialSpreads,
+		editorialSpreadsPayload,
 		/** @deprecated — prefer editorialSpreads */
 		editorialWalls: editorialSpreads,
 		/** Set on the server so SSR does not rely on reactive spread length (Svelte 5 + SK). */

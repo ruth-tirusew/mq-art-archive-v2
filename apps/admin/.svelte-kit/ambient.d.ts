@@ -64,6 +64,7 @@ declare module '$env/static/private' {
 	export const npm_package_json: string;
 	export const NVM_INC: string;
 	export const VSCODE_IPC_HOOK: string;
+	export const npm_package_engines_node: string;
 	export const GTK_MODULES: string;
 	export const __MISE_DIFF: string;
 	export const CURSOR_WORKSPACE_LABEL: string;
@@ -256,6 +257,7 @@ declare module '$env/dynamic/private' {
 		npm_package_json: string;
 		NVM_INC: string;
 		VSCODE_IPC_HOOK: string;
+		npm_package_engines_node: string;
 		GTK_MODULES: string;
 		__MISE_DIFF: string;
 		CURSOR_WORKSPACE_LABEL: string;

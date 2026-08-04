@@ -5,26 +5,11 @@
 	import EditorialCanvas from '$lib/components/home/EditorialCanvas.svelte';
 	import MarqueeStrip from '$lib/components/home/MarqueeStrip.svelte';
 	import type { Article } from '$lib/core/domain/content';
-	import type { EditorialSpread } from '$lib/components/home/editorialCompositions';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	function parseEditorialSpreads(payload: string | undefined): EditorialSpread[] {
-		if (!payload) return [];
-		try {
-			const parsed: unknown = JSON.parse(payload);
-			return Array.isArray(parsed) ? (parsed as EditorialSpread[]) : [];
-		} catch {
-			return [];
-		}
-	}
-
-	const spreadsForHero = $derived.by(() => {
-		const fromJson = parseEditorialSpreads(data.editorialSpreadsPayload);
-		if (fromJson.length > 0) return fromJson;
-		return data.editorialSpreads ?? data.editorialWalls ?? [];
-	});
+	const heroSpreads = $derived(data.heroSpreads ?? []);
 	const featuredArtist = $derived(data.featuredArtist);
 	const wikiPreview = $derived((data.articles ?? []).slice(0, 3));
 	const marqueeItems = $derived(data.marqueeItems ?? []);
@@ -46,8 +31,8 @@
 	/>
 </svelte:head>
 
-{#if spreadsForHero.length > 0}
-	<EditorialCanvas spreads={spreadsForHero} />
+{#if heroSpreads.length > 0}
+	<EditorialCanvas spreads={heroSpreads} />
 {:else}
 	<HomeFallbackHero />
 {/if}

@@ -282,15 +282,46 @@ func toNotificationResponse(prefs *identity.NotificationPreferences) dto.Notific
 }
 
 func (h *AuthHandler) setAuthCookie(c *gin.Context, token string) {
-	secure := strings.EqualFold(os.Getenv("AUTH_COOKIE_SECURE"), "true")
-	c.SetSameSite(http.SameSiteLaxMode)
+	sameSite := authCookieSameSite()
+	secure := authCookieSecure(sameSite)
+	c.SetSameSite(sameSite)
 	c.SetCookie(h.cookieName, token, 0, "/", "", secure, true)
 }
 
 func (h *AuthHandler) clearAuthCookie(c *gin.Context) {
-	secure := strings.EqualFold(os.Getenv("AUTH_COOKIE_SECURE"), "true")
-	c.SetSameSite(http.SameSiteLaxMode)
+	sameSite := authCookieSameSite()
+	secure := authCookieSecure(sameSite)
+	c.SetSameSite(sameSite)
 	c.SetCookie(h.cookieName, "", -1, "/", "", secure, true)
+}
+
+func authCookieSameSite() http.SameSite {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AUTH_COOKIE_SAME_SITE"))) {
+	case "none":
+		return http.SameSiteNoneMode
+	case "strict":
+		return http.SameSiteStrictMode
+	case "lax":
+		return http.SameSiteLaxMode
+	default:
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
+			return http.SameSiteNoneMode
+		}
+		return http.SameSiteLaxMode
+	}
+}
+
+func authCookieSecure(sameSite http.SameSite) bool {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("AUTH_COOKIE_SECURE")), "true") {
+		return true
+	}
+	if sameSite == http.SameSiteNoneMode {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
+		return true
+	}
+	return false
 }
 
 func writeAuthError(c *gin.Context, err error) {

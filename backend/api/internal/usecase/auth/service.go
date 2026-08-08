@@ -193,6 +193,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, *i
 	}
 
 	user, passwordHash, err := s.users.GetAuthByEmail(ctx, normalized)
+	print(&user.Email)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
 			return "", nil, apperrors.ErrUnauthorized

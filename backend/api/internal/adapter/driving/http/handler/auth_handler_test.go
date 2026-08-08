@@ -267,6 +267,25 @@ func TestAuthHandler_Login_success(t *testing.T) {
 	assist.Contains(t, w.Header().Get("Set-Cookie"), "mq_access_token=")
 }
 
+func TestAuthHandler_Login_usesConfiguredCookieAttributes(t *testing.T) {
+	t.Setenv("AUTH_COOKIE_SECURE", "true")
+	t.Setenv("AUTH_COOKIE_SAME_SITE", "None")
+
+	userID := uuid.New()
+	h := NewAuthHandler(&mockAuth{
+		login: func(ctx context.Context, email, password string) (string, *identity.User, error) {
+			return "token", &identity.User{ID: userID, Email: "user@example.com", Role: identity.RoleArtist}, nil
+		},
+	}, "mq_access_token")
+
+	body := strings.NewReader(`{"email":"user@example.com","password":"password1"}`)
+	w := serve(t, http.MethodPost, "/api/v1/auth/login", body, nil, nil, h.Login)
+	assist.Equal(t, http.StatusOK, w.Code)
+	cookieHeader := w.Header().Get("Set-Cookie")
+	assist.Contains(t, cookieHeader, "SameSite=None")
+	assist.Contains(t, cookieHeader, "Secure")
+}
+
 func TestAuthHandler_Login_unauthorized(t *testing.T) {
 	h := NewAuthHandler(&mockAuth{
 		login: func(ctx context.Context, email, password string) (string, *identity.User, error) {

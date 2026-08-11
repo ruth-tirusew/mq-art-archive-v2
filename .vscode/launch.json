@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug API",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "cwd": "${workspaceFolder}/backend/api",
+      "program": "${workspaceFolder}/backend/api/cmd/api",
+      "showLog": true
+    }
+  ]
+}

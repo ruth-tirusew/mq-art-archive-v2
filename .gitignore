@@ -2,3 +2,4 @@ node_modules/
 dist/
 .env
 */.svelete-kit/*
+backend/api/data/*.session

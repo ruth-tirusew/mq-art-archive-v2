@@ -408,6 +408,30 @@
     <Card>
       <CardHeader>
         <div class="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle>Scraper status</CardTitle>
+          <Badge variant={scrape.last_error ? 'destructive' : 'default'}>
+            {scrape.last_error ? 'Last run failed' : scrape.last_success_at ? 'Healthy' : 'No runs yet'}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent class="space-y-1 text-sm">
+        <p>
+          <span class="text-muted-foreground">Last run:</span>
+          {scrape.last_run_at ? new Date(scrape.last_run_at).toLocaleString() : 'never'}
+        </p>
+        <p>
+          <span class="text-muted-foreground">Last successful run:</span>
+          {scrape.last_success_at ? new Date(scrape.last_success_at).toLocaleString() : 'never'}
+        </p>
+        {#if scrape.last_error}
+          <p class="text-destructive">{scrape.last_error}</p>
+        {/if}
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <div class="flex flex-wrap items-center justify-between gap-3">
           <CardTitle>Telegram MTProto</CardTitle>
           <Badge variant={scrape.session_authorized ? 'default' : 'secondary'}>
             {scrape.session_authorized ? 'Session authorized' : 'Session missing'}

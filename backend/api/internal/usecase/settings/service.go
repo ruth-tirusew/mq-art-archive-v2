@@ -125,6 +125,9 @@ func (s *Service) toView(cfg *domain.ScrapeSettings) *domain.ScrapeSettingsView 
 		TelegramFetchLimit:    cfg.TelegramFetchLimit,
 		SessionAuthorized:     sessionAuthorized(s.session),
 		UpdatedAt:             cfg.UpdatedAt,
+		LastRunAt:             cfg.LastRunAt,
+		LastSuccessAt:         cfg.LastSuccessAt,
+		LastError:             cfg.LastError,
 	}
 }
 

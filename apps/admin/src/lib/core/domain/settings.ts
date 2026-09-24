@@ -17,6 +17,9 @@ export interface ScrapeSettings {
   telegram_keywords: string[];
   telegram_fetch_limit: number;
   session_authorized: boolean;
+  last_run_at: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
 }
 
 export interface ScrapeSettingsUpdate {

@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type UserResponse struct {
 	ID            string `json:"id"`
 	Email         string `json:"email"`
@@ -50,6 +52,10 @@ type ScrapeSettingsResponse struct {
 	TelegramKeywords   []string `json:"telegram_keywords"`
 	TelegramFetchLimit int      `json:"telegram_fetch_limit"`
 	SessionAuthorized  bool     `json:"session_authorized"`
+
+	LastRunAt     *time.Time `json:"last_run_at"`
+	LastSuccessAt *time.Time `json:"last_success_at"`
+	LastError     *string    `json:"last_error"`
 }
 
 type ScrapeSettingsUpdateRequest struct {

@@ -1911,6 +1911,9 @@ components:
           items: { type: string }
         telegram_fetch_limit: { type: integer }
         session_authorized: { type: boolean }
+        last_run_at: { type: string, format: date-time, nullable: true }
+        last_success_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
 
     ScrapeSettingsUpdate:
       type: object

@@ -33,7 +33,10 @@ type NotificationPreferences struct {
 	EmailOnNewApplication   bool
 	EmailOnEventSyncSummary bool
 	NewsletterEnabled       bool
-	UpdatedAt               time.Time
+	// TelegramChatID is set once the user links their Telegram account via the bot's
+	// /start flow. Nil until linked.
+	TelegramChatID *string
+	UpdatedAt      time.Time
 }
 
 func DefaultNotificationPreferences(userID uuid.UUID) NotificationPreferences {

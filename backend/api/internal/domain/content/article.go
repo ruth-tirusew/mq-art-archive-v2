@@ -48,4 +48,5 @@ type Article struct {
 	Version      int
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	PublishedAt  *time.Time
 }

@@ -109,6 +109,11 @@ func (r *EventRepository) List(ctx context.Context, filter events.ListFilter) ([
 	if filter.UpcomingOnly {
 		query += " AND e.starts_at >= NOW()"
 	}
+	if filter.StartsBefore != nil {
+		query += fmt.Sprintf(" AND e.starts_at <= $%d", argPos)
+		args = append(args, *filter.StartsBefore)
+		argPos++
+	}
 	if filter.EventType != "" {
 		query += fmt.Sprintf(" AND e.event_type ILIKE $%d", argPos)
 		args = append(args, "%"+filter.EventType+"%")

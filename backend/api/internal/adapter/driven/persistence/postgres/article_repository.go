@@ -22,7 +22,7 @@ func NewArticleRepository(pool *Pool) outbound.ArticleRepository {
 	return &ArticleRepository{pool: pool}
 }
 
-const articleColumns = `id, slug, title, body, category, excerpt, reading_time, difficulty, verified, contributors, status, author_id, version, created_at, updated_at`
+const articleColumns = `id, slug, title, body, category, excerpt, reading_time, difficulty, verified, contributors, status, author_id, version, created_at, updated_at, published_at`
 
 const revisionColumns = `id, article_id, version, editor_id, title, body, slug, category, excerpt, reading_time, difficulty, verified, status, created_at`
 
@@ -47,6 +47,11 @@ func (r *ArticleRepository) ListPublished(ctx context.Context, filter content.Li
 	if filter.Query != "" {
 		query += fmt.Sprintf(" AND (title ILIKE $%d OR excerpt ILIKE $%d OR body ILIKE $%d)", argPos, argPos, argPos)
 		args = append(args, "%"+filter.Query+"%")
+		argPos++
+	}
+	if filter.PublishedSince != nil {
+		query += fmt.Sprintf(" AND published_at >= $%d", argPos)
+		args = append(args, *filter.PublishedSince)
 		argPos++
 	}
 
@@ -200,8 +205,8 @@ func (r *ArticleRepository) Create(ctx context.Context, article content.Article)
 	slug := article.Slug
 	for attempt := 0; attempt < 3; attempt++ {
 		_, err := r.pool.Exec(ctx, `
-			INSERT INTO articles (id, slug, title, body, category, excerpt, reading_time, difficulty, verified, contributors, status, author_id, version, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			INSERT INTO articles (id, slug, title, body, category, excerpt, reading_time, difficulty, verified, contributors, status, author_id, version, created_at, updated_at, published_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		`,
 			article.ID,
 			slug,
@@ -218,6 +223,7 @@ func (r *ArticleRepository) Create(ctx context.Context, article content.Article)
 			article.Version,
 			article.CreatedAt,
 			article.UpdatedAt,
+			article.PublishedAt,
 		)
 		if err == nil {
 			article.Slug = slug
@@ -241,7 +247,7 @@ func (r *ArticleRepository) Update(ctx context.Context, article content.Article)
 			UPDATE articles SET
 				slug = $2, title = $3, body = $4, category = $5, excerpt = $6,
 				reading_time = $7, difficulty = $8, verified = $9, contributors = $10,
-				status = $11, version = $12, updated_at = $13
+				status = $11, version = $12, updated_at = $13, published_at = $14
 			WHERE id = $1
 		`,
 			article.ID,
@@ -257,6 +263,7 @@ func (r *ArticleRepository) Update(ctx context.Context, article content.Article)
 			string(article.Status),
 			article.Version,
 			article.UpdatedAt,
+			article.PublishedAt,
 		)
 		if err == nil {
 			if tag.RowsAffected() == 0 {
@@ -372,6 +379,7 @@ func scanArticle(row scannable) (content.Article, error) {
 		&article.Version,
 		&article.CreatedAt,
 		&article.UpdatedAt,
+		&article.PublishedAt,
 	)
 	if err != nil {
 		return content.Article{}, err

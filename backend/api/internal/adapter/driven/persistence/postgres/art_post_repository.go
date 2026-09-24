@@ -55,16 +55,24 @@ func (r *ArtPostRepository) listByArtist(ctx context.Context, artistID uuid.UUID
 		if err != nil {
 			return nil, err
 		}
-		media, err := r.loadMedia(ctx, post.ID)
-		if err != nil {
-			return nil, err
-		}
-		post.Media = media
 		posts = append(posts, post)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list art posts by artist: %w", err)
 	}
+
+	ids := make([]uuid.UUID, len(posts))
+	for i, post := range posts {
+		ids[i] = post.ID
+	}
+	mediaByPost, err := r.loadMediaBatch(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range posts {
+		posts[i].Media = mediaByPost[posts[i].ID]
+	}
+
 	if posts == nil {
 		posts = []art.ArtPost{}
 	}
@@ -120,6 +128,11 @@ func (r *ArtPostRepository) ListPublished(ctx context.Context, filter art.ListFi
 		args = append(args, "%"+filter.Query+"%")
 		argPos++
 	}
+	if filter.PublishedSince != nil {
+		query += fmt.Sprintf(" AND p.published_at >= $%d", argPos)
+		args = append(args, *filter.PublishedSince)
+		argPos++
+	}
 
 	query += " ORDER BY p.published_at DESC NULLS LAST, p.created_at DESC"
 	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argPos, argPos+1)
@@ -145,17 +158,28 @@ func (r *ArtPostRepository) ListPublished(ctx context.Context, filter art.ListFi
 			return nil, err
 		}
 		item.Status = art.ArtStatus(status)
-		media, err := r.loadMedia(ctx, item.ID)
-		if err != nil {
-			return nil, err
-		}
-		item.Media = media
 		posts = append(posts, item)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list published art posts: %w", err)
+	}
+
+	ids := make([]uuid.UUID, len(posts))
+	for i, post := range posts {
+		ids[i] = post.ID
+	}
+	mediaByPost, err := r.loadMediaBatch(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range posts {
+		posts[i].Media = mediaByPost[posts[i].ID]
+	}
+
 	if posts == nil {
 		posts = []art.ArtPostWithArtist{}
 	}
-	return posts, rows.Err()
+	return posts, nil
 }
 
 func (r *ArtPostRepository) GetByID(ctx context.Context, id uuid.UUID) (*art.ArtPost, error) {
@@ -245,29 +269,75 @@ func (r *ArtPostRepository) Update(ctx context.Context, post art.ArtPost) (*art.
 		return nil, fmt.Errorf("update art post: %w", err)
 	}
 
-	_, err = tx.Exec(ctx, `DELETE FROM art_post_media WHERE art_post_id = $1`, post.ID)
-	if err != nil {
-		return nil, fmt.Errorf("update art post media clear: %w", err)
-	}
-
-	for _, m := range post.Media {
-		mediaID := m.ID
-		if mediaID == uuid.Nil {
-			mediaID = uuid.New()
-		}
-		_, err = tx.Exec(ctx, `
-			INSERT INTO art_post_media (id, art_post_id, url, mime_type, width, height, sort_order)
-			VALUES ($1,$2,$3,$4,$5,$6,$7)
-		`, mediaID, post.ID, m.URL, m.MimeType, m.Width, m.Height, m.SortOrder)
-		if err != nil {
-			return nil, fmt.Errorf("update art post media: %w", err)
-		}
+	if err := r.syncMedia(ctx, tx, post.ID, post.Media); err != nil {
+		return nil, fmt.Errorf("update art post media: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("update art post: commit: %w", err)
 	}
 	return r.GetByID(ctx, post.ID)
+}
+
+func (r *ArtPostRepository) existingMediaIDs(ctx context.Context, tx pgx.Tx, postID uuid.UUID) (map[uuid.UUID]bool, error) {
+	rows, err := tx.Query(ctx, `SELECT id FROM art_post_media WHERE art_post_id = $1`, postID)
+	if err != nil {
+		return nil, fmt.Errorf("load existing art post media ids: %w", err)
+	}
+	defer rows.Close()
+
+	ids := make(map[uuid.UUID]bool)
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids[id] = true
+	}
+	return ids, rows.Err()
+}
+
+// syncMedia reconciles art_post_media with the given media list in place: existing rows
+// are updated, new IDs are inserted, and rows no longer present are deleted. Every item in
+// media must carry an ID (the caller assigns one when adding new media), so an unchanged
+// item updates its own row instead of being deleted and reinserted under a new id.
+func (r *ArtPostRepository) syncMedia(ctx context.Context, tx pgx.Tx, postID uuid.UUID, media []art.MediaAsset) error {
+	existingIDs, err := r.existingMediaIDs(ctx, tx, postID)
+	if err != nil {
+		return err
+	}
+
+	keep := make(map[uuid.UUID]bool, len(media))
+	for _, m := range media {
+		if m.ID == uuid.Nil {
+			return fmt.Errorf("media id required for update, got zero value (url=%s)", m.URL)
+		}
+		keep[m.ID] = true
+
+		if existingIDs[m.ID] {
+			_, err = tx.Exec(ctx, `
+				UPDATE art_post_media SET url=$2, mime_type=$3, width=$4, height=$5, sort_order=$6
+				WHERE id=$1
+			`, m.ID, m.URL, m.MimeType, m.Width, m.Height, m.SortOrder)
+		} else {
+			_, err = tx.Exec(ctx, `
+				INSERT INTO art_post_media (id, art_post_id, url, mime_type, width, height, sort_order)
+				VALUES ($1,$2,$3,$4,$5,$6,$7)
+			`, m.ID, postID, m.URL, m.MimeType, m.Width, m.Height, m.SortOrder)
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	for id := range existingIDs {
+		if !keep[id] {
+			if _, err := tx.Exec(ctx, `DELETE FROM art_post_media WHERE id=$1`, id); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (r *ArtPostRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -345,6 +415,45 @@ func (r *ArtPostRepository) ListAll(ctx context.Context, status *art.ArtStatus, 
 		posts = []art.ArtPostWithArtist{}
 	}
 	return posts, rows.Err()
+}
+
+// loadMediaBatch fetches media for a set of posts in one query instead of one query per
+// post, so a listing of N posts costs one extra round trip rather than N. postIDs may be
+// empty (returns an empty map, no query is sent).
+func (r *ArtPostRepository) loadMediaBatch(ctx context.Context, postIDs []uuid.UUID) (map[uuid.UUID][]art.MediaAsset, error) {
+	mediaByPost := make(map[uuid.UUID][]art.MediaAsset, len(postIDs))
+	if len(postIDs) == 0 {
+		return mediaByPost, nil
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT art_post_id, id, url, mime_type, width, height, sort_order
+		FROM art_post_media
+		WHERE art_post_id = ANY($1)
+		ORDER BY art_post_id, sort_order ASC
+	`, postIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load art post media: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var postID uuid.UUID
+		var m art.MediaAsset
+		if err := rows.Scan(&postID, &m.ID, &m.URL, &m.MimeType, &m.Width, &m.Height, &m.SortOrder); err != nil {
+			return nil, err
+		}
+		mediaByPost[postID] = append(mediaByPost[postID], m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("load art post media: %w", err)
+	}
+	for _, id := range postIDs {
+		if mediaByPost[id] == nil {
+			mediaByPost[id] = []art.MediaAsset{}
+		}
+	}
+	return mediaByPost, nil
 }
 
 func (r *ArtPostRepository) loadMedia(ctx context.Context, postID uuid.UUID) ([]art.MediaAsset, error) {

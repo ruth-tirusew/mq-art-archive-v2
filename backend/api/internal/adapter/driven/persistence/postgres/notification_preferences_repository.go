@@ -22,7 +22,7 @@ func NewNotificationPreferencesRepository(pool *Pool) outbound.NotificationPrefe
 
 func (r *NotificationPreferencesRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*identity.NotificationPreferences, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT user_id, email_on_new_application, email_on_event_sync_summary, newsletter_enabled, updated_at
+		SELECT user_id, email_on_new_application, email_on_event_sync_summary, newsletter_enabled, telegram_chat_id, updated_at
 		FROM user_notification_preferences
 		WHERE user_id = $1
 	`, userID)
@@ -33,6 +33,7 @@ func (r *NotificationPreferencesRepository) GetByUserID(ctx context.Context, use
 		&prefs.EmailOnNewApplication,
 		&prefs.EmailOnEventSyncSummary,
 		&prefs.NewsletterEnabled,
+		&prefs.TelegramChatID,
 		&prefs.UpdatedAt,
 	)
 	if err != nil {
@@ -51,14 +52,15 @@ func (r *NotificationPreferencesRepository) Upsert(ctx context.Context, prefs id
 	}
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO user_notification_preferences (
-			user_id, email_on_new_application, email_on_event_sync_summary, newsletter_enabled, updated_at
-		) VALUES ($1, $2, $3, $4, $5)
+			user_id, email_on_new_application, email_on_event_sync_summary, newsletter_enabled, telegram_chat_id, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (user_id) DO UPDATE SET
 			email_on_new_application = EXCLUDED.email_on_new_application,
 			email_on_event_sync_summary = EXCLUDED.email_on_event_sync_summary,
 			newsletter_enabled = EXCLUDED.newsletter_enabled,
+			telegram_chat_id = EXCLUDED.telegram_chat_id,
 			updated_at = EXCLUDED.updated_at
-	`, prefs.UserID, prefs.EmailOnNewApplication, prefs.EmailOnEventSyncSummary, prefs.NewsletterEnabled, prefs.UpdatedAt)
+	`, prefs.UserID, prefs.EmailOnNewApplication, prefs.EmailOnEventSyncSummary, prefs.NewsletterEnabled, prefs.TelegramChatID, prefs.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("upsert notification preferences: %w", err)
 	}
@@ -68,7 +70,7 @@ func (r *NotificationPreferencesRepository) Upsert(ctx context.Context, prefs id
 func (r *NotificationPreferencesRepository) ListEventSummaryRecipients(ctx context.Context) ([]string, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT DISTINCT u.email
-		FROM notification_preferences p
+		FROM user_notification_preferences p
 		JOIN users u ON u.id = p.user_id
 		WHERE p.email_on_event_sync_summary = TRUE OR p.newsletter_enabled = TRUE`)
 	if err != nil {

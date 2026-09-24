@@ -1,6 +1,10 @@
 package art
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type ListFilter struct {
 	ArtistID            *uuid.UUID
@@ -10,8 +14,11 @@ type ListFilter struct {
 	Style               string
 	FeaturedAcquisition *bool
 	Query               string
-	Limit               int
-	Offset              int
+	// PublishedSince, when set, restricts results to posts whose PublishedAt is at or
+	// after this time. Nil means no lower bound.
+	PublishedSince *time.Time
+	Limit          int
+	Offset         int
 }
 
 func PublicListFilter() ListFilter {

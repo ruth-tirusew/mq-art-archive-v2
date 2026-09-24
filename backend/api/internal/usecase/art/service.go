@@ -69,7 +69,7 @@ func (s *Service) CreateDraft(ctx context.Context, artistID uuid.UUID, write dom
 		Residency:   write.Residency,
 		Exhibition:  write.Exhibition,
 		Palette:     write.Palette,
-		Media:       mediaFromURLs(write.MediaURLs),
+		Media:       mediaFromURLs(write.MediaURLs, nil),
 		Status:      domain.ArtStatusDraft,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -97,7 +97,7 @@ func (s *Service) UpdateOwned(ctx context.Context, artistID, postID uuid.UUID, w
 	post.Residency = write.Residency
 	post.Exhibition = write.Exhibition
 	post.Palette = write.Palette
-	post.Media = mediaFromURLs(write.MediaURLs)
+	post.Media = mediaFromURLs(write.MediaURLs, post.Media)
 	post.UpdatedAt = time.Now().UTC()
 
 	return s.posts.Update(ctx, *post)
@@ -176,7 +176,7 @@ func (s *Service) AdminCreate(ctx context.Context, artistID uuid.UUID, write dom
 		Residency:   write.Residency,
 		Exhibition:  write.Exhibition,
 		Palette:     write.Palette,
-		Media:       mediaFromURLs(write.MediaURLs),
+		Media:       mediaFromURLs(write.MediaURLs, nil),
 		Status:      st,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -207,7 +207,7 @@ func (s *Service) AdminUpdateContent(ctx context.Context, postID uuid.UUID, writ
 	post.Residency = write.Residency
 	post.Exhibition = write.Exhibition
 	post.Palette = write.Palette
-	post.Media = mediaFromURLs(write.MediaURLs)
+	post.Media = mediaFromURLs(write.MediaURLs, post.Media)
 	post.UpdatedAt = time.Now().UTC()
 
 	return s.posts.Update(ctx, *post)
@@ -242,14 +242,28 @@ func (s *Service) AdminUpdate(ctx context.Context, postID uuid.UUID, status *dom
 	return s.posts.Update(ctx, *post)
 }
 
-func mediaFromURLs(urls []string) []domain.MediaAsset {
+// mediaFromURLs builds the media list for a post write from the submitted URLs.
+// A URL that matches an existing media item reuses that item's ID, so the repository
+// can update that row in place instead of deleting and reinserting it; a URL with no
+// match (newly added) gets a fresh ID. existing is nil for a brand-new post.
+func mediaFromURLs(urls []string, existing []domain.MediaAsset) []domain.MediaAsset {
+	idsByURL := make(map[string][]uuid.UUID, len(existing))
+	for _, m := range existing {
+		idsByURL[m.URL] = append(idsByURL[m.URL], m.ID)
+	}
+
 	out := make([]domain.MediaAsset, 0, len(urls))
 	for i, u := range urls {
 		if u == "" {
 			continue
 		}
+		id := uuid.New()
+		if remaining := idsByURL[u]; len(remaining) > 0 {
+			id = remaining[0]
+			idsByURL[u] = remaining[1:]
+		}
 		out = append(out, domain.MediaAsset{
-			ID:        uuid.New(),
+			ID:        id,
 			URL:       u,
 			SortOrder: i,
 		})

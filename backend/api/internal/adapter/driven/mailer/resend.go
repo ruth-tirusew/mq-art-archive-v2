@@ -24,11 +24,22 @@ func NewResendMailer(apiKey, from string) *ResendMailer {
 }
 
 func (m *ResendMailer) Send(ctx context.Context, to, subject, body string) error {
+	return m.send(ctx, to, subject, body, "")
+}
+
+func (m *ResendMailer) SendHTML(ctx context.Context, to, subject, htmlBody, textBody string) error {
+	return m.send(ctx, to, subject, textBody, htmlBody)
+}
+
+func (m *ResendMailer) send(ctx context.Context, to, subject, textBody, htmlBody string) error {
 	payload := map[string]any{
 		"from":    m.from,
 		"to":      []string{to},
 		"subject": subject,
-		"text":    body,
+		"text":    textBody,
+	}
+	if htmlBody != "" {
+		payload["html"] = htmlBody
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

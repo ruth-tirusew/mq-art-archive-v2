@@ -17,5 +17,5 @@ export const load: PageLoad = ({ data }) => {
 	const heroSpreads =
 		fromJson.length > 0 ? fromJson : (data.editorialSpreads ?? data.editorialWalls ?? []);
 
-	return { heroSpreads };
+	return { ...data, heroSpreads };
 };

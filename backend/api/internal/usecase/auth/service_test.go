@@ -216,6 +216,11 @@ func (m *stubMailer) Send(context.Context, string, string, string) error {
 	return nil
 }
 
+func (m *stubMailer) SendHTML(context.Context, string, string, string, string) error {
+	m.sent++
+	return nil
+}
+
 type stubVerificationRepo struct {
 	created  int
 	consumed string

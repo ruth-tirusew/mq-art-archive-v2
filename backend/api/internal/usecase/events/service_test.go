@@ -93,6 +93,12 @@ func (m *summaryMailer) Send(_ context.Context, _, _, body string) error {
 	return nil
 }
 
+func (m *summaryMailer) SendHTML(_ context.Context, _, _, _, textBody string) error {
+	m.sent++
+	m.body = textBody
+	return nil
+}
+
 func (m *mockEventSource) FetchEvents(ctx context.Context, since time.Time) ([]events.Event, error) {
 	return m.fetch(ctx, since)
 }

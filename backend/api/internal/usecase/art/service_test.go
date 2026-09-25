@@ -138,3 +138,75 @@ func TestService_AdminDelete(t *testing.T) {
 	assist.NoError(t, svc.AdminDelete(context.Background(), postID))
 	assist.Equal(t, true, deleted)
 }
+
+func TestMediaFromURLs_preservesExistingIDsByURL(t *testing.T) {
+	keptID := uuid.New()
+	removedURL := "https://example.com/removed.jpg"
+	existing := []domain.MediaAsset{
+		{ID: keptID, URL: "https://example.com/kept.jpg", SortOrder: 0},
+		{ID: uuid.New(), URL: removedURL, SortOrder: 1},
+	}
+
+	out := mediaFromURLs([]string{"https://example.com/kept.jpg", "https://example.com/new.jpg"}, existing)
+
+	assist.Len(t, 2, len(out))
+	assist.Equal(t, keptID, out[0].ID)
+	assist.Equal(t, "https://example.com/kept.jpg", out[0].URL)
+	assist.NotEqual(t, uuid.Nil, out[1].ID)
+	assist.Equal(t, "https://example.com/new.jpg", out[1].URL)
+	for _, m := range out {
+		if m.URL == removedURL {
+			t.Fatalf("removed URL should not appear in the result: %v", out)
+		}
+	}
+}
+
+func TestMediaFromURLs_duplicateURLsConsumeDistinctExistingIDs(t *testing.T) {
+	firstID := uuid.New()
+	secondID := uuid.New()
+	existing := []domain.MediaAsset{
+		{ID: firstID, URL: "https://example.com/dup.jpg", SortOrder: 0},
+		{ID: secondID, URL: "https://example.com/dup.jpg", SortOrder: 1},
+	}
+
+	out := mediaFromURLs([]string{"https://example.com/dup.jpg", "https://example.com/dup.jpg"}, existing)
+
+	assist.Len(t, 2, len(out))
+	assist.Equal(t, firstID, out[0].ID)
+	assist.Equal(t, secondID, out[1].ID)
+}
+
+func TestService_UpdateOwned_preservesMediaIDForUnchangedURL(t *testing.T) {
+	artistID := uuid.New()
+	postID := uuid.New()
+	keptID := uuid.New()
+	const keptURL = "https://example.com/kept.jpg"
+
+	var captured domain.ArtPost
+	repo := &mockArtPostRepo{
+		getByID: func(ctx context.Context, id uuid.UUID) (*domain.ArtPost, error) {
+			return &domain.ArtPost{
+				ID:       id,
+				ArtistID: artistID,
+				Title:    "Original",
+				Media:    []domain.MediaAsset{{ID: keptID, URL: keptURL, SortOrder: 0}},
+			}, nil
+		},
+		update: func(ctx context.Context, post domain.ArtPost) (*domain.ArtPost, error) {
+			captured = post
+			return &post, nil
+		},
+	}
+	svc := NewService(repo)
+
+	_, err := svc.UpdateOwned(context.Background(), artistID, postID, domain.ArtPostWrite{
+		Title:     "Updated",
+		MediaURLs: []string{keptURL, "https://example.com/new.jpg"},
+	})
+	assist.NoError(t, err)
+
+	assist.Len(t, 2, len(captured.Media))
+	assist.Equal(t, keptID, captured.Media[0].ID)
+	assist.NotEqual(t, uuid.Nil, captured.Media[1].ID)
+	assist.NotEqual(t, keptID, captured.Media[1].ID)
+}

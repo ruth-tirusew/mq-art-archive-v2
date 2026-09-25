@@ -75,6 +75,9 @@ func (s *Service) AdminCreate(ctx context.Context, authorID uuid.UUID, write dom
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
+	if status == domain.ArticleStatusPublished {
+		article.PublishedAt = &now
+	}
 
 	return s.articles.Create(ctx, article)
 }
@@ -114,6 +117,9 @@ func (s *Service) AdminUpdate(ctx context.Context, id, editorID uuid.UUID, write
 	}
 	article.Version++
 	article.UpdatedAt = time.Now().UTC()
+	if article.Status == domain.ArticleStatusPublished && article.PublishedAt == nil {
+		article.PublishedAt = &article.UpdatedAt
+	}
 
 	return s.articles.Update(ctx, *article)
 }
@@ -133,6 +139,9 @@ func (s *Service) AdminSetStatus(ctx context.Context, id uuid.UUID, status *doma
 		article.Verified = *verified
 	}
 	article.UpdatedAt = time.Now().UTC()
+	if article.Status == domain.ArticleStatusPublished && article.PublishedAt == nil {
+		article.PublishedAt = &article.UpdatedAt
+	}
 	return s.articles.Update(ctx, *article)
 }
 

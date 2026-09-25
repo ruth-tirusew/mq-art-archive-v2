@@ -1580,6 +1580,46 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/auth/me/telegram-link:
+    post:
+      tags: [auth]
+      summary: Create a one-time Telegram account-link deep link
+      operationId: createTelegramLink
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Deep link the caller opens in Telegram to link their chat
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deep_link]
+                properties:
+                  deep_link: { type: string }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: Telegram bot not configured
+
+  /unsubscribe:
+    get:
+      tags: [digest]
+      summary: Unsubscribe from the weekly digest via a signed email link
+      operationId: unsubscribeFromDigest
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Confirmation page (always shown, whether or not the token was valid)
+          content:
+            text/html:
+              schema: { type: string }
+
   /admin/v1/settings/scrape:
     get:
       tags: [settings]
@@ -1911,6 +1951,9 @@ components:
           items: { type: string }
         telegram_fetch_limit: { type: integer }
         session_authorized: { type: boolean }
+        last_run_at: { type: string, format: date-time, nullable: true }
+        last_success_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string, nullable: true }
 
     ScrapeSettingsUpdate:
       type: object

@@ -448,9 +448,20 @@ func (s *Service) GetNotificationPreferences(ctx context.Context, userID uuid.UU
 	return &defaults, nil
 }
 
+// UpdateNotificationPreferences updates the email/newsletter toggles this endpoint exposes.
+// TelegramChatID is intentionally not part of the incoming prefs value here — it's managed
+// only by the Telegram bot's link flow — so it's carried over from the existing row rather
+// than accepted from the caller, to avoid silently unlinking it on every unrelated save.
 func (s *Service) UpdateNotificationPreferences(ctx context.Context, userID uuid.UUID, prefs identity.NotificationPreferences) (*identity.NotificationPreferences, error) {
 	if s.notifications == nil {
 		return nil, apperrors.ErrNotImplemented
+	}
+	current, err := s.notifications.GetByUserID(ctx, userID)
+	if err != nil && !errors.Is(err, apperrors.ErrNotFound) {
+		return nil, err
+	}
+	if current != nil {
+		prefs.TelegramChatID = current.TelegramChatID
 	}
 	prefs.UserID = userID
 	prefs.UpdatedAt = time.Now().UTC()

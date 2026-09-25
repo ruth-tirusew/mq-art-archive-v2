@@ -84,5 +84,8 @@ func toScrapeResponse(view *domain.ScrapeSettingsView) dto.ScrapeSettingsRespons
 		TelegramKeywords:      keywords,
 		TelegramFetchLimit:    view.TelegramFetchLimit,
 		SessionAuthorized:     view.SessionAuthorized,
+		LastRunAt:             view.LastRunAt,
+		LastSuccessAt:         view.LastSuccessAt,
+		LastError:             view.LastError,
 	}
 }

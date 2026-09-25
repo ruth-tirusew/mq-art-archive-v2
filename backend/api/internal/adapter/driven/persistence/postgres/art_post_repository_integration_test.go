@@ -29,11 +29,12 @@ func insertArtistProfile(t *testing.T, pool *postgres.Pool) uuid.UUID {
 	assist.NoError(t, err)
 
 	artistID := uuid.New()
+	slug := artistID.String() + "-slug"
 	_, err = pool.Exec(ctx, `
 		INSERT INTO artist_profiles (
-			id, user_id, slug, display_name, bio, status, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, artistID, userID, artistID.String()+"-slug", "Test Artist", "", string(profile.ProfileStatusApproved), now, now)
+			id, user_id, slug, handle, display_name, bio, status, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, artistID, userID, slug, slug, "Test Artist", "", string(profile.ProfileStatusApproved), now, now)
 	assist.NoError(t, err)
 
 	return artistID

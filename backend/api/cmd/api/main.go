@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,14 +19,17 @@ import (
 	mediaadapter "github.com/mq/api/internal/adapter/driven/media"
 	oauthadapter "github.com/mq/api/internal/adapter/driven/oauth"
 	"github.com/mq/api/internal/adapter/driven/persistence/postgres"
+	telegramadapter "github.com/mq/api/internal/adapter/driven/telegram"
 	httpadapter "github.com/mq/api/internal/adapter/driving/http"
 	"github.com/mq/api/internal/adapter/driving/http/handler"
 	"github.com/mq/api/internal/adapter/driving/http/middleware"
+	"github.com/mq/api/internal/port/inbound"
 	"github.com/mq/api/internal/port/outbound"
 	analyticsuc "github.com/mq/api/internal/usecase/analytics"
 	artuc "github.com/mq/api/internal/usecase/art"
 	authuc "github.com/mq/api/internal/usecase/auth"
 	contentuc "github.com/mq/api/internal/usecase/content"
+	digestuc "github.com/mq/api/internal/usecase/digest"
 	eventsuc "github.com/mq/api/internal/usecase/events"
 	identityuc "github.com/mq/api/internal/usecase/identity"
 	institutionuc "github.com/mq/api/internal/usecase/institution"
@@ -69,6 +73,9 @@ func main() {
 	mediaAssetRepo := postgres.NewMediaAssetRepository(pool)
 	wikiSubmissionRepo := postgres.NewWikiSubmissionRepository(pool)
 	analyticsRepo := postgres.NewAnalyticsRepository(pool)
+	digestRecipientRepo := postgres.NewDigestRecipientRepository(pool)
+	digestRunRepo := postgres.NewDigestRunRepository(pool)
+	telegramLinkRepo := postgres.NewTelegramLinkRepository(pool)
 
 	if err := settingsuc.EnsureSeed(ctx, scrapeSettingsRepo, eventsadapter.SettingsFromConfig(cfg)); err != nil {
 		log.Fatalf("scrape settings seed: %v", err)
@@ -113,7 +120,23 @@ func main() {
 	if cfg.ResendAPIKey != "" {
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}
+	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
+	// polling goroutine below can reuse this same instance rather than constructing a
+	// second one. telegramNotifier stays a nil interface when the bot isn't configured,
+	// not a non-nil interface wrapping a nil pointer — digest.Service checks it with a
+	// plain != nil, which only works correctly if unset means a truly nil interface.
+	var telegramBot *telegramadapter.Bot
+	var telegramNotifier outbound.TelegramNotifier
+	if cfg.TelegramBotToken != "" {
+		telegramBot = telegramadapter.NewBot(cfg.TelegramBotToken)
+		telegramNotifier = telegramBot
+	}
 	eventsSvc := eventsuc.NewService(eventRepo, eventLocationRepo, eventSource, notifPrefsRepo, mailer)
+	digestSvc := digestuc.NewService(
+		articleRepo, eventRepo, artPostRepo, digestRecipientRepo, digestRunRepo,
+		notifPrefsRepo, telegramLinkRepo, cfg.JWTSecret,
+		mailer, telegramNotifier, cfg.WebAppURL, cfg.PublicAPIURL,
+	)
 	authSvc := authuc.NewService(
 		userRepo,
 		oauthAccountRepo,
@@ -156,6 +179,7 @@ func main() {
 		Wiki:        handler.NewWikiHandler(wikiSvc),
 		Analytics:   handler.NewAnalyticsHandler(analyticsSvc),
 		UserAdmin:   handler.NewUserAdminHandler(authSvc),
+		Digest:      handler.NewDigestHandler(digestSvc, cfg.TelegramBotUsername),
 	}
 
 	router := httpadapter.NewRouter(cfg, handlers, httpadapter.RouterDeps{
@@ -176,13 +200,49 @@ func main() {
 		}
 	}()
 
+	botCtx, botCancel := context.WithCancel(context.Background())
+	defer botCancel()
+	if telegramBot != nil {
+		go func() {
+			log.Printf("telegram bot polling for updates")
+			if err := telegramBot.PollUpdates(botCtx, telegramUpdateHandler(digestSvc, telegramBot)); err != nil && botCtx.Err() == nil {
+				log.Printf("telegram bot polling stopped: %v", err)
+			}
+		}()
+	}
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+
+	botCancel()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("shutdown: %v", err)
+	}
+}
+
+// telegramUpdateHandler wires incoming bot messages to the digest usecase's link/unlink
+// flow. It's the only place that knows the bot's text commands (/start <token>, /stop);
+// everything else just deals in chat IDs and tokens.
+func telegramUpdateHandler(digestSvc inbound.DigestService, bot *telegramadapter.Bot) telegramadapter.Handler {
+	return func(ctx context.Context, chatID, text string) {
+		switch {
+		case strings.HasPrefix(text, "/start"):
+			if err := digestSvc.HandleTelegramStart(ctx, chatID, text); err != nil {
+				log.Printf("telegram link error: %v", err)
+				_ = bot.Send(ctx, chatID, "That link has expired or was already used. Generate a new one from your account settings.")
+				return
+			}
+			_ = bot.Send(ctx, chatID, "You're linked. You'll get the weekly Artiv digest here — send /stop anytime to unsubscribe.")
+		case strings.HasPrefix(text, "/stop"):
+			if err := digestSvc.HandleTelegramStop(ctx, chatID); err != nil {
+				log.Printf("telegram unlink error: %v", err)
+				return
+			}
+			_ = bot.Send(ctx, chatID, "You've been unsubscribed from the Artiv digest.")
+		}
 	}
 }

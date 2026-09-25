@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
 
-	type CtaVariant = 'primary' | 'secondary' | 'tertiary';
+	type CtaVariant = 'primary' | 'accent' | 'secondary' | 'tertiary';
 	type CtaTone = 'default' | 'on-dark';
 
 	type Props = {
@@ -18,6 +18,8 @@
 		default: {
 			primary:
 				'rounded-full bg-foreground px-5 py-2.5 text-background shadow-sm hover:bg-accent hover:text-accent-foreground hover:shadow-md hover:-translate-y-0.5',
+			accent:
+				'rounded-full bg-accent px-5 py-2.5 text-accent-foreground shadow-sm hover:bg-foreground hover:text-background hover:shadow-md hover:-translate-y-0.5',
 			secondary:
 				'rounded-full border border-foreground/25 px-5 py-2.5 text-foreground hover:border-foreground hover:bg-foreground/5 hover:-translate-y-0.5',
 			tertiary:
@@ -26,6 +28,8 @@
 		'on-dark': {
 			primary:
 				'rounded-full bg-cream px-5 py-2.5 text-ink shadow-sm hover:bg-accent hover:text-accent-foreground hover:shadow-md hover:-translate-y-0.5',
+			accent:
+				'rounded-full bg-accent px-5 py-2.5 text-accent-foreground shadow-sm hover:bg-cream hover:text-ink hover:shadow-md hover:-translate-y-0.5',
 			secondary:
 				'rounded-full border border-cream/30 px-5 py-2.5 text-cream hover:border-cream hover:bg-cream/10 hover:-translate-y-0.5',
 			tertiary:

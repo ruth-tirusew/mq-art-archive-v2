@@ -8,20 +8,25 @@ import (
 )
 
 type Config struct {
-	AppEnv              string
-	DatabaseURL         string
-	HTTPPort            int
-	JWTSecret           string
-	JWTAccessTTL        time.Duration
-	CORSOrigins         []string
-	GoogleClientID      string
-	GoogleClientSecret  string
-	OAuthCallbackURL    string
-	AuthCookieName      string
-	AuthDevMode         bool
-	ResendAPIKey        string
-	MailFrom            string
-	WebAppURL           string
+	AppEnv             string
+	DatabaseURL        string
+	HTTPPort           int
+	JWTSecret          string
+	JWTAccessTTL       time.Duration
+	CORSOrigins        []string
+	GoogleClientID     string
+	GoogleClientSecret string
+	OAuthCallbackURL   string
+	AuthCookieName     string
+	AuthDevMode        bool
+	ResendAPIKey       string
+	MailFrom           string
+	WebAppURL          string
+	// PublicAPIURL is this API's own externally-reachable base URL — needed for links the
+	// API embeds in outbound content that point back at itself, like a digest email's
+	// unsubscribe link (GET {PublicAPIURL}/unsubscribe), as opposed to WebAppURL, which
+	// points at the SvelteKit frontend.
+	PublicAPIURL        string
 	ErrorMonitorDSN     string
 	CloudinaryEnabled   bool
 	CloudinaryCloudName string
@@ -44,6 +49,18 @@ type Config struct {
 	TelegramChannels    []string
 	TelegramKeywords    []string
 	TelegramFetchLimit  int
+
+	// Telegram Bot API — a separate credential from the MTProto session above, used to
+	// message individual subscribers (digest delivery, account linking) rather than to
+	// scrape channels.
+	TelegramBotToken    string
+	TelegramBotUsername string
+
+	// Weekly digest schedule (cmd/digest). A fixed weekday/hour rather than an interval —
+	// see docs/operations.md on why a plain ticker isn't appropriate for a "every Monday
+	// at 9am" expectation.
+	DigestWeekday time.Weekday
+	DigestHour    int
 }
 
 func Load() Config {
@@ -56,6 +73,12 @@ func Load() Config {
 
 	webAppURL := getEnv("WEB_APP_URL", "http://localhost:5173")
 	corsOrigins := mergeCORSOrigins(splitCSV(getEnv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174")), webAppURL)
+
+	digestWeekday := parseWeekday(getEnv("DIGEST_WEEKDAY", "monday"), time.Monday)
+	digestHour, err := strconv.Atoi(getEnv("DIGEST_HOUR", "9"))
+	if err != nil || digestHour < 0 || digestHour > 23 {
+		digestHour = 9
+	}
 
 	return Config{
 		AppEnv:              getEnv("APP_ENV", "development"),
@@ -72,6 +95,7 @@ func Load() Config {
 		ResendAPIKey:        getEnv("RESEND_API_KEY", ""),
 		MailFrom:            getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>"),
 		WebAppURL:           webAppURL,
+		PublicAPIURL:        getEnv("PUBLIC_API_URL", fmt.Sprintf("http://localhost:%d", port)),
 		ErrorMonitorDSN:     getEnv("ERROR_MONITOR_DSN", ""),
 		CloudinaryEnabled:   getEnv("CLOUDINARY_ENABLED", "false") == "true",
 		CloudinaryCloudName: getEnv("CLOUDINARY_CLOUD_NAME", ""),
@@ -92,6 +116,12 @@ func Load() Config {
 		TelegramChannels:    splitCSV(getEnv("TELEGRAM_CHANNELS", "")),
 		TelegramKeywords:    splitCSV(getEnv("TELEGRAM_KEYWORDS", "")),
 		TelegramFetchLimit:  fetchLimit,
+
+		TelegramBotToken:    getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramBotUsername: getEnv("TELEGRAM_BOT_USERNAME", ""),
+
+		DigestWeekday: digestWeekday,
+		DigestHour:    digestHour,
 	}
 }
 
@@ -121,6 +151,27 @@ func (c Config) Validate() error {
 		return fmt.Errorf("AUTH_DEV_MODE must be false in production")
 	}
 	return nil
+}
+
+func parseWeekday(raw string, fallback time.Weekday) time.Weekday {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "sunday":
+		return time.Sunday
+	case "monday":
+		return time.Monday
+	case "tuesday":
+		return time.Tuesday
+	case "wednesday":
+		return time.Wednesday
+	case "thursday":
+		return time.Thursday
+	case "friday":
+		return time.Friday
+	case "saturday":
+		return time.Saturday
+	default:
+		return fallback
+	}
 }
 
 func parseDuration(raw string, fallback time.Duration) time.Duration {

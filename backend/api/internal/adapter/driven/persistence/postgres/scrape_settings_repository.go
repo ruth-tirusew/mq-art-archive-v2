@@ -25,7 +25,8 @@ func (r *ScrapeSettingsRepository) Get(ctx context.Context) (*settings.ScrapeSet
 		SELECT
 			scrape_enabled, scrape_sources, scrape_user_agent, scrape_timeout_seconds, scrape_interval_seconds,
 			telegram_enabled, telegram_api_id, telegram_api_hash, telegram_channels, telegram_keywords, telegram_fetch_limit,
-			updated_at, updated_by
+			updated_at, updated_by,
+			last_run_at, last_success_at, last_error
 		FROM scrape_settings
 		WHERE id = 1
 	`)
@@ -36,6 +37,7 @@ func (r *ScrapeSettingsRepository) Get(ctx context.Context) (*settings.ScrapeSet
 		&s.ScrapeEnabled, &s.ScrapeSources, &s.ScrapeUserAgent, &s.ScrapeTimeoutSeconds, &s.ScrapeIntervalSeconds,
 		&s.TelegramEnabled, &s.TelegramAPIID, &s.TelegramAPIHash, &s.TelegramChannels, &s.TelegramKeywords, &s.TelegramFetchLimit,
 		&s.UpdatedAt, &updatedBy,
+		&s.LastRunAt, &s.LastSuccessAt, &s.LastError,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -103,6 +105,34 @@ func (r *ScrapeSettingsRepository) Upsert(ctx context.Context, s settings.Scrape
 	)
 	if err != nil {
 		return fmt.Errorf("upsert scrape settings: %w", err)
+	}
+	return nil
+}
+
+func (r *ScrapeSettingsRepository) RecordRunResult(ctx context.Context, runAt time.Time, runErr error) error {
+	var errMsg *string
+	if runErr != nil {
+		msg := runErr.Error()
+		errMsg = &msg
+	}
+	if runErr == nil {
+		_, err := r.pool.Exec(ctx, `
+			UPDATE scrape_settings
+			SET last_run_at = $1, last_success_at = $1, last_error = NULL
+			WHERE id = 1
+		`, runAt)
+		if err != nil {
+			return fmt.Errorf("record scrape run result: %w", err)
+		}
+		return nil
+	}
+	_, err := r.pool.Exec(ctx, `
+		UPDATE scrape_settings
+		SET last_run_at = $1, last_error = $2
+		WHERE id = 1
+	`, runAt, errMsg)
+	if err != nil {
+		return fmt.Errorf("record scrape run result: %w", err)
 	}
 	return nil
 }

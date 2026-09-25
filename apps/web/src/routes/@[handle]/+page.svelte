@@ -24,13 +24,6 @@
 </header>
 
 <main class="mx-auto max-w-lg px-6 py-12">
-	{#if isDemo}
-		<p
-			class="mb-6 rounded-sm border border-accent/30 bg-accent/10 px-4 py-3 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-accent"
-		>
-			Demo profile — live data from the archive API
-		</p>
-	{/if}
 	<ShareableProfile artist={data.artist} works={data.posts} demo={isDemo} showHeader={false} />
 </main>
 

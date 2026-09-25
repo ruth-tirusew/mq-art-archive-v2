@@ -142,6 +142,9 @@ CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 Operations: [`docs/operations.md`](docs/operations.md)
 
+User onboarding: [`docs/user-onboarding.md`](docs/user-onboarding.md)
+FRS onboarding test: [`docs/frs-onboarding-test.md`](docs/frs-onboarding-test.md)
+
 ## Authentication
 
 - Google OAuth 2.0 (Authorization Code via API BFF) with JWT session cookies
@@ -158,6 +161,4 @@ Operations: [`docs/operations.md`](docs/operations.md)
 | `JWT_SECRET` | Signs access tokens and OAuth state |
 | `AUTH_DEV_MODE` | When `true`, allows `X-User-ID` header fallback for tests |
 | `CLOUDINARY_*` | Pilot media uploads |
-| `PUBLIC_API_URL` | Required by web/admin for all product content |
-
-
+| `PUBLIC_API_URL` | Required by web/admin for all product content. |

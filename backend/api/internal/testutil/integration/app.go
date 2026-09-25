@@ -10,6 +10,7 @@ import (
 	"github.com/mq/api/config"
 	"github.com/mq/api/internal/adapter/driven/auth"
 	eventsadapter "github.com/mq/api/internal/adapter/driven/events"
+	maileradapter "github.com/mq/api/internal/adapter/driven/mailer"
 	"github.com/mq/api/internal/adapter/driven/persistence/postgres"
 	httpadapter "github.com/mq/api/internal/adapter/driving/http"
 	"github.com/mq/api/internal/adapter/driving/http/handler"
@@ -19,6 +20,7 @@ import (
 	artuc "github.com/mq/api/internal/usecase/art"
 	authuc "github.com/mq/api/internal/usecase/auth"
 	contentuc "github.com/mq/api/internal/usecase/content"
+	digestuc "github.com/mq/api/internal/usecase/digest"
 	eventsuc "github.com/mq/api/internal/usecase/events"
 	identityuc "github.com/mq/api/internal/usecase/identity"
 	institutionuc "github.com/mq/api/internal/usecase/institution"
@@ -41,6 +43,7 @@ type App struct {
 	Search      inbound.SearchService
 	Auth        inbound.AuthService
 	Settings    inbound.SettingsService
+	Digest      inbound.DigestService
 	TokenSvc    *auth.TokenService
 }
 
@@ -62,6 +65,9 @@ func NewApp(t *testing.T) *App {
 	eventRepo := postgres.NewEventRepository(pool)
 	eventLocationRepo := postgres.NewEventLocationRepository(pool)
 	eventSource := eventsadapter.NewScraperNoop()
+	digestRecipientRepo := postgres.NewDigestRecipientRepository(pool)
+	digestRunRepo := postgres.NewDigestRunRepository(pool)
+	telegramLinkRepo := postgres.NewTelegramLinkRepository(pool)
 
 	tokenSvc := auth.NewTokenService("integration-test-secret", config.Load().JWTAccessTTL)
 	stateSvc := auth.NewOAuthStateService("integration-test-secret", config.Load().JWTAccessTTL)
@@ -93,7 +99,12 @@ func NewApp(t *testing.T) *App {
 		Search:      searchuc.NewService(articleRepo, eventRepo),
 		Auth:        authSvc,
 		Settings:    settingsSvc,
-		TokenSvc:    tokenSvc,
+		Digest: digestuc.NewService(
+			articleRepo, eventRepo, artPostRepo, digestRecipientRepo, digestRunRepo,
+			notifPrefsRepo, telegramLinkRepo, "integration-test-unsubscribe-secret",
+			maileradapter.NewLogMailer(), nil, "http://localhost:5173", "http://localhost:8080",
+		),
+		TokenSvc: tokenSvc,
 	}
 }
 

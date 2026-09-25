@@ -23,6 +23,11 @@ type ScrapeSettings struct {
 
 	UpdatedAt time.Time
 	UpdatedBy *uuid.UUID
+
+	// Run status is written by the scraper process itself, never by the admin update endpoint.
+	LastRunAt     *time.Time
+	LastSuccessAt *time.Time
+	LastError     *string
 }
 
 // ScrapeSettingsView is the admin-safe view (secrets masked).
@@ -42,6 +47,10 @@ type ScrapeSettingsView struct {
 	SessionAuthorized  bool
 
 	UpdatedAt time.Time
+
+	LastRunAt     *time.Time
+	LastSuccessAt *time.Time
+	LastError     *string
 }
 
 // ScrapeSettingsUpdate is a partial update from admin UI.

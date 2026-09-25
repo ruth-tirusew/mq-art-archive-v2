@@ -1,10 +1,15 @@
 package events
 
+import "time"
+
 // ListFilter selects events for List. Zero value returns public discoverable upcoming events.
 type ListFilter struct {
 	Status       *EventStatus
 	Statuses      []EventStatus
 	UpcomingOnly bool
+	// StartsBefore, when set, restricts results to events starting at or before this time.
+	// Typically combined with UpcomingOnly to select a window (e.g. "next 7 days").
+	StartsBefore *time.Time
 	EventType    string
 	Query        string
 	Limit        int

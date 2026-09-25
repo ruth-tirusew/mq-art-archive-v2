@@ -223,6 +223,12 @@
     sections.find((s) => s.match($page.url.pathname, $page.url.searchParams)) ?? sections[0]
   );
 
+  // Whether the active section has more than one sub-item worth showing as its own
+  // mobile filter row (a section with a single "view everything" item doesn't).
+  const activeSectionHasSubItems = $derived(
+    activeSection.groups.reduce((count, group) => count + group.items.length, 0) > 1
+  );
+
   const breadcrumbLeaf = $derived.by(() => {
     const pathname = $page.url.pathname;
     if (pathname.endsWith('/new')) return 'New';
@@ -254,69 +260,86 @@
   </div>
 {:else}
   <div class="flex h-screen overflow-hidden bg-background">
-    <!-- Primary icon rail -->
+    <!-- Sidebar: top-level sections, with the active section's sub-items expanded inline -->
     <aside
-      class="flex w-12 shrink-0 flex-col items-center border-r border-border/60 bg-sidebar py-3"
+      class="hidden w-56 shrink-0 flex-col overflow-y-auto border-r border-border/60 bg-sidebar lg:flex"
       aria-label="Primary"
     >
       <a
         href="/"
-        class="mb-4 flex h-8 w-8 items-center justify-center font-display text-lg leading-none text-foreground"
-        title="artiv."
+        class="px-5 pb-2 pt-5 font-display text-lg tracking-tight text-foreground"
         aria-label="artiv. home"
       >
-        m
+        artiv.
       </a>
 
-      <nav class="flex flex-1 flex-col items-center gap-1">
-        {#each topSections as item}
-          <a
-            href={item.href}
-            title={item.label}
-            aria-label={item.label}
-            aria-current={activeSection.id === item.id ? 'page' : undefined}
-            class={cn(
-              'flex h-9 w-9 items-center justify-center rounded-md transition-colors',
-              activeSection.id === item.id
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-            )}
-          >
-            <item.icon class="h-4 w-4" strokeWidth={1.5} />
-          </a>
+      {#snippet sectionNav(section: PrimarySection)}
+        <a
+          href={section.href}
+          aria-current={activeSection.id === section.id ? 'page' : undefined}
+          class={cn(
+            'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+            activeSection.id === section.id
+              ? 'bg-muted font-medium text-foreground'
+              : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+          )}
+        >
+          <section.icon class="h-4 w-4 shrink-0" strokeWidth={1.5} />
+          {section.label}
+        </a>
+        {#if activeSection.id === section.id}
+          <div class="mb-1 ml-4 flex flex-col gap-3 border-l border-border/60 py-1 pl-3">
+            {#each section.groups as group}
+              <div class="flex flex-col gap-0.5">
+                {#if group.heading}
+                  <p
+                    class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+                  >
+                    {group.heading}
+                  </p>
+                {/if}
+                {#each group.items as item}
+                  <a
+                    href={item.href}
+                    class={cn(
+                      'rounded-md px-2 py-1 text-sm transition-colors',
+                      isItemActive(item.href)
+                        ? 'bg-muted font-medium text-foreground'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    )}
+                  >
+                    {item.label}
+                  </a>
+                {/each}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      {/snippet}
+
+      <nav class="flex flex-1 flex-col gap-0.5 px-3 pb-3 pt-2">
+        {#each topSections as section}
+          {@render sectionNav(section)}
         {/each}
       </nav>
 
-      <nav class="flex flex-col items-center gap-1 pb-1">
-        {#each bottomSections as item}
-          <a
-            href={item.href}
-            title={item.label}
-            aria-label={item.label}
-            aria-current={activeSection.id === item.id ? 'page' : undefined}
-            class={cn(
-              'flex h-9 w-9 items-center justify-center rounded-md transition-colors',
-              activeSection.id === item.id
-                ? 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-            )}
-          >
-            <item.icon class="h-4 w-4" strokeWidth={1.5} />
-          </a>
+      <nav class="flex flex-col gap-0.5 border-t border-border/60 px-3 py-3">
+        {#each bottomSections as section}
+          {@render sectionNav(section)}
         {/each}
       </nav>
     </aside>
 
-    <!-- Header + secondary + main -->
+    <!-- Header + main -->
     <div class="flex min-w-0 flex-1 flex-col">
       <header
         class="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border/50 px-4 md:px-5"
       >
         <nav class="flex min-w-0 items-center gap-1.5 text-sm" aria-label="Breadcrumb">
-          <a href="/" class="shrink-0 font-display text-base tracking-tight text-foreground"
+          <a href="/" class="shrink-0 font-display text-base tracking-tight text-foreground lg:hidden"
             >artiv.</a
           >
-          <span class="text-muted-foreground/50" aria-hidden="true">/</span>
+          <span class="text-muted-foreground/50 lg:hidden" aria-hidden="true">/</span>
           <span class="truncate text-muted-foreground">{activeSection.title}</span>
           {#if breadcrumbLeaf !== activeSection.title}
             <span class="text-muted-foreground/50" aria-hidden="true">/</span>
@@ -334,68 +357,49 @@
         </div>
       </header>
 
-      <!-- Mobile secondary nav -->
-      <div class="flex gap-2 overflow-x-auto border-b border-border/50 px-3 py-2 lg:hidden">
-        {#each activeSection.groups as group}
-          {#each group.items as item}
+      <!-- Mobile nav: top-level sections, then the active section's sub-items -->
+      <div class="flex flex-col gap-2 border-b border-border/50 px-3 py-2 lg:hidden">
+        <div class="flex gap-2 overflow-x-auto">
+          {#each sections as section}
             <a
-              href={item.href}
+              href={section.href}
               class={cn(
-                'shrink-0 rounded-md border px-3 py-1 text-xs',
-                isItemActive(item.href)
+                'flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1 text-xs',
+                activeSection.id === section.id
                   ? 'border-foreground bg-muted text-foreground'
                   : 'border-border text-muted-foreground'
               )}
             >
-              {item.label}
+              <section.icon class="h-3.5 w-3.5" strokeWidth={1.5} />
+              {section.label}
             </a>
           {/each}
-        {/each}
-      </div>
-
-      <div class="flex min-h-0 flex-1">
-        <!-- Secondary sidebar -->
-        <aside
-          class="hidden w-56 shrink-0 flex-col overflow-y-auto border-r border-border/60 bg-sidebar lg:flex"
-          aria-label={activeSection.title}
-        >
-          <div class="px-5 pb-2 pt-5">
-            <h2 class="text-lg font-medium tracking-tight text-foreground">{activeSection.title}</h2>
-          </div>
-
-          <nav class="flex flex-col gap-5 px-3 pb-6 pt-2">
+        </div>
+        {#if activeSectionHasSubItems}
+          <div class="flex gap-2 overflow-x-auto">
             {#each activeSection.groups as group}
-              <div class="flex flex-col gap-0.5">
-                {#if group.heading}
-                  <p
-                    class="px-2 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
-                  >
-                    {group.heading}
-                  </p>
-                {/if}
-                {#each group.items as item}
-                  <a
-                    href={item.href}
-                    class={cn(
-                      'rounded-md px-2 py-1.5 text-sm transition-colors',
-                      isItemActive(item.href)
-                        ? 'bg-muted font-medium text-foreground'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                    )}
-                  >
-                    {item.label}
-                  </a>
-                {/each}
-              </div>
+              {#each group.items as item}
+                <a
+                  href={item.href}
+                  class={cn(
+                    'shrink-0 rounded-md border px-3 py-1 text-xs',
+                    isItemActive(item.href)
+                      ? 'border-foreground bg-muted text-foreground'
+                      : 'border-border text-muted-foreground'
+                  )}
+                >
+                  {item.label}
+                </a>
+              {/each}
             {/each}
-          </nav>
-        </aside>
-
-        <!-- Main content -->
-        <main class="page-enter min-h-0 flex-1 overflow-y-auto px-6 py-8 md:px-8 lg:px-10">
-          {@render children()}
-        </main>
+          </div>
+        {/if}
       </div>
+
+      <!-- Main content -->
+      <main class="page-enter min-h-0 flex-1 overflow-y-auto px-6 py-8 md:px-8 lg:px-10">
+        {@render children()}
+      </main>
     </div>
   </div>
 {/if}

@@ -47,6 +47,10 @@ func main() {
 		log.Fatalf("configuration: %v", err)
 	}
 
+	if err := postgres.Migrate(cfg.DatabaseURL); err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

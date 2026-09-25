@@ -2,7 +2,7 @@
 ALTER TABLE articles
     ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1;
 
-CREATE TABLE article_revisions (
+CREATE TABLE IF NOT EXISTS article_revisions (
     id            UUID PRIMARY KEY,
     article_id    UUID NOT NULL REFERENCES articles (id) ON DELETE CASCADE,
     version       INT NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE article_revisions (
     CONSTRAINT article_revisions_article_version_unique UNIQUE (article_id, version)
 );
 
-CREATE INDEX idx_article_revisions_article_id ON article_revisions (article_id, version DESC);
+CREATE INDEX IF NOT EXISTS idx_article_revisions_article_id ON article_revisions (article_id, version DESC);
 
 -- +goose Down
 DROP TABLE IF EXISTS article_revisions;

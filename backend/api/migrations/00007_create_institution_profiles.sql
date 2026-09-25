@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE institution_profiles (
+CREATE TABLE IF NOT EXISTS institution_profiles (
     id                UUID PRIMARY KEY,
     user_id           UUID NOT NULL REFERENCES users (id),
     slug              TEXT NOT NULL UNIQUE,
@@ -14,8 +14,8 @@ CREATE TABLE institution_profiles (
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_institution_profiles_user_id ON institution_profiles (user_id);
-CREATE INDEX idx_institution_profiles_status ON institution_profiles (status);
+CREATE INDEX IF NOT EXISTS idx_institution_profiles_user_id ON institution_profiles (user_id);
+CREATE INDEX IF NOT EXISTS idx_institution_profiles_status ON institution_profiles (status);
 
 -- +goose Down
 DROP TABLE IF EXISTS institution_profiles;

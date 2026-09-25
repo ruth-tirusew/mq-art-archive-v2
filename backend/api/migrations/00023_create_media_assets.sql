@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE media_assets (
+CREATE TABLE IF NOT EXISTS media_assets (
     id UUID PRIMARY KEY,
     owner_user_id UUID NOT NULL REFERENCES users(id),
     public_id TEXT NOT NULL UNIQUE,
@@ -12,9 +12,9 @@ CREATE TABLE media_assets (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_media_assets_owner ON media_assets(owner_user_id);
-ALTER TABLE art_post_media ADD COLUMN media_asset_id UUID REFERENCES media_assets(id) ON DELETE SET NULL;
-ALTER TABLE artist_profiles ADD COLUMN portrait_media_asset_id UUID REFERENCES media_assets(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_media_assets_owner ON media_assets(owner_user_id);
+ALTER TABLE art_post_media ADD COLUMN IF NOT EXISTS media_asset_id UUID REFERENCES media_assets(id) ON DELETE SET NULL;
+ALTER TABLE artist_profiles ADD COLUMN IF NOT EXISTS portrait_media_asset_id UUID REFERENCES media_assets(id) ON DELETE SET NULL;
 
 -- +goose Down
 ALTER TABLE artist_profiles DROP COLUMN IF EXISTS portrait_media_asset_id;

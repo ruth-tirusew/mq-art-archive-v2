@@ -120,10 +120,22 @@ func main() {
 	if cfg.ResendAPIKey != "" {
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}
+	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
+	// polling goroutine below can reuse this same instance rather than constructing a
+	// second one. telegramNotifier stays a nil interface when the bot isn't configured,
+	// not a non-nil interface wrapping a nil pointer — digest.Service checks it with a
+	// plain != nil, which only works correctly if unset means a truly nil interface.
+	var telegramBot *telegramadapter.Bot
+	var telegramNotifier outbound.TelegramNotifier
+	if cfg.TelegramBotToken != "" {
+		telegramBot = telegramadapter.NewBot(cfg.TelegramBotToken)
+		telegramNotifier = telegramBot
+	}
 	eventsSvc := eventsuc.NewService(eventRepo, eventLocationRepo, eventSource, notifPrefsRepo, mailer)
 	digestSvc := digestuc.NewService(
 		articleRepo, eventRepo, artPostRepo, digestRecipientRepo, digestRunRepo,
 		notifPrefsRepo, telegramLinkRepo, cfg.JWTSecret,
+		mailer, telegramNotifier, cfg.WebAppURL, cfg.PublicAPIURL,
 	)
 	authSvc := authuc.NewService(
 		userRepo,
@@ -190,11 +202,10 @@ func main() {
 
 	botCtx, botCancel := context.WithCancel(context.Background())
 	defer botCancel()
-	if cfg.TelegramBotToken != "" {
-		bot := telegramadapter.NewBot(cfg.TelegramBotToken)
+	if telegramBot != nil {
 		go func() {
 			log.Printf("telegram bot polling for updates")
-			if err := bot.PollUpdates(botCtx, telegramUpdateHandler(digestSvc, bot)); err != nil && botCtx.Err() == nil {
+			if err := telegramBot.PollUpdates(botCtx, telegramUpdateHandler(digestSvc, telegramBot)); err != nil && botCtx.Err() == nil {
 				log.Printf("telegram bot polling stopped: %v", err)
 			}
 		}()

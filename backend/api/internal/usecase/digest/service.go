@@ -45,6 +45,10 @@ type Service struct {
 	notifications     outbound.NotificationPreferencesRepository
 	telegramLinks     outbound.TelegramLinkRepository
 	unsubscribeSecret string
+	mailer            outbound.Mailer
+	telegram          outbound.TelegramNotifier
+	webAppURL         string
+	publicAPIURL      string
 }
 
 func NewService(
@@ -56,6 +60,10 @@ func NewService(
 	notifications outbound.NotificationPreferencesRepository,
 	telegramLinks outbound.TelegramLinkRepository,
 	unsubscribeSecret string,
+	mailer outbound.Mailer,
+	telegram outbound.TelegramNotifier,
+	webAppURL string,
+	publicAPIURL string,
 ) inbound.DigestService {
 	return &Service{
 		articles:          articles,
@@ -66,6 +74,10 @@ func NewService(
 		notifications:     notifications,
 		telegramLinks:     telegramLinks,
 		unsubscribeSecret: unsubscribeSecret,
+		mailer:            mailer,
+		telegram:          telegram,
+		webAppURL:         strings.TrimRight(webAppURL, "/"),
+		publicAPIURL:      strings.TrimRight(publicAPIURL, "/"),
 	}
 }
 
@@ -77,8 +89,15 @@ func (s *Service) BuildWeekly(ctx context.Context) (*inbound.Digest, error) {
 	if err != nil {
 		return nil, err
 	}
-	periodEnd := now
-	eventsUntil := now.Add(upcomingWindow)
+	return s.buildForPeriod(ctx, periodStart, now)
+}
+
+// buildForPeriod is BuildWeekly's content-selection logic for an explicit, already-decided
+// window. SendWeekly uses this directly (rather than BuildWeekly) when resuming an
+// interrupted run, so a retry rebuilds the same content window the original attempt used
+// instead of a new one anchored to "now".
+func (s *Service) buildForPeriod(ctx context.Context, periodStart, periodEnd time.Time) (*inbound.Digest, error) {
+	eventsUntil := periodEnd.Add(upcomingWindow)
 
 	approved := eventsdomain.EventStatusApproved
 	upcomingEvents, err := s.events.List(ctx, eventsdomain.ListFilter{
@@ -136,6 +155,93 @@ func (s *Service) HasSuccessfulDelivery(ctx context.Context, runID, recipientID 
 
 func (s *Service) RecordDelivery(ctx context.Context, runID, recipientID uuid.UUID, channel digestdomain.Channel, sentAt time.Time, deliveryErr error) error {
 	return s.runs.RecordDelivery(ctx, runID, recipientID, channel, sentAt, deliveryErr)
+}
+
+// SendWeekly builds the digest, sends it to every eligible recipient on every channel
+// they've opted into, and records the run. It's safe to call again after a partial failure
+// or a crash mid-run: if an incomplete run already exists, it's resumed under the same run
+// ID (same content window, same run row) instead of starting a new one, so
+// HasSuccessfulDelivery correctly reflects what was already sent and a retry only reaches
+// whoever didn't get it last time. Starting a fresh run on every retry would defeat that —
+// a new run ID has no delivery history, so a naive retry would resend to everyone.
+//
+// The Telegram message is identical for every recipient and rendered once. The email body
+// is not — it carries a per-recipient signed unsubscribe link — so it's rendered fresh per
+// recipient rather than reused.
+func (s *Service) SendWeekly(ctx context.Context) error {
+	run, err := s.currentOrNewRun(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve digest run: %w", err)
+	}
+
+	d, err := s.buildForPeriod(ctx, run.PeriodStart, run.PeriodEnd)
+	if err != nil {
+		return fmt.Errorf("build weekly digest: %w", err)
+	}
+
+	recipients, err := s.Recipients(ctx)
+	if err != nil {
+		return fmt.Errorf("list digest recipients: %w", err)
+	}
+
+	subject := Subject(*d)
+	telegramMessage := RenderTelegram(*d, s.webAppURL)
+
+	for _, r := range recipients {
+		if r.EmailOptedIn {
+			s.sendChannel(ctx, run.ID, r.UserID, digestdomain.ChannelEmail, func() error {
+				unsubscribeURL := fmt.Sprintf("%s/unsubscribe?token=%s", s.publicAPIURL, s.SignUnsubscribeToken(r.UserID))
+				htmlBody, textBody, err := RenderEmail(*d, s.webAppURL, unsubscribeURL)
+				if err != nil {
+					return err
+				}
+				return s.mailer.SendHTML(ctx, r.Email, subject, htmlBody, textBody)
+			})
+		}
+		if r.TelegramChatID != nil && s.telegram != nil {
+			s.sendChannel(ctx, run.ID, r.UserID, digestdomain.ChannelTelegram, func() error {
+				return s.telegram.Send(ctx, *r.TelegramChatID, telegramMessage)
+			})
+		}
+	}
+
+	return s.CompleteRun(ctx, run.ID)
+}
+
+// currentOrNewRun resumes the most recent incomplete run if one exists, otherwise starts a
+// fresh one anchored to "now". An incomplete run lingering because of a genuinely stuck
+// process (not just a transient crash) will keep being "resumed" indefinitely — CompleteRun
+// never gets called for it — which is an acceptable failure mode here: it only delays a
+// fresh period from starting, it never causes a duplicate send.
+func (s *Service) currentOrNewRun(ctx context.Context) (*digestdomain.Run, error) {
+	incomplete, err := s.runs.GetIncompleteRun(ctx)
+	if err == nil {
+		return incomplete, nil
+	}
+	if !errors.Is(err, apperrors.ErrNotFound) {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	periodStart, err := s.resolvePeriodStart(ctx, now)
+	if err != nil {
+		return nil, err
+	}
+	return s.runs.StartRun(ctx, periodStart, now)
+}
+
+// sendChannel skips a recipient/channel pair already delivered in this run, otherwise
+// sends and records the outcome. Send and record errors are swallowed (not returned to the
+// caller) by design: one recipient's bad email address or a transient Telegram API error
+// must not abort the run for everyone after them — RecordDelivery captures the failure so
+// it's visible and retryable on the next run.
+func (s *Service) sendChannel(ctx context.Context, runID, userID uuid.UUID, channel digestdomain.Channel, send func() error) {
+	already, err := s.HasSuccessfulDelivery(ctx, runID, userID, channel)
+	if err != nil || already {
+		return
+	}
+	sendErr := send()
+	_ = s.RecordDelivery(ctx, runID, userID, channel, time.Now().UTC(), sendErr)
 }
 
 // resolvePeriodStart anchors the content window to the end of the last completed run, so

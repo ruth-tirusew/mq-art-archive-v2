@@ -20,6 +20,11 @@ type DigestRecipientRepository interface {
 type DigestRunRepository interface {
 	// LastCompletedRun returns the most recently completed run, or ErrNotFound if none exists.
 	LastCompletedRun(ctx context.Context) (*digest.Run, error)
+	// GetIncompleteRun returns the most recent run with no CompletedAt, or ErrNotFound if
+	// none exists. Callers use this to resume an interrupted send under the same run ID
+	// (so HasSuccessfulDelivery/RecordDelivery stay meaningful) rather than starting a new
+	// run and losing track of who was already sent to.
+	GetIncompleteRun(ctx context.Context) (*digest.Run, error)
 	StartRun(ctx context.Context, periodStart, periodEnd time.Time) (*digest.Run, error)
 	CompleteRun(ctx context.Context, runID uuid.UUID) error
 	HasSuccessfulDelivery(ctx context.Context, runID, recipientID uuid.UUID, channel digest.Channel) (bool, error)

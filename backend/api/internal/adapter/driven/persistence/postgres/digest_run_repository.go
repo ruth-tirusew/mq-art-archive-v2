@@ -40,6 +40,26 @@ func (r *DigestRunRepository) LastCompletedRun(ctx context.Context) (*digest.Run
 	return &run, nil
 }
 
+func (r *DigestRunRepository) GetIncompleteRun(ctx context.Context) (*digest.Run, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT id, period_start, period_end, started_at, completed_at
+		FROM digest_runs
+		WHERE completed_at IS NULL
+		ORDER BY started_at DESC
+		LIMIT 1
+	`)
+
+	var run digest.Run
+	err := row.Scan(&run.ID, &run.PeriodStart, &run.PeriodEnd, &run.StartedAt, &run.CompletedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get incomplete digest run: %w", err)
+	}
+	return &run, nil
+}
+
 func (r *DigestRunRepository) StartRun(ctx context.Context, periodStart, periodEnd time.Time) (*digest.Run, error) {
 	run := digest.Run{
 		ID:          uuid.New(),

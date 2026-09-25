@@ -28,6 +28,11 @@ type Digest struct {
 // linking and email unsubscribe flows (used by HTTP handlers).
 type DigestService interface {
 	BuildWeekly(ctx context.Context) (*Digest, error)
+	// SendWeekly builds, sends, and records one full digest run. This is what the
+	// cmd/digest scheduler calls; BuildWeekly/Recipients/StartRun/etc. below are its
+	// building blocks, exposed separately for testing and for callers that need finer
+	// control.
+	SendWeekly(ctx context.Context) error
 	Recipients(ctx context.Context) ([]digestdomain.Recipient, error)
 	StartRun(ctx context.Context, d Digest) (*digestdomain.Run, error)
 	CompleteRun(ctx context.Context, runID uuid.UUID) error

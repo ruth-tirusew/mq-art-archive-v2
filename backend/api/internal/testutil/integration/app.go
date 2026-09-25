@@ -10,6 +10,7 @@ import (
 	"github.com/mq/api/config"
 	"github.com/mq/api/internal/adapter/driven/auth"
 	eventsadapter "github.com/mq/api/internal/adapter/driven/events"
+	maileradapter "github.com/mq/api/internal/adapter/driven/mailer"
 	"github.com/mq/api/internal/adapter/driven/persistence/postgres"
 	httpadapter "github.com/mq/api/internal/adapter/driving/http"
 	"github.com/mq/api/internal/adapter/driving/http/handler"
@@ -101,6 +102,7 @@ func NewApp(t *testing.T) *App {
 		Digest: digestuc.NewService(
 			articleRepo, eventRepo, artPostRepo, digestRecipientRepo, digestRunRepo,
 			notifPrefsRepo, telegramLinkRepo, "integration-test-unsubscribe-secret",
+			maileradapter.NewLogMailer(), nil, "http://localhost:5173", "http://localhost:8080",
 		),
 		TokenSvc: tokenSvc,
 	}

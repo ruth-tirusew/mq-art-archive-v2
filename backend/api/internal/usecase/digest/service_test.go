@@ -12,7 +12,9 @@ import (
 )
 
 type fakeRunRepo struct {
-	lastCompletedRun func(ctx context.Context) (*digestdomain.Run, error)
+	lastCompletedRun  func(ctx context.Context) (*digestdomain.Run, error)
+	getIncompleteRun  func(ctx context.Context) (*digestdomain.Run, error)
+	startRunCallCount int
 }
 
 func (f *fakeRunRepo) LastCompletedRun(ctx context.Context) (*digestdomain.Run, error) {
@@ -22,7 +24,15 @@ func (f *fakeRunRepo) LastCompletedRun(ctx context.Context) (*digestdomain.Run, 
 	return nil, apperrors.ErrNotFound
 }
 
+func (f *fakeRunRepo) GetIncompleteRun(ctx context.Context) (*digestdomain.Run, error) {
+	if f.getIncompleteRun != nil {
+		return f.getIncompleteRun(ctx)
+	}
+	return nil, apperrors.ErrNotFound
+}
+
 func (f *fakeRunRepo) StartRun(ctx context.Context, periodStart, periodEnd time.Time) (*digestdomain.Run, error) {
+	f.startRunCallCount++
 	return &digestdomain.Run{ID: uuid.New(), PeriodStart: periodStart, PeriodEnd: periodEnd, StartedAt: time.Now().UTC()}, nil
 }
 
@@ -69,4 +79,43 @@ func TestResolvePeriodStart_propagatesUnexpectedError(t *testing.T) {
 
 	_, err := svc.resolvePeriodStart(context.Background(), time.Now())
 	assist.ErrorIs(t, err, boom)
+}
+
+func TestCurrentOrNewRun_resumesExistingIncompleteRun(t *testing.T) {
+	existing := &digestdomain.Run{ID: uuid.New(), PeriodStart: time.Now().Add(-time.Hour), PeriodEnd: time.Now()}
+	runs := &fakeRunRepo{
+		getIncompleteRun: func(ctx context.Context) (*digestdomain.Run, error) {
+			return existing, nil
+		},
+	}
+	svc := &Service{runs: runs}
+
+	got, err := svc.currentOrNewRun(context.Background())
+	assist.NoError(t, err)
+	assist.Equal(t, existing.ID, got.ID)
+	assist.Equal(t, 0, runs.startRunCallCount)
+}
+
+func TestCurrentOrNewRun_startsFreshWhenNoneIncomplete(t *testing.T) {
+	runs := &fakeRunRepo{}
+	svc := &Service{runs: runs}
+
+	got, err := svc.currentOrNewRun(context.Background())
+	assist.NoError(t, err)
+	assist.NotNil(t, got)
+	assist.Equal(t, 1, runs.startRunCallCount)
+}
+
+func TestCurrentOrNewRun_propagatesUnexpectedError(t *testing.T) {
+	boom := context.DeadlineExceeded
+	runs := &fakeRunRepo{
+		getIncompleteRun: func(ctx context.Context) (*digestdomain.Run, error) {
+			return nil, boom
+		},
+	}
+	svc := &Service{runs: runs}
+
+	_, err := svc.currentOrNewRun(context.Background())
+	assist.ErrorIs(t, err, boom)
+	assist.Equal(t, 0, runs.startRunCallCount)
 }

@@ -4,16 +4,11 @@
 	import HomeFallbackHero from '$lib/components/home/HomeFallbackHero.svelte';
 	import EditorialCanvas from '$lib/components/home/EditorialCanvas.svelte';
 	import MarqueeStrip from '$lib/components/home/MarqueeStrip.svelte';
+	import RosterRadar from '$lib/components/home/RosterRadar.svelte';
 	import ShareableProfile from '$lib/components/ShareableProfile.svelte';
+	import CtaLink from '$lib/components/CtaLink.svelte';
 	import type { Article } from '$lib/core/domain/content';
 	import type { ArtistProfile } from '$lib/core/domain/profile';
-	import {
-		artistDiscipline,
-		artistLocation,
-		artistName,
-		artistPortrait,
-		artistSlug
-	} from '$lib/utils/fields';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -31,21 +26,13 @@
 		return article.category ?? 'General';
 	}
 
-	// A short roster preview for the discovery section — the featured artist already gets
-	// their own hero above, so exclude them here rather than repeat the same profile twice.
-	const rosterPreview = $derived(
-		(data.artists ?? []).filter((a: ArtistProfile) => a.slug !== featuredArtist?.slug).slice(0, 6)
+	// The radar's node set — the featured artist already gets their own hero above, so
+	// exclude them here rather than repeat the same profile twice. Capped well below the
+	// full roster so the chart reads as a sample, not a cramped attempt at completeness.
+	const nodeArtists = $derived(
+		(data.artists ?? []).filter((a: ArtistProfile) => a.slug !== featuredArtist?.slug).slice(0, 14)
 	);
 	const artistsTotal = $derived(data.artistsTotal ?? (data.artists ?? []).length);
-	const disciplines = $derived(
-		Array.from(
-			new Set(
-				(data.artists ?? [])
-					.map((a: ArtistProfile) => artistDiscipline(a))
-					.filter((d: string | undefined): d is string => Boolean(d))
-			)
-		).slice(0, 6)
-	);
 </script>
 
 <svelte:head>
@@ -67,94 +54,58 @@
 {/if}
 
 <MarqueeStrip items={marqueeItems} />
-
 <section class="border-b border-border/60">
-	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-20">
-		<SectionEyebrow number="02" label="Discover the roster" />
-		<div class="mt-8 grid gap-10 md:grid-cols-12">
-			<div class="md:col-span-5">
-				<h2 class="max-w-md font-display text-3xl leading-[1.05] text-foreground md:text-4xl">
-					Every artist, <em class="italic">searchable</em>.
+	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-20 lg:py-24">
+
+		<div class="mt-10 grid items-center gap-12 lg:grid-cols-12 lg:gap-8">
+			<!-- Copy -->
+			<div class="lg:col-span-5 lg:pr-12">
+					<SectionEyebrow number="02" label="Discover the roster" />
+
+				<h2
+					class="max-w-lg font-display text-5xl leading-[0.95] tracking-[-0.03em] text-foreground md:text-6xl"
+				>
+					Every artist,
+					<em class="italic">searchable.</em>
 				</h2>
-				<p class="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground md:text-base">
-					Filter by discipline, sort by newest or name, and open a full profile with works, bio
-					and contact details — no gatekeeping, no submission fee.
+
+				<p
+					class="mt-6 max-w-md text-sm leading-relaxed text-muted-foreground md:text-base"
+				>
+					Explore the artists in our roster, discover their disciplines,
+					and open a full profile with works, biography and contact details.
 				</p>
 
-				<dl class="mt-8 flex gap-8 border-t border-border/70 pt-6">
-					<div>
-						<dt class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-							Artists listed
-						</dt>
-						<dd class="mt-1 font-display text-3xl text-accent md:text-4xl">{artistsTotal}</dd>
-					</div>
-					{#if disciplines.length > 0}
-						<div class="min-w-0">
-							<dt class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-								Disciplines
-							</dt>
-							<dd class="mt-2 flex flex-wrap gap-1.5">
-								{#each disciplines as d}
-									<span
-										class="rounded-full border border-border/70 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-foreground/80"
-									>
-										{d}
-									</span>
-								{/each}
-							</dd>
-						</div>
-					{/if}
-				</dl>
+				<div class="mt-8 flex flex-wrap items-center gap-6">
+					<CtaLink href="/artists" variant="accent">
+						Explore all artists
+						<span aria-hidden="true">→</span>
+					</CtaLink>
 
-				<a
-					href="/artists"
-					class="mt-8 inline-block font-mono text-[11px] uppercase tracking-[0.2em] text-foreground underline decoration-accent decoration-2 underline-offset-8 hover:text-accent"
-				>
-					Explore all artists →
-				</a>
+					<p
+						class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground"
+					>
+						{artistsTotal} artists listed
+					</p>
+				</div>
 			</div>
 
-			<div class="md:col-span-7">
-				{#if rosterPreview.length > 0}
-					<div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
-						{#each rosterPreview as artist (artistSlug(artist))}
-							<a
-								href="/artists/{artistSlug(artist)}"
-								class="group rounded-sm border border-border/70 bg-card/40 p-4 transition hover:border-accent"
-							>
-								<div class="aspect-square w-full overflow-hidden rounded-sm bg-muted">
-									{#if artistPortrait(artist)}
-										<img
-											src={artistPortrait(artist)}
-											alt={artistName(artist)}
-											class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-										/>
-									{/if}
-								</div>
-								<p
-									class="mt-3 truncate font-display text-base leading-tight text-foreground group-hover:text-accent"
-								>
-									{artistName(artist)}
-								</p>
-								{#if artistDiscipline(artist)}
-									<p class="mt-0.5 truncate text-xs text-muted-foreground">
-										{artistDiscipline(artist)}
-									</p>
-								{:else if artistLocation(artist)}
-									<p class="mt-0.5 truncate text-xs text-muted-foreground">
-										{artistLocation(artist)}
-									</p>
-								{/if}
-							</a>
-						{/each}
-					</div>
+			<!-- Radar -->
+			<div class="lg:col-span-7">
+				{#if nodeArtists.length > 0}
+					<RosterRadar artists={nodeArtists} />
 				{:else}
 					<div
-						class="flex min-h-[220px] items-center justify-center rounded-sm border border-border/70 bg-card/40 p-8 text-center"
+						class="mx-auto flex min-h-55 max-w-xl items-center justify-center rounded-sm border border-border/70 bg-card/40 p-8 text-center"
 					>
 						<p class="max-w-xs text-sm leading-relaxed text-muted-foreground">
 							The artist roster is temporarily unavailable — the full directory is still at
-							<a href="/artists" class="text-accent underline underline-offset-4">/artists</a>.
+							<a
+								href="/artists"
+								class="text-accent underline underline-offset-4"
+							>
+								/artists
+							</a>.
 						</p>
 					</div>
 				{/if}
@@ -162,7 +113,6 @@
 		</div>
 	</div>
 </section>
-
 <section class="border-b border-border/60 bg-card/30">
 	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-20">
 		<SectionEyebrow number="03" label="One link, the whole studio" />
@@ -198,7 +148,7 @@
 					<ShareableProfile artist={featuredArtist} works={data.featuredPosts ?? []} demo framed />
 				{:else}
 					<div
-						class="mx-auto flex min-h-[280px] max-w-md items-center justify-center rounded-sm border border-border/70 bg-card/40 p-8 text-center"
+						class="mx-auto flex min-h-70 max-w-md items-center justify-center rounded-sm border border-border/70 bg-card/40 p-8 text-center"
 					>
 						<p class="max-w-xs text-sm leading-relaxed text-muted-foreground">
 							The profile preview is temporarily unavailable — see a live example at
@@ -242,7 +192,7 @@
 		{:else}
 			<a
 				href="/wiki"
-				class="group relative flex flex-col justify-between overflow-hidden rounded-sm border border-border/70 bg-card/40 p-8 transition hover:border-accent md:col-span-7 md:min-h-[280px]"
+				class="group relative flex flex-col justify-between overflow-hidden rounded-sm border border-border/70 bg-card/40 p-8 transition hover:border-accent md:col-span-7 md:min-h-70"
 			>
 				<div>
 					<p class="font-mono text-[10px] uppercase tracking-[0.25em] text-accent">
@@ -266,7 +216,7 @@
 
 		<a
 			href="/events"
-			class="group relative flex flex-col justify-between overflow-hidden rounded-sm border border-border/70 bg-ink p-8 text-cream transition hover:border-accent md:col-span-5 md:min-h-[280px]"
+			class="group relative flex flex-col justify-between overflow-hidden rounded-sm border border-border/70 bg-ink p-8 text-cream transition hover:border-accent md:col-span-5 md:min-h-70"
 		>
 			<div>
 				<p class="font-mono text-[10px] uppercase tracking-[0.25em] text-accent">

@@ -72,3 +72,7 @@ type ScrapeSettingsUpdateRequest struct {
 	TelegramKeywords   *[]string `json:"telegram_keywords"`
 	TelegramFetchLimit *int      `json:"telegram_fetch_limit"`
 }
+
+type TelegramLinkResponse struct {
+	DeepLink string `json:"deep_link"`
+}

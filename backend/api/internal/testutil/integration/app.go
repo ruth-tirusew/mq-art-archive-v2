@@ -42,7 +42,7 @@ type App struct {
 	Search      inbound.SearchService
 	Auth        inbound.AuthService
 	Settings    inbound.SettingsService
-	Digest      *digestuc.Service
+	Digest      inbound.DigestService
 	TokenSvc    *auth.TokenService
 }
 
@@ -66,6 +66,7 @@ func NewApp(t *testing.T) *App {
 	eventSource := eventsadapter.NewScraperNoop()
 	digestRecipientRepo := postgres.NewDigestRecipientRepository(pool)
 	digestRunRepo := postgres.NewDigestRunRepository(pool)
+	telegramLinkRepo := postgres.NewTelegramLinkRepository(pool)
 
 	tokenSvc := auth.NewTokenService("integration-test-secret", config.Load().JWTAccessTTL)
 	stateSvc := auth.NewOAuthStateService("integration-test-secret", config.Load().JWTAccessTTL)
@@ -97,8 +98,11 @@ func NewApp(t *testing.T) *App {
 		Search:      searchuc.NewService(articleRepo, eventRepo),
 		Auth:        authSvc,
 		Settings:    settingsSvc,
-		Digest:      digestuc.NewService(articleRepo, eventRepo, artPostRepo, digestRecipientRepo, digestRunRepo),
-		TokenSvc:    tokenSvc,
+		Digest: digestuc.NewService(
+			articleRepo, eventRepo, artPostRepo, digestRecipientRepo, digestRunRepo,
+			notifPrefsRepo, telegramLinkRepo, "integration-test-unsubscribe-secret",
+		),
+		TokenSvc: tokenSvc,
 	}
 }
 

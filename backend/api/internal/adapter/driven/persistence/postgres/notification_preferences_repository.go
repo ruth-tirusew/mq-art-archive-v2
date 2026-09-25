@@ -67,6 +67,47 @@ func (r *NotificationPreferencesRepository) Upsert(ctx context.Context, prefs id
 	return nil
 }
 
+func (r *NotificationPreferencesRepository) SetTelegramChatID(ctx context.Context, userID uuid.UUID, chatID *string) error {
+	now := time.Now().UTC()
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO user_notification_preferences (
+			user_id, email_on_new_application, email_on_event_sync_summary, newsletter_enabled, telegram_chat_id, updated_at
+		) VALUES ($1, TRUE, FALSE, FALSE, $2, $3)
+		ON CONFLICT (user_id) DO UPDATE SET
+			telegram_chat_id = EXCLUDED.telegram_chat_id,
+			updated_at = EXCLUDED.updated_at
+	`, userID, chatID, now)
+	if err != nil {
+		return fmt.Errorf("set telegram chat id: %w", err)
+	}
+	return nil
+}
+
+func (r *NotificationPreferencesRepository) GetByTelegramChatID(ctx context.Context, chatID string) (*identity.NotificationPreferences, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT user_id, email_on_new_application, email_on_event_sync_summary, newsletter_enabled, telegram_chat_id, updated_at
+		FROM user_notification_preferences
+		WHERE telegram_chat_id = $1
+	`, chatID)
+
+	var prefs identity.NotificationPreferences
+	err := row.Scan(
+		&prefs.UserID,
+		&prefs.EmailOnNewApplication,
+		&prefs.EmailOnEventSyncSummary,
+		&prefs.NewsletterEnabled,
+		&prefs.TelegramChatID,
+		&prefs.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get notification preferences by telegram chat id: %w", err)
+	}
+	return &prefs, nil
+}
+
 func (r *NotificationPreferencesRepository) ListEventSummaryRecipients(ctx context.Context) ([]string, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT DISTINCT u.email

@@ -26,6 +26,7 @@ type Handlers struct {
 	Wiki        *handler.WikiHandler
 	Analytics   *handler.AnalyticsHandler
 	UserAdmin   *handler.UserAdminHandler
+	Digest      *handler.DigestHandler
 }
 
 type RouterDeps struct {
@@ -41,6 +42,7 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 	writeLimit := middleware.NewRateLimiter(30, time.Minute).Middleware()
 
 	r.GET("/health", handlers.Health.Health)
+	r.GET("/unsubscribe", handlers.Digest.Unsubscribe)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -107,6 +109,7 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 			auth.PUT("/me/password", middleware.Authenticate(deps.Auth), handlers.Auth.ChangePassword)
 			auth.GET("/me/notifications", middleware.Authenticate(deps.Auth), handlers.Auth.GetNotifications)
 			auth.PUT("/me/notifications", middleware.Authenticate(deps.Auth), handlers.Auth.UpdateNotifications)
+			auth.POST("/me/telegram-link", middleware.Authenticate(deps.Auth), handlers.Digest.CreateTelegramLink)
 		}
 	}
 

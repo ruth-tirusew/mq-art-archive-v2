@@ -36,3 +36,14 @@ type Run struct {
 	StartedAt   time.Time
 	CompletedAt *time.Time
 }
+
+// LinkToken is a one-time token used to link a Telegram chat to a site account: the
+// settings page generates one and shows a t.me/<bot>?start=<token> link, and the bot
+// resolves it back to the user when it receives that /start command.
+type LinkToken struct {
+	Token      string
+	UserID     uuid.UUID
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
+	ConsumedAt *time.Time
+}

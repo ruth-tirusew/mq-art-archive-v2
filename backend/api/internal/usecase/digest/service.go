@@ -2,7 +2,14 @@ package digest
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,11 +37,14 @@ const listLimit = 100
 // (same pattern as the search usecase) rather than introducing new read paths for content
 // that's already listable elsewhere.
 type Service struct {
-	articles   outbound.ArticleRepository
-	events     outbound.EventRepository
-	posts      outbound.ArtPostRepository
-	recipients outbound.DigestRecipientRepository
-	runs       outbound.DigestRunRepository
+	articles          outbound.ArticleRepository
+	events            outbound.EventRepository
+	posts             outbound.ArtPostRepository
+	recipients        outbound.DigestRecipientRepository
+	runs              outbound.DigestRunRepository
+	notifications     outbound.NotificationPreferencesRepository
+	telegramLinks     outbound.TelegramLinkRepository
+	unsubscribeSecret string
 }
 
 func NewService(
@@ -43,13 +53,19 @@ func NewService(
 	posts outbound.ArtPostRepository,
 	recipients outbound.DigestRecipientRepository,
 	runs outbound.DigestRunRepository,
-) *Service {
+	notifications outbound.NotificationPreferencesRepository,
+	telegramLinks outbound.TelegramLinkRepository,
+	unsubscribeSecret string,
+) inbound.DigestService {
 	return &Service{
-		articles:   articles,
-		events:     events,
-		posts:      posts,
-		recipients: recipients,
-		runs:       runs,
+		articles:          articles,
+		events:            events,
+		posts:             posts,
+		recipients:        recipients,
+		runs:              runs,
+		notifications:     notifications,
+		telegramLinks:     telegramLinks,
+		unsubscribeSecret: unsubscribeSecret,
 	}
 }
 
@@ -135,4 +151,123 @@ func (s *Service) resolvePeriodStart(ctx context.Context, now time.Time) (time.T
 		return time.Time{}, err
 	}
 	return last.PeriodEnd, nil
+}
+
+// linkTokenTTL is short — this token only has to survive the few seconds between the
+// settings page generating a t.me deep link and the user tapping it in their Telegram app.
+const linkTokenTTL = 15 * time.Minute
+
+// CreateTelegramLink issues a one-time token for the /start deep link
+// (t.me/<bot>?start=<token>) that links userID's account to whichever chat sends it.
+func (s *Service) CreateTelegramLink(ctx context.Context, userID uuid.UUID) (string, error) {
+	token, err := randomToken(24)
+	if err != nil {
+		return "", err
+	}
+	now := time.Now().UTC()
+	if err := s.telegramLinks.Create(ctx, digestdomain.LinkToken{
+		Token:     token,
+		UserID:    userID,
+		CreatedAt: now,
+		ExpiresAt: now.Add(linkTokenTTL),
+	}); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// HandleTelegramStart handles a "/start <token>" message from the bot's update loop,
+// linking the sending chat to whichever account the token belongs to.
+func (s *Service) HandleTelegramStart(ctx context.Context, chatID, text string) error {
+	token := parseStartToken(text)
+	if token == "" {
+		return fmt.Errorf("%w: missing start token", apperrors.ErrValidation)
+	}
+	link, err := s.telegramLinks.Consume(ctx, token)
+	if err != nil {
+		return err
+	}
+	return s.notifications.SetTelegramChatID(ctx, link.UserID, &chatID)
+}
+
+// HandleTelegramStop handles a "/stop" message, unlinking the sending chat. A chat with no
+// linked account is treated as already-stopped rather than an error.
+func (s *Service) HandleTelegramStop(ctx context.Context, chatID string) error {
+	prefs, err := s.notifications.GetByTelegramChatID(ctx, chatID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	return s.notifications.SetTelegramChatID(ctx, prefs.UserID, nil)
+}
+
+func parseStartToken(text string) string {
+	const prefix = "/start"
+	if !strings.HasPrefix(text, prefix) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(text, prefix))
+}
+
+func randomToken(nBytes int) (string, error) {
+	b := make([]byte, nBytes)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate random token: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// SignUnsubscribeToken produces a stateless, non-expiring token for an email's unsubscribe
+// link. Unlike the Telegram link token or the password-reset/email-verification tokens
+// elsewhere in this codebase, it deliberately isn't stored or short-lived: a digest email
+// can sit unread for weeks, and its unsubscribe link must still work whenever it's opened.
+func (s *Service) SignUnsubscribeToken(userID uuid.UUID) string {
+	return userID.String() + "." + base64.RawURLEncoding.EncodeToString(s.unsubscribeSignature(userID.String()))
+}
+
+// Unsubscribe verifies a token from SignUnsubscribeToken and turns off the newsletter flag
+// for that user. Verification failures and an already-unsubscribed user both return nil —
+// this endpoint is meant to always show "you're unsubscribed", not leak which tokens are
+// valid.
+func (s *Service) Unsubscribe(ctx context.Context, token string) error {
+	userID, err := s.verifyUnsubscribeToken(token)
+	if err != nil {
+		return nil
+	}
+	prefs, err := s.notifications.GetByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	prefs.NewsletterEnabled = false
+	return s.notifications.Upsert(ctx, *prefs)
+}
+
+func (s *Service) verifyUnsubscribeToken(token string) (uuid.UUID, error) {
+	rawID, encodedSig, found := strings.Cut(token, ".")
+	if !found {
+		return uuid.Nil, apperrors.ErrValidation
+	}
+	userID, err := uuid.Parse(rawID)
+	if err != nil {
+		return uuid.Nil, apperrors.ErrValidation
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(encodedSig)
+	if err != nil {
+		return uuid.Nil, apperrors.ErrValidation
+	}
+	if !hmac.Equal(sig, s.unsubscribeSignature(rawID)) {
+		return uuid.Nil, apperrors.ErrValidation
+	}
+	return userID, nil
+}
+
+func (s *Service) unsubscribeSignature(rawUserID string) []byte {
+	mac := hmac.New(sha256.New, []byte(s.unsubscribeSecret))
+	mac.Write([]byte(rawUserID))
+	return mac.Sum(nil)
 }

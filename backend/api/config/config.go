@@ -44,6 +44,12 @@ type Config struct {
 	TelegramChannels    []string
 	TelegramKeywords    []string
 	TelegramFetchLimit  int
+
+	// Telegram Bot API — a separate credential from the MTProto session above, used to
+	// message individual subscribers (digest delivery, account linking) rather than to
+	// scrape channels.
+	TelegramBotToken    string
+	TelegramBotUsername string
 }
 
 func Load() Config {
@@ -92,6 +98,9 @@ func Load() Config {
 		TelegramChannels:    splitCSV(getEnv("TELEGRAM_CHANNELS", "")),
 		TelegramKeywords:    splitCSV(getEnv("TELEGRAM_KEYWORDS", "")),
 		TelegramFetchLimit:  fetchLimit,
+
+		TelegramBotToken:    getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramBotUsername: getEnv("TELEGRAM_BOT_USERNAME", ""),
 	}
 }
 

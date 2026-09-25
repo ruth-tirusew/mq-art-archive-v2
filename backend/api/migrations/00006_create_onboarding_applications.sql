@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE onboarding_applications (
+CREATE TABLE IF NOT EXISTS onboarding_applications (
     id             UUID PRIMARY KEY,
     applicant_id   UUID NOT NULL,
     applicant_type TEXT NOT NULL CHECK (applicant_type IN ('artist', 'institution')),
@@ -12,7 +12,7 @@ CREATE TABLE onboarding_applications (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_onboarding_applications_status ON onboarding_applications (status);
+CREATE INDEX IF NOT EXISTS idx_onboarding_applications_status ON onboarding_applications (status);
 
 -- +goose Down
 DROP TABLE IF EXISTS onboarding_applications;

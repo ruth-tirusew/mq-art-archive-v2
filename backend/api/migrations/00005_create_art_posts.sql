@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE art_posts (
+CREATE TABLE IF NOT EXISTS art_posts (
     id           UUID PRIMARY KEY,
     artist_id    UUID NOT NULL REFERENCES artist_profiles (id),
     title        TEXT NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE art_posts (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE art_post_media (
+CREATE TABLE IF NOT EXISTS art_post_media (
     id          UUID PRIMARY KEY,
     art_post_id UUID NOT NULL REFERENCES art_posts (id) ON DELETE CASCADE,
     url         TEXT NOT NULL,
@@ -21,9 +21,9 @@ CREATE TABLE art_post_media (
     sort_order  INT NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_art_posts_artist_id ON art_posts (artist_id);
-CREATE INDEX idx_art_posts_status ON art_posts (status);
-CREATE INDEX idx_art_post_media_post_id ON art_post_media (art_post_id);
+CREATE INDEX IF NOT EXISTS idx_art_posts_artist_id ON art_posts (artist_id);
+CREATE INDEX IF NOT EXISTS idx_art_posts_status ON art_posts (status);
+CREATE INDEX IF NOT EXISTS idx_art_post_media_post_id ON art_post_media (art_post_id);
 
 -- +goose Down
 DROP TABLE IF EXISTS art_post_media;

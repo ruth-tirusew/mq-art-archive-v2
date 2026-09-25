@@ -3,7 +3,7 @@ ALTER TABLE users
     ADD COLUMN IF NOT EXISTS display_name TEXT,
     ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
-CREATE TABLE user_notification_preferences (
+CREATE TABLE IF NOT EXISTS user_notification_preferences (
     user_id                      UUID PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
     email_on_new_application     BOOLEAN NOT NULL DEFAULT TRUE,
     email_on_event_sync_summary  BOOLEAN NOT NULL DEFAULT FALSE,
@@ -11,7 +11,7 @@ CREATE TABLE user_notification_preferences (
     updated_at                   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE scrape_settings (
+CREATE TABLE IF NOT EXISTS scrape_settings (
     id               INT PRIMARY KEY CHECK (id = 1),
     scrape_enabled   BOOLEAN NOT NULL DEFAULT FALSE,
     scrape_sources   TEXT[] NOT NULL DEFAULT '{}',

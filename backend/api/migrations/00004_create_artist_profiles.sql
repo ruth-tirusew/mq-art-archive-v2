@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE artist_profiles (
+CREATE TABLE IF NOT EXISTS artist_profiles (
     id                UUID PRIMARY KEY,
     user_id           UUID NOT NULL REFERENCES users (id),
     slug              TEXT NOT NULL UNIQUE,
@@ -17,8 +17,8 @@ CREATE TABLE artist_profiles (
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_artist_profiles_user_id ON artist_profiles (user_id);
-CREATE INDEX idx_artist_profiles_status ON artist_profiles (status);
+CREATE INDEX IF NOT EXISTS idx_artist_profiles_user_id ON artist_profiles (user_id);
+CREATE INDEX IF NOT EXISTS idx_artist_profiles_status ON artist_profiles (status);
 
 -- +goose Down
 DROP TABLE IF EXISTS artist_profiles;

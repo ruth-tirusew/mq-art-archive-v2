@@ -14,7 +14,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS user_notification_preferences_telegram_chat_id
 
 -- One-time tokens used to link a Telegram chat to a site account: the settings page
 -- generates a token and a t.me/<bot>?start=<token> link; the bot resolves it on /start.
-CREATE TABLE telegram_link_tokens (
+CREATE TABLE IF NOT EXISTS telegram_link_tokens (
     token       TEXT PRIMARY KEY,
     user_id     UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS telegram_link_tokens_user_id_idx ON telegram_link_tok
 -- One row per digest send. period_start/period_end define the content window; completed_at
 -- is set once every recipient has been attempted, so a crash mid-run is visible as a row
 -- with started_at set and completed_at still null.
-CREATE TABLE digest_runs (
+CREATE TABLE IF NOT EXISTS digest_runs (
     id           UUID PRIMARY KEY,
     period_start TIMESTAMPTZ NOT NULL,
     period_end   TIMESTAMPTZ NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE digest_runs (
 
 -- One row per recipient per channel per run, so a retried run can skip anyone already
 -- sent to instead of mailing/messaging everyone twice.
-CREATE TABLE digest_deliveries (
+CREATE TABLE IF NOT EXISTS digest_deliveries (
     id              UUID PRIMARY KEY,
     run_id          UUID NOT NULL REFERENCES digest_runs (id) ON DELETE CASCADE,
     recipient_id    UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,

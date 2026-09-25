@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE article_submissions (
+CREATE TABLE IF NOT EXISTS article_submissions (
     id UUID PRIMARY KEY,
     submitter_id UUID NOT NULL REFERENCES users(id),
     article_id UUID REFERENCES articles(id) ON DELETE SET NULL,
@@ -12,8 +12,8 @@ CREATE TABLE article_submissions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_article_submissions_submitter ON article_submissions(submitter_id, created_at DESC);
-CREATE INDEX idx_article_submissions_pending ON article_submissions(created_at) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_article_submissions_submitter ON article_submissions(submitter_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_article_submissions_pending ON article_submissions(created_at) WHERE status = 'pending';
 
 -- +goose Down
 DROP TABLE IF EXISTS article_submissions;

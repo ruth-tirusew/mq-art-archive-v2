@@ -1,6 +1,6 @@
 -- +goose Up
-ALTER TABLE onboarding_applications ADD COLUMN requested_handle TEXT;
-CREATE UNIQUE INDEX uq_onboarding_active_requested_handle
+ALTER TABLE onboarding_applications ADD COLUMN IF NOT EXISTS requested_handle TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_onboarding_active_requested_handle
     ON onboarding_applications (LOWER(requested_handle))
     WHERE requested_handle IS NOT NULL AND status IN ('pending', 'approved');
 

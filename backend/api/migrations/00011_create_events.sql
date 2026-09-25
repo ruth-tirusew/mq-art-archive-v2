@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE event_locations (
+CREATE TABLE IF NOT EXISTS event_locations (
     id          UUID PRIMARY KEY,
     name        TEXT NOT NULL,
     pin_coords  DOUBLE PRECISION[],
@@ -10,9 +10,9 @@ CREATE TABLE event_locations (
     )
 );
 
-CREATE INDEX idx_event_locations_name ON event_locations (lower(trim(name)));
+CREATE INDEX IF NOT EXISTS idx_event_locations_name ON event_locations (lower(trim(name)));
 
-CREATE TABLE events (
+CREATE TABLE IF NOT EXISTS events (
     id            UUID PRIMARY KEY,
     title         TEXT NOT NULL,
     description   TEXT NOT NULL DEFAULT '',
@@ -33,10 +33,10 @@ CREATE TABLE events (
     ) STORED
 );
 
-CREATE INDEX idx_events_starts_at ON events (starts_at);
-CREATE INDEX idx_events_status ON events (status);
-CREATE INDEX idx_events_location_id ON events (location_id);
-CREATE INDEX idx_events_search_vector ON events USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_events_starts_at ON events (starts_at);
+CREATE INDEX IF NOT EXISTS idx_events_status ON events (status);
+CREATE INDEX IF NOT EXISTS idx_events_location_id ON events (location_id);
+CREATE INDEX IF NOT EXISTS idx_events_search_vector ON events USING GIN (search_vector);
 
 -- +goose Down
 DROP TABLE IF EXISTS events;

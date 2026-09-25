@@ -161,6 +161,4 @@ FRS onboarding test: [`docs/frs-onboarding-test.md`](docs/frs-onboarding-test.md
 | `JWT_SECRET` | Signs access tokens and OAuth state |
 | `AUTH_DEV_MODE` | When `true`, allows `X-User-ID` header fallback for tests |
 | `CLOUDINARY_*` | Pilot media uploads |
-| `PUBLIC_API_URL` | Required by web/admin for all product content |
-
-
+| `PUBLIC_API_URL` | Required by web/admin for all product content. |

@@ -25,6 +25,10 @@ import (
 func main() {
 	cfg := config.Load()
 
+	if err := postgres.Migrate(cfg.DatabaseURL); err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	pool, err := postgres.NewPool(ctx, cfg)
 	cancel()

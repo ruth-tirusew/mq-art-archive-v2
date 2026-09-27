@@ -1722,6 +1722,40 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmissionInput"}}}}
       responses:
         "201": {description: Pending submission, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmission"}}}}
+  /api/v1/me/wiki/submissions/pending:
+    get:
+      tags: [content]
+      summary: List submissions awaiting review against an article the caller owns (artist-only)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Owner-scoped pending submissions, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/WikiSubmission"}}}}}
+  /api/v1/me/wiki/submissions/{id}:
+    get:
+      tags: [content]
+      summary: Get a submission and its target article's current content, for a diff (artist-only, must own the article)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Submission with target article, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmissionReview"}}}}
+        "403": {description: Submission's article is not authored by the caller, or it is a new-article submission}
+  /api/v1/me/wiki/submissions/{id}/approve:
+    post:
+      tags: [content]
+      summary: Approve a wiki submission against an article the caller owns (artist-only)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Approved submission}
+        "403": {description: Submission's article is not authored by the caller, or it is a new-article submission}
+  /api/v1/me/wiki/submissions/{id}/reject:
+    post:
+      tags: [content]
+      summary: Reject a wiki submission against an article the caller owns (artist-only)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Rejected submission}
+        "403": {description: Submission's article is not authored by the caller, or it is a new-article submission}
   /admin/v1/wiki/submissions:
     get:
       tags: [content]
@@ -1729,6 +1763,14 @@ paths:
       security: [{bearerAuth: []}, {cookieAuth: []}]
       responses:
         "200": {description: Pending submissions, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/WikiSubmission"}}}}}
+  /admin/v1/wiki/submissions/{id}:
+    get:
+      tags: [content]
+      summary: Get a submission and its target article's current content, for a diff (admin)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Submission with target article, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmissionReview"}}}}
   /admin/v1/wiki/submissions/{id}/approve:
     post:
       tags: [content]
@@ -2523,8 +2565,16 @@ components:
         article_id: {type: string, format: uuid, nullable: true}
         title: {type: string}
         body: {type: string}
+        kind: {type: string, enum: [new, edit]}
+        based_on_version: {type: integer, nullable: true, description: "Target article's version at submission time (edit submissions only)."}
         status: {type: string, enum: [pending, approved, rejected]}
         review_notes: {type: string}
+    WikiSubmissionReview:
+      type: object
+      description: A submission alongside the current state of its target article, for rendering a diff. `article` is omitted for a new-article submission.
+      properties:
+        submission: {$ref: "#/components/schemas/WikiSubmission"}
+        article: {$ref: "#/components/schemas/Article"}
     PageViewInput:
       type: object
       required: [entity_type, entity_id]

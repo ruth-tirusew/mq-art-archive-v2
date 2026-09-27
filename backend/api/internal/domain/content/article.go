@@ -30,6 +30,9 @@ type ArticleRevision struct {
 	Verified    bool
 	Status      ArticleStatus
 	CreatedAt   time.Time
+	// SubmissionID links this revision back to the wiki submission that produced it, if
+	// any (nil for a direct admin edit, which isn't submission-driven).
+	SubmissionID *uuid.UUID
 }
 
 type Article struct {

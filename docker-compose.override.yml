@@ -1,0 +1,16 @@
+# Local-dev overrides, auto-merged by `docker compose` alongside docker-compose.yml.
+#
+# The root .env is the real production config (used for other things beyond compose), and
+# its CORS_ORIGINS/AUTH_DEV_MODE/AUTH_COOKIE_SECURE/WEB_APP_URL values are production-only
+# (Vercel origins, real cookie/session behavior) — those break every client-side call from
+# the local frontends (apps/web on :8082, apps/admin on :5174, Playwright preview builds on
+# :4173/:4174) with CORS errors. This file overrides just those four vars back to local-dev
+# values for the containerized `api` service, without touching the production .env at all.
+services:
+  api:
+    environment:
+      APP_ENV: development
+      CORS_ORIGINS: http://localhost:8082,http://localhost:5174,http://localhost:4173,http://localhost:4174,http://127.0.0.1:4173,http://127.0.0.1:4174
+      AUTH_DEV_MODE: "true"
+      AUTH_COOKIE_SECURE: "false"
+      WEB_APP_URL: http://localhost:8082

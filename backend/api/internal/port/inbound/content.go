@@ -16,6 +16,12 @@ type ContentService interface {
 	AdminGet(ctx context.Context, id uuid.UUID) (*content.Article, error)
 	AdminCreate(ctx context.Context, authorID uuid.UUID, write content.ArticleWrite) (*content.Article, error)
 	AdminUpdate(ctx context.Context, id, editorID uuid.UUID, write content.ArticleWrite) (*content.Article, error)
+	// ApproveEdit is AdminUpdate with an optimistic-concurrency check, for the wiki
+	// submission approval path: it fails with apperrors.ErrConflict instead of overwriting
+	// if the article's version no longer matches expectedVersion (the version the
+	// submission was written against). submissionID links the resulting revision back to
+	// the submission that produced it.
+	ApproveEdit(ctx context.Context, id, editorID uuid.UUID, expectedVersion int, submissionID uuid.UUID, write content.ArticleWrite) (*content.Article, error)
 	AdminSetStatus(ctx context.Context, id uuid.UUID, status *content.ArticleStatus, verified *bool) (*content.Article, error)
 	AdminListRevisions(ctx context.Context, articleID uuid.UUID, limit, offset int) ([]content.ArticleRevision, error)
 	AdminGetRevision(ctx context.Context, articleID uuid.UUID, version int) (*content.ArticleRevision, error)

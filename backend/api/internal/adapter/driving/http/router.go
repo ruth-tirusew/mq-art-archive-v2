@@ -92,6 +92,13 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		wiki.POST("/submissions", writeLimit, handlers.Wiki.Submit)
 		wiki.GET("/submissions", handlers.Wiki.ListMine)
 
+		wikiReview := v1.Group("/me/wiki")
+		wikiReview.Use(middleware.Authenticate(deps.Auth), middleware.RequireAnyRole("artist"))
+		wikiReview.GET("/submissions/pending", handlers.Wiki.ListOwnPending)
+		wikiReview.GET("/submissions/:id", handlers.Wiki.GetOwn)
+		wikiReview.POST("/submissions/:id/approve", writeLimit, handlers.Wiki.ApproveOwn)
+		wikiReview.POST("/submissions/:id/reject", writeLimit, handlers.Wiki.RejectOwn)
+
 		auth := v1.Group("/auth")
 		{
 			auth.GET("/google", handlers.Auth.GoogleLogin)
@@ -122,6 +129,7 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		admin.POST("/media/sign", writeLimit, handlers.Media.Sign)
 		admin.POST("/media/complete", writeLimit, handlers.Media.Complete)
 		admin.GET("/wiki/submissions", handlers.Wiki.ListPending)
+		admin.GET("/wiki/submissions/:id", handlers.Wiki.Get)
 		admin.POST("/wiki/submissions/:id/approve", handlers.Wiki.Approve)
 		admin.POST("/wiki/submissions/:id/reject", handlers.Wiki.Reject)
 		admin.GET("/analytics", handlers.Analytics.Query)

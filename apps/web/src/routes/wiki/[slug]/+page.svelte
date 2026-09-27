@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import VerifiedChip from '$lib/components/VerifiedChip.svelte';
 	import type { PageData } from './$types';
 	import { recordPageView } from '$lib/application/analytics';
 
@@ -31,9 +30,6 @@
 		<span class="font-mono text-[10px] uppercase tracking-[0.25em] text-accent">
 			{article.category ?? 'General'}
 		</span>
-		{#if article.verified}
-			<VerifiedChip />
-		{/if}
 		{#if article.updated_at}
 			<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
 				· last edited {new Date(article.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}

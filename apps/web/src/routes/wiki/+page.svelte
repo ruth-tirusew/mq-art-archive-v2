@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import VerifiedChip from '$lib/components/VerifiedChip.svelte';
 	import EmptySectionPrompt from '$lib/components/home/EmptySectionPrompt.svelte';
 	import type { Article } from '$lib/core/domain/content';
 	import type { PageData } from './$types';
@@ -58,7 +57,7 @@
 		</h1>
 		<p class="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
 			A crowdsourced wiki — written by the people who actually file the paperwork, walk to Mercato
-			for the linen, and negotiate the contracts. Verified by a standing circle of moderators.
+			for the linen, and negotiate the contracts.
 		</p>
 
 		<div class="mt-10 flex flex-wrap items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em]">
@@ -124,9 +123,6 @@
 							<span class="font-mono text-[10px] uppercase tracking-[0.25em] text-accent">
 								{a.category ?? 'General'}
 							</span>
-							{#if a.verified}
-								<VerifiedChip />
-							{/if}
 						</div>
 						<h2 class="mt-4 font-display text-2xl leading-tight text-foreground">{a.title}</h2>
 						<p class="mt-3 text-sm leading-relaxed text-muted-foreground">{articleExcerpt(a)}</p>
@@ -177,35 +173,17 @@
 			✕ &nbsp; Gatekeeping, without bottlenecks
 		</p>
 		<h2 class="mt-3 max-w-2xl font-display text-3xl text-foreground md:text-4xl">
-			A three-tiered model that scales trust.
+			Open access, reviewed before it goes live.
 		</h2>
 
-		<div class="mt-12 grid gap-6 md:grid-cols-3">
-			{#each [
-				{
-					tier: 'Tier 01',
-					name: 'Open Access',
-					body: 'Anyone can read, propose edits, or draft new entries. Submissions enter a peer-review queue before going live.'
-				},
-				{
-					tier: 'Tier 02',
-					name: 'Verified Artist',
-					body: 'Earn a blue check by linking an authentic portfolio or receiving a vouch from a recognised institution.'
-				},
-				{
-					tier: 'Tier 03',
-					name: 'Institutional Partner',
-					body: 'Alle School, Goethe-Institut, Alliance Éthiopienne and others publish events, curriculum and legal resources directly.'
-				}
-			] as t}
-				<div class="rounded-sm border border-border/70 bg-background p-7">
-					<p class="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-						{t.tier}
-					</p>
-					<h3 class="mt-3 font-display text-2xl text-foreground">{t.name}</h3>
-					<p class="mt-4 text-sm leading-relaxed text-muted-foreground">{t.body}</p>
-				</div>
-			{/each}
+		<div class="mt-12 max-w-xl">
+			<div class="rounded-sm border border-border/70 bg-background p-7">
+				<h3 class="font-display text-2xl text-foreground">Open Access</h3>
+				<p class="mt-4 text-sm leading-relaxed text-muted-foreground">
+					Anyone can read, propose edits, or draft new entries. Submissions enter a review queue
+					before going live.
+				</p>
+			</div>
 		</div>
 	</div>
 </section>

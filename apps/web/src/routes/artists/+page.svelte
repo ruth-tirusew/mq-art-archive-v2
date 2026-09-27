@@ -339,17 +339,17 @@
 				<div>
 					<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">⁂ Open call</p>
 					<p class="mt-3 font-display text-xl leading-tight text-foreground">
-						Nominate an artist for the archive.
+						Join the archive.
 					</p>
 					<p class="mt-3 text-sm leading-relaxed text-muted-foreground">
-						Tier-2 members can propose a file. Tier-3 institutional partners publish directly.
+						Submit your name and supporting links. Approved artists get access to the studio.
 					</p>
 				</div>
 				<a
 					href="/apply"
 					class="mt-6 inline-block font-mono text-[10px] uppercase tracking-[0.25em] text-foreground underline decoration-accent underline-offset-8"
 				>
-					How vetting works →
+					Apply →
 				</a>
 			</div>
 		</div>

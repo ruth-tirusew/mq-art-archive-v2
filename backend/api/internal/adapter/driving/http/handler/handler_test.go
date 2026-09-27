@@ -38,6 +38,7 @@ type mockContent struct {
 	adminGet             func(ctx context.Context, id uuid.UUID) (*content.Article, error)
 	adminCreate          func(ctx context.Context, authorID uuid.UUID, write content.ArticleWrite) (*content.Article, error)
 	adminUpdate          func(ctx context.Context, id, editorID uuid.UUID, write content.ArticleWrite) (*content.Article, error)
+	approveEdit          func(ctx context.Context, id, editorID uuid.UUID, expectedVersion int, submissionID uuid.UUID, write content.ArticleWrite) (*content.Article, error)
 	adminSetStatus       func(ctx context.Context, id uuid.UUID, status *content.ArticleStatus, verified *bool) (*content.Article, error)
 	adminListRevisions   func(ctx context.Context, articleID uuid.UUID, limit, offset int) ([]content.ArticleRevision, error)
 	adminGetRevision     func(ctx context.Context, articleID uuid.UUID, version int) (*content.ArticleRevision, error)
@@ -74,6 +75,12 @@ func (m *mockContent) AdminCreate(ctx context.Context, authorID uuid.UUID, write
 func (m *mockContent) AdminUpdate(ctx context.Context, id, editorID uuid.UUID, write content.ArticleWrite) (*content.Article, error) {
 	if m.adminUpdate != nil {
 		return m.adminUpdate(ctx, id, editorID, write)
+	}
+	return nil, apperrors.ErrNotFound
+}
+func (m *mockContent) ApproveEdit(ctx context.Context, id, editorID uuid.UUID, expectedVersion int, submissionID uuid.UUID, write content.ArticleWrite) (*content.Article, error) {
+	if m.approveEdit != nil {
+		return m.approveEdit(ctx, id, editorID, expectedVersion, submissionID, write)
 	}
 	return nil, apperrors.ErrNotFound
 }

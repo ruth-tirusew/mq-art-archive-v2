@@ -2,11 +2,19 @@
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import { recordPageView } from '$lib/application/analytics';
+	import FavoriteButton from '$lib/components/wiki/FavoriteButton.svelte';
+	import { paragraphElements } from '$lib/utils/textAnchor';
 
 	let { data }: { data: PageData } = $props();
 
 	const article = $derived(data.article);
 	const title = $derived(article?.title ?? 'Wiki unavailable');
+	// Foundation for comments/highlights (both anchor to a span of this body — see
+	// $lib/utils/textAnchor): each rendered paragraph carries the index a selection
+	// inside it needs to resolve back to a global offset in article.body.
+	const paragraphs = $derived(article?.body ? paragraphElements(article.body) : []);
+	let bodyEl: HTMLDivElement | undefined = $state();
+
 	onMount(() => {
 		if (article?.id) recordPageView('article', article.id);
 	});
@@ -26,15 +34,18 @@
 		← Back to wiki
 	</a>
 
-	<div class="mt-8 flex flex-wrap items-center gap-3">
-		<span class="font-mono text-[10px] uppercase tracking-[0.25em] text-accent">
-			{article.category ?? 'General'}
-		</span>
-		{#if article.updated_at}
-			<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-				· last edited {new Date(article.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+	<div class="mt-8 flex flex-wrap items-center justify-between gap-3">
+		<div class="flex flex-wrap items-center gap-3">
+			<span class="font-mono text-[10px] uppercase tracking-[0.25em] text-accent">
+				{article.category ?? 'General'}
 			</span>
-		{/if}
+			{#if article.updated_at}
+				<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+					· last edited {new Date(article.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+				</span>
+			{/if}
+		</div>
+		<FavoriteButton articleId={article.id} />
 	</div>
 
 	<h1 class="mt-5 font-display text-4xl leading-tight text-foreground md:text-5xl">{title}</h1>
@@ -43,14 +54,13 @@
 		<p class="mt-6 text-lg leading-relaxed text-muted-foreground">{article.excerpt}</p>
 	{/if}
 
-	<div class="mt-10 space-y-6 text-base leading-relaxed text-foreground/90 md:text-lg wiki-body">
-		{#if article.body}
-			{#each article.body.split('\n\n') as paragraph}
-				{#if paragraph.trim()}
-					<p>{paragraph}</p>
-				{/if}
-			{/each}
-		{/if}
+	<div
+		bind:this={bodyEl}
+		class="mt-10 space-y-6 text-base leading-relaxed text-foreground/90 md:text-lg wiki-body"
+	>
+		{#each paragraphs as p (p.index)}
+			<p data-paragraph-index={p.index}>{p.text}</p>
+		{/each}
 	</div>
 </article>
 {:else}

@@ -1756,6 +1756,29 @@ paths:
       responses:
         "200": {description: Rejected submission}
         "403": {description: Submission's article is not authored by the caller, or it is a new-article submission}
+  /api/v1/favorites/{id}:
+    get:
+      tags: [content]
+      summary: Get an article's favorite count, and whether the caller has favorited it (public; favorited is always false when unauthenticated)
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}, description: Article ID}]
+      responses:
+        "200": {description: Favorite status, content: {application/json: {schema: {$ref: "#/components/schemas/FavoriteStatus"}}}}
+  /api/v1/me/favorites:
+    get:
+      tags: [content]
+      summary: List the caller's favorited articles
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Favorited articles, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Article"}}}}}
+  /api/v1/me/favorites/{id}:
+    post:
+      tags: [content]
+      summary: Toggle the caller's favorite on an article (adds it if not favorited, removes it if it is)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}, description: Article ID}]
+      responses:
+        "200": {description: Resulting favorite status, content: {application/json: {schema: {$ref: "#/components/schemas/FavoriteStatus"}}}}
+        "404": {description: Article not found}
   /admin/v1/wiki/submissions:
     get:
       tags: [content]
@@ -2575,6 +2598,11 @@ components:
       properties:
         submission: {$ref: "#/components/schemas/WikiSubmission"}
         article: {$ref: "#/components/schemas/Article"}
+    FavoriteStatus:
+      type: object
+      properties:
+        favorited: {type: boolean}
+        count: {type: integer}
     PageViewInput:
       type: object
       required: [entity_type, entity_id]

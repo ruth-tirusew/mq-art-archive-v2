@@ -52,9 +52,17 @@
 		<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">
 			⁂ &nbsp; Pillar 01 · Collective knowledge
 		</p>
-		<h1 class="mt-4 max-w-3xl font-display text-4xl leading-[1.05] text-foreground md:text-6xl">
-			The handbook for working as an artist in <em class="italic">Ethiopia</em>.
-		</h1>
+		<div class="flex flex-wrap items-start justify-between gap-4">
+			<h1 class="mt-4 max-w-3xl font-display text-4xl leading-[1.05] text-foreground md:text-6xl">
+				The handbook for working as an artist in <em class="italic">Ethiopia</em>.
+			</h1>
+			<a
+				href="/wiki/saved"
+				class="mt-4 shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground underline underline-offset-4 hover:text-foreground"
+			>
+				Your saved articles →
+			</a>
+		</div>
 		<p class="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
 			A crowdsourced wiki — written by the people who actually file the paperwork, walk to Mercato
 			for the linen, and negotiate the contracts.

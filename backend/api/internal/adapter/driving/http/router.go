@@ -27,6 +27,7 @@ type Handlers struct {
 	Analytics   *handler.AnalyticsHandler
 	UserAdmin   *handler.UserAdminHandler
 	Digest      *handler.DigestHandler
+	Engagement  *handler.EngagementHandler
 }
 
 type RouterDeps struct {
@@ -49,6 +50,10 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		v1.GET("/articles", handlers.Article.List)
 		v1.GET("/articles/:slug", handlers.Article.GetBySlug)
 		v1.POST("/articles", middleware.Authenticate(deps.Auth), middleware.RequireRole("admin"), handlers.Article.Create)
+
+		v1.GET("/favorites/:id", middleware.OptionalAuthenticate(deps.Auth), handlers.Engagement.GetFavoriteStatus)
+		v1.POST("/me/favorites/:id", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.ToggleFavorite)
+		v1.GET("/me/favorites", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyFavorites)
 
 		v1.GET("/artists", handlers.Profile.List)
 		v1.GET("/artists/:slug", handlers.Profile.GetBySlug)

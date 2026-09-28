@@ -53,5 +53,9 @@ export const authService = {
 
 export function postLoginPath(user: User, returnTo = '/studio'): string {
 	if (user.role === 'artist') return returnTo;
+	// A plain reader isn't mid-application — don't force them into /apply. Honor an
+	// explicit returnTo (e.g. they were sent to login from a specific page); otherwise
+	// land on home rather than the generic '/studio' default, which they can't access.
+	if (user.role === 'public') return returnTo === '/studio' ? '/' : returnTo;
 	return '/apply';
 }

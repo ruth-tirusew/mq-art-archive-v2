@@ -1,4 +1,5 @@
 import { apiFetch } from '$lib/adapters/api/client';
+import type { ActivityComment } from '$lib/core/domain/activity';
 import type { Comment } from '$lib/core/domain/comment';
 
 export interface CreateCommentInput {
@@ -30,5 +31,9 @@ export class CommentsApi {
 
 	list(articleId: string): Promise<Comment[]> {
 		return apiFetch<Comment[]>(`/api/v1/wiki/articles/${articleId}/comments`);
+	}
+
+	listMyActivity(): Promise<ActivityComment[]> {
+		return apiFetch<ActivityComment[]>('/api/v1/me/comments');
 	}
 }

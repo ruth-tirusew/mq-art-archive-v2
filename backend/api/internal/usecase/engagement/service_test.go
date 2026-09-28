@@ -231,6 +231,18 @@ func (f *fakeHighlightRepo) ListMineByArticle(_ context.Context, articleID, user
 	return out, nil
 }
 
+func (f *fakeHighlightRepo) ListByUser(_ context.Context, userID uuid.UUID) ([]engagement.Highlight, error) {
+	out := []engagement.Highlight{}
+	for _, list := range f.byArticle {
+		for _, h := range list {
+			if h.UserID == userID {
+				out = append(out, h)
+			}
+		}
+	}
+	return out, nil
+}
+
 type fakeCommentRepo struct {
 	byArticle map[uuid.UUID][]engagement.Comment
 }
@@ -258,6 +270,18 @@ func (f *fakeCommentRepo) Delete(_ context.Context, id, userID uuid.UUID) error 
 
 func (f *fakeCommentRepo) ListByArticle(_ context.Context, articleID uuid.UUID) ([]engagement.Comment, error) {
 	return f.byArticle[articleID], nil
+}
+
+func (f *fakeCommentRepo) ListByUser(_ context.Context, userID uuid.UUID) ([]engagement.Comment, error) {
+	out := []engagement.Comment{}
+	for _, list := range f.byArticle {
+		for _, c := range list {
+			if c.UserID == userID {
+				out = append(out, c)
+			}
+		}
+	}
+	return out, nil
 }
 
 type fakeIdentity struct{ users map[uuid.UUID]identity.User }
@@ -434,5 +458,65 @@ func TestDeleteComment_onlyOwner(t *testing.T) {
 	}
 	if err := svc.DeleteComment(context.Background(), owner, created.ID); err != nil {
 		t.Fatalf("expected owner delete to succeed, got %v", err)
+	}
+}
+
+func TestListMyHighlightsAll_spansMultipleArticlesAndSkipsDeleted(t *testing.T) {
+	userID := uuid.New()
+	kept := content.Article{ID: uuid.New(), Slug: "kept", Title: "Kept Article", Body: "hello world", Version: 1}
+	otherArticle := content.Article{ID: uuid.New(), Slug: "other", Title: "Other Article", Body: "goodbye world", Version: 1}
+	deletedArticleID := uuid.New()
+
+	repo := newFakeHighlightRepo()
+	svc := NewService(nil, repo, nil, newFakeContent(kept, otherArticle), nil)
+
+	if _, err := svc.CreateHighlight(context.Background(), userID, kept.ID, "hello", 0, 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateHighlight(context.Background(), userID, otherArticle.ID, "goodbye", 0, 7); err != nil {
+		t.Fatal(err)
+	}
+	// A highlight on an article that's since been deleted from content — simulate by
+	// inserting directly into the fake repo (CreateHighlight itself would 404).
+	_, _ = repo.Create(context.Background(), engagement.Highlight{
+		ID: uuid.New(), ArticleID: deletedArticleID, UserID: userID,
+		Anchor: engagement.Anchor{QuotedText: "gone", TextOffsetStart: 0, TextOffsetEnd: 4, ArticleVersionAtAnchor: 1},
+	})
+
+	activity, err := svc.ListMyHighlightsAll(context.Background(), userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(activity) != 2 {
+		t.Fatalf("expected 2 activity entries (deleted article's highlight skipped), got %d: %#v", len(activity), activity)
+	}
+	slugs := map[string]bool{}
+	for _, a := range activity {
+		slugs[a.ArticleSlug] = true
+	}
+	if !slugs["kept"] || !slugs["other"] {
+		t.Fatalf("expected entries from both articles, got %#v", activity)
+	}
+}
+
+func TestListMyCommentsAll_spansMultipleArticles(t *testing.T) {
+	userID := uuid.New()
+	articleA := content.Article{ID: uuid.New(), Slug: "a", Title: "Article A", Body: "hello", Version: 1}
+	articleB := content.Article{ID: uuid.New(), Slug: "b", Title: "Article B", Body: "world", Version: 1}
+	svc := NewService(nil, nil, newFakeCommentRepo(), newFakeContent(articleA, articleB), newFakeIdentity())
+
+	if _, err := svc.CreateComment(context.Background(), userID, articleA.ID, "nice", "", 0, 0, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateComment(context.Background(), userID, articleB.ID, "cool", "", 0, 0, true); err != nil {
+		t.Fatal(err)
+	}
+
+	activity, err := svc.ListMyCommentsAll(context.Background(), userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(activity) != 2 {
+		t.Fatalf("expected 2 activity entries, got %d", len(activity))
 	}
 }

@@ -262,3 +262,43 @@ func (s *Service) toResolvedComment(ctx context.Context, c engagement.Comment, b
 		QuotedText: c.QuotedText, Matched: res.Matched, Start: res.Start, End: res.End, CreatedAt: c.CreatedAt,
 	}, nil
 }
+
+func (s *Service) ListMyHighlightsAll(ctx context.Context, userID uuid.UUID) ([]inbound.ActivityHighlight, error) {
+	items, err := s.highlights.ListByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]inbound.ActivityHighlight, 0, len(items))
+	for _, h := range items {
+		article, err := s.content.AdminGet(ctx, h.ArticleID)
+		if err != nil {
+			continue // article was since deleted — skip rather than fail the whole feed
+		}
+		out = append(out, inbound.ActivityHighlight{
+			ID: h.ID, ArticleID: h.ArticleID, ArticleSlug: article.Slug, ArticleTitle: article.Title,
+			QuotedText: h.QuotedText, CreatedAt: h.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+func (s *Service) ListMyCommentsAll(ctx context.Context, userID uuid.UUID) ([]inbound.ActivityComment, error) {
+	items, err := s.comments.ListByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]inbound.ActivityComment, 0, len(items))
+	for _, c := range items {
+		article, err := s.content.AdminGet(ctx, c.ArticleID)
+		if err != nil {
+			continue // article was since deleted — skip rather than fail the whole feed
+		}
+		out = append(out, inbound.ActivityComment{
+			ID: c.ID, ArticleID: c.ArticleID, ArticleSlug: article.Slug, ArticleTitle: article.Title,
+			Body: c.Body, IsGeneral: c.IsGeneral, CreatedAt: c.CreatedAt,
+		})
+	}
+	return out, nil
+}

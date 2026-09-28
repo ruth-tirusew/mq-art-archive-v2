@@ -1,5 +1,5 @@
 import { apiFetch } from '$lib/adapters/api/client';
-import type { User } from '$lib/core/domain/auth';
+import type { NotificationPreferences, User } from '$lib/core/domain/auth';
 import type { AuthPort } from '$lib/core/ports/auth';
 
 export class AuthApi implements AuthPort {
@@ -40,6 +40,42 @@ export class AuthApi implements AuthPort {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password })
+    });
+  }
+
+  updateProfile(displayName: string, avatarUrl: string): Promise<User> {
+    return apiFetch<User>('/api/v1/auth/me/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: displayName, avatar_url: avatarUrl })
+    });
+  }
+
+  changeEmail(email: string, currentPassword: string): Promise<User> {
+    return apiFetch<User>('/api/v1/auth/me/email', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, current_password: currentPassword })
+    });
+  }
+
+  changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    return apiFetch<void>('/api/v1/auth/me/password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+    });
+  }
+
+  getNotifications(): Promise<NotificationPreferences> {
+    return apiFetch<NotificationPreferences>('/api/v1/auth/me/notifications');
+  }
+
+  updateNotifications(prefs: NotificationPreferences): Promise<NotificationPreferences> {
+    return apiFetch<NotificationPreferences>('/api/v1/auth/me/notifications', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prefs)
     });
   }
 }

@@ -1770,6 +1770,20 @@ paths:
       security: [{bearerAuth: []}, {cookieAuth: []}]
       responses:
         "200": {description: Favorited articles, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Article"}}}}}
+  /api/v1/me/highlights:
+    get:
+      tags: [content]
+      summary: List the caller's own highlights across every article (personal activity feed)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: My highlights, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/ActivityHighlight"}}}}}
+  /api/v1/me/comments:
+    get:
+      tags: [content]
+      summary: List the caller's own comments across every article (personal activity feed)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: My comments, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/ActivityComment"}}}}}
   /api/v1/me/favorites/{id}:
     post:
       tags: [content]
@@ -2715,6 +2729,27 @@ components:
         start: {type: integer}
         end: {type: integer}
         matched: {type: boolean, description: "For an anchored comment, false if the article changed enough that the quoted text can no longer be found. Always false for a general comment."}
+        created_at: {type: string, format: date-time}
+    ActivityHighlight:
+      type: object
+      description: A user's own highlight, with enough of its article's identity to link back to it — for the personal activity feed, not re-anchored against the article's current body.
+      properties:
+        id: {type: string, format: uuid}
+        article_id: {type: string, format: uuid}
+        article_slug: {type: string}
+        article_title: {type: string}
+        quoted_text: {type: string}
+        created_at: {type: string, format: date-time}
+    ActivityComment:
+      type: object
+      description: A user's own comment, with enough of its article's identity to link back to it — for the personal activity feed.
+      properties:
+        id: {type: string, format: uuid}
+        article_id: {type: string, format: uuid}
+        article_slug: {type: string}
+        article_title: {type: string}
+        body: {type: string}
+        is_general: {type: boolean}
         created_at: {type: string, format: date-time}
     PageViewInput:
       type: object

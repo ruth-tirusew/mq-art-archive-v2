@@ -43,6 +43,10 @@ func (r *HighlightRepository) ListMineByArticle(ctx context.Context, articleID, 
 	return r.list(ctx, `SELECT `+highlightColumns+` FROM article_highlights WHERE article_id=$1 AND user_id=$2 ORDER BY created_at`, articleID, userID)
 }
 
+func (r *HighlightRepository) ListByUser(ctx context.Context, userID uuid.UUID) ([]engagement.Highlight, error) {
+	return r.list(ctx, `SELECT `+highlightColumns+` FROM article_highlights WHERE user_id=$1 ORDER BY created_at DESC`, userID)
+}
+
 func (r *HighlightRepository) list(ctx context.Context, query string, args ...any) ([]engagement.Highlight, error) {
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {

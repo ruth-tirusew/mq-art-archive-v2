@@ -273,3 +273,67 @@ func (h *EngagementHandler) ListComments(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, out)
 }
+
+type activityHighlightResponse struct {
+	ID           uuid.UUID `json:"id"`
+	ArticleID    uuid.UUID `json:"article_id"`
+	ArticleSlug  string    `json:"article_slug"`
+	ArticleTitle string    `json:"article_title"`
+	QuotedText   string    `json:"quoted_text"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type activityCommentResponse struct {
+	ID           uuid.UUID `json:"id"`
+	ArticleID    uuid.UUID `json:"article_id"`
+	ArticleSlug  string    `json:"article_slug"`
+	ArticleTitle string    `json:"article_title"`
+	Body         string    `json:"body"`
+	IsGeneral    bool      `json:"is_general"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// ListMyActivityHighlights and ListMyActivityComments back the personal "activity" page —
+// a user's own highlights/comments across every article, not scoped to one (as opposed to
+// ListMyHighlights above, which is per-article).
+func (h *EngagementHandler) ListMyActivityHighlights(c *gin.Context) {
+	userID, err := requestauth.UserIDFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	items, err := h.engagement.ListMyHighlightsAll(c.Request.Context(), userID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	out := make([]activityHighlightResponse, len(items))
+	for i, item := range items {
+		out[i] = activityHighlightResponse{
+			ID: item.ID, ArticleID: item.ArticleID, ArticleSlug: item.ArticleSlug,
+			ArticleTitle: item.ArticleTitle, QuotedText: item.QuotedText, CreatedAt: item.CreatedAt,
+		}
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func (h *EngagementHandler) ListMyActivityComments(c *gin.Context) {
+	userID, err := requestauth.UserIDFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	items, err := h.engagement.ListMyCommentsAll(c.Request.Context(), userID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	out := make([]activityCommentResponse, len(items))
+	for i, item := range items {
+		out[i] = activityCommentResponse{
+			ID: item.ID, ArticleID: item.ArticleID, ArticleSlug: item.ArticleSlug,
+			ArticleTitle: item.ArticleTitle, Body: item.Body, IsGeneral: item.IsGeneral, CreatedAt: item.CreatedAt,
+		}
+	}
+	c.JSON(http.StatusOK, out)
+}

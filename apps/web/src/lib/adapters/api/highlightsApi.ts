@@ -1,4 +1,5 @@
 import { apiFetch } from '$lib/adapters/api/client';
+import type { ActivityHighlight } from '$lib/core/domain/activity';
 import type { Highlight, PopularHighlight } from '$lib/core/domain/highlight';
 
 export class HighlightsApi {
@@ -20,5 +21,9 @@ export class HighlightsApi {
 
 	getPopular(articleId: string): Promise<PopularHighlight | null> {
 		return apiFetch<PopularHighlight | null>(`/api/v1/wiki/articles/${articleId}/highlights/popular`);
+	}
+
+	listMyActivity(): Promise<ActivityHighlight[]> {
+		return apiFetch<ActivityHighlight[]>('/api/v1/me/highlights');
 	}
 }

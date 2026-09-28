@@ -40,7 +40,15 @@ func (r *CommentRepository) Delete(ctx context.Context, id, userID uuid.UUID) er
 }
 
 func (r *CommentRepository) ListByArticle(ctx context.Context, articleID uuid.UUID) ([]engagement.Comment, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+commentColumns+` FROM article_comments WHERE article_id=$1 ORDER BY created_at`, articleID)
+	return r.list(ctx, `SELECT `+commentColumns+` FROM article_comments WHERE article_id=$1 ORDER BY created_at`, articleID)
+}
+
+func (r *CommentRepository) ListByUser(ctx context.Context, userID uuid.UUID) ([]engagement.Comment, error) {
+	return r.list(ctx, `SELECT `+commentColumns+` FROM article_comments WHERE user_id=$1 ORDER BY created_at DESC`, userID)
+}
+
+func (r *CommentRepository) list(ctx context.Context, query string, args ...any) ([]engagement.Comment, error) {
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list comments: %w", err)
 	}

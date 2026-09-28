@@ -1,4 +1,5 @@
 import { HighlightsApi } from '$lib/adapters/api/highlightsApi';
+import type { ActivityHighlight } from '$lib/core/domain/activity';
 import type { Highlight, PopularHighlight } from '$lib/core/domain/highlight';
 
 const api = new HighlightsApi();
@@ -15,5 +16,8 @@ export const highlightsService = {
 	},
 	getPopular(articleId: string): Promise<PopularHighlight | null> {
 		return api.getPopular(articleId);
+	},
+	listMyActivity(): Promise<ActivityHighlight[]> {
+		return api.listMyActivity();
 	}
 };

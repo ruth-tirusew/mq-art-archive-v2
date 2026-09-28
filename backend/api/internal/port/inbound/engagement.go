@@ -44,6 +44,30 @@ type PopularHighlight struct {
 	Count int
 }
 
+// ActivityHighlight and ActivityComment are a user's own highlight/comment carried with
+// enough of its target article's identity (slug/title) to link back to it — what a
+// personal "my activity" feed across every article needs. Unlike ResolvedHighlight/
+// ResolvedComment, these aren't re-anchored against the article's current body: a
+// summary feed just needs to show what was said and where, not render it inline.
+type ActivityHighlight struct {
+	ID           uuid.UUID
+	ArticleID    uuid.UUID
+	ArticleSlug  string
+	ArticleTitle string
+	QuotedText   string
+	CreatedAt    time.Time
+}
+
+type ActivityComment struct {
+	ID           uuid.UUID
+	ArticleID    uuid.UUID
+	ArticleSlug  string
+	ArticleTitle string
+	Body         string
+	IsGeneral    bool
+	CreatedAt    time.Time
+}
+
 type EngagementService interface {
 	// ToggleFavorite adds the caller's favorite if it doesn't exist, or removes it if it
 	// does. Returns the resulting favorited state and the article's new total count.
@@ -83,4 +107,9 @@ type EngagementService interface {
 	// ListComments returns all of an article's comments (anchored and general), resolved
 	// against its current body/version, oldest first.
 	ListComments(ctx context.Context, articleID uuid.UUID) ([]ResolvedComment, error)
+
+	// ListMyHighlightsAll and ListMyCommentsAll return userID's own highlights/comments
+	// across every article, most recent first — the personal activity feed.
+	ListMyHighlightsAll(ctx context.Context, userID uuid.UUID) ([]ActivityHighlight, error)
+	ListMyCommentsAll(ctx context.Context, userID uuid.UUID) ([]ActivityComment, error)
 }

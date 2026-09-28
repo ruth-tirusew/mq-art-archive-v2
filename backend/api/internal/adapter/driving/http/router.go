@@ -54,6 +54,8 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		v1.GET("/favorites/:id", middleware.OptionalAuthenticate(deps.Auth), handlers.Engagement.GetFavoriteStatus)
 		v1.POST("/me/favorites/:id", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.ToggleFavorite)
 		v1.GET("/me/favorites", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyFavorites)
+		v1.GET("/me/highlights", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyActivityHighlights)
+		v1.GET("/me/comments", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyActivityComments)
 
 		v1.GET("/wiki/articles/:articleId/highlights/popular", handlers.Engagement.GetPopularHighlight)
 		v1.GET("/wiki/articles/:articleId/highlights/mine", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyHighlights)

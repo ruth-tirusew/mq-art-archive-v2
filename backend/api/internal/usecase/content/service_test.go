@@ -11,15 +11,16 @@ import (
 )
 
 type mockArticleRepo struct {
-	listPublished  func(ctx context.Context, filter domain.ListFilter) ([]domain.Article, error)
-	listAdmin      func(ctx context.Context, status *domain.ArticleStatus, limit, offset int) ([]domain.Article, error)
-	getBySlug      func(ctx context.Context, slug string) (*domain.Article, error)
-	getByID        func(ctx context.Context, id uuid.UUID) (*domain.Article, error)
-	create         func(ctx context.Context, article domain.Article) (*domain.Article, error)
-	update         func(ctx context.Context, article domain.Article) (*domain.Article, error)
-	insertRevision func(ctx context.Context, rev domain.ArticleRevision) error
-	listRevisions  func(ctx context.Context, articleID uuid.UUID, limit, offset int) ([]domain.ArticleRevision, error)
-	getRevision    func(ctx context.Context, articleID uuid.UUID, version int) (*domain.ArticleRevision, error)
+	listPublished     func(ctx context.Context, filter domain.ListFilter) ([]domain.Article, error)
+	listAdmin         func(ctx context.Context, status *domain.ArticleStatus, limit, offset int) ([]domain.Article, error)
+	getBySlug         func(ctx context.Context, slug string) (*domain.Article, error)
+	getByID           func(ctx context.Context, id uuid.UUID) (*domain.Article, error)
+	create            func(ctx context.Context, article domain.Article) (*domain.Article, error)
+	update            func(ctx context.Context, article domain.Article) (*domain.Article, error)
+	updateForApproval func(ctx context.Context, article domain.Article, expectedVersion int, revision domain.ArticleRevision) (*domain.Article, error)
+	insertRevision    func(ctx context.Context, rev domain.ArticleRevision) error
+	listRevisions     func(ctx context.Context, articleID uuid.UUID, limit, offset int) ([]domain.ArticleRevision, error)
+	getRevision       func(ctx context.Context, articleID uuid.UUID, version int) (*domain.ArticleRevision, error)
 }
 
 func (m *mockArticleRepo) ListPublished(ctx context.Context, filter domain.ListFilter) ([]domain.Article, error) {
@@ -56,6 +57,17 @@ func (m *mockArticleRepo) Update(ctx context.Context, article domain.Article) (*
 	if m.update != nil {
 		return m.update(ctx, article)
 	}
+	return &article, nil
+}
+
+func (m *mockArticleRepo) UpdateForApproval(ctx context.Context, article domain.Article, expectedVersion int, revision domain.ArticleRevision) (*domain.Article, error) {
+	if m.updateForApproval != nil {
+		return m.updateForApproval(ctx, article, expectedVersion, revision)
+	}
+	if article.Version != expectedVersion {
+		return nil, apperrors.ErrConflict
+	}
+	article.Version = expectedVersion + 1
 	return &article, nil
 }
 

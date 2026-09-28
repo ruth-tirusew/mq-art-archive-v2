@@ -14,6 +14,10 @@ type ArticleRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*content.Article, error)
 	Create(ctx context.Context, article content.Article) (*content.Article, error)
 	Update(ctx context.Context, article content.Article) (*content.Article, error)
+	// UpdateForApproval is Update plus an optimistic-concurrency check: it only applies if
+	// the article is still at expectedVersion, and atomically records the version it
+	// replaces as a revision. Returns apperrors.ErrConflict if the version doesn't match.
+	UpdateForApproval(ctx context.Context, article content.Article, expectedVersion int, revision content.ArticleRevision) (*content.Article, error)
 	Search(ctx context.Context, query string, limit int) ([]content.Article, error)
 	InsertRevision(ctx context.Context, rev content.ArticleRevision) error
 	ListRevisions(ctx context.Context, articleID uuid.UUID, limit, offset int) ([]content.ArticleRevision, error)

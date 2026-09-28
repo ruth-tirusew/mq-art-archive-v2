@@ -30,6 +30,7 @@ import (
 	authuc "github.com/mq/api/internal/usecase/auth"
 	contentuc "github.com/mq/api/internal/usecase/content"
 	digestuc "github.com/mq/api/internal/usecase/digest"
+	engagementuc "github.com/mq/api/internal/usecase/engagement"
 	eventsuc "github.com/mq/api/internal/usecase/events"
 	identityuc "github.com/mq/api/internal/usecase/identity"
 	institutionuc "github.com/mq/api/internal/usecase/institution"
@@ -76,6 +77,9 @@ func main() {
 	eventLocationRepo := postgres.NewEventLocationRepository(pool)
 	mediaAssetRepo := postgres.NewMediaAssetRepository(pool)
 	wikiSubmissionRepo := postgres.NewWikiSubmissionRepository(pool)
+	favoriteRepo := postgres.NewFavoriteRepository(pool)
+	highlightRepo := postgres.NewHighlightRepository(pool)
+	commentRepo := postgres.NewCommentRepository(pool)
 	analyticsRepo := postgres.NewAnalyticsRepository(pool)
 	digestRecipientRepo := postgres.NewDigestRecipientRepository(pool)
 	digestRunRepo := postgres.NewDigestRunRepository(pool)
@@ -118,6 +122,7 @@ func main() {
 	cloudinary := mediaadapter.NewCloudinary(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret, cfg.CloudinaryFolder, 5*time.Minute)
 	mediaSvc := mediauc.NewService(cloudinary, cloudinary, mediaAssetRepo, cfg.CloudinaryFolder)
 	wikiSvc := wikiuc.NewService(wikiSubmissionRepo, contentSvc)
+	engagementSvc := engagementuc.NewService(favoriteRepo, highlightRepo, commentRepo, contentSvc, identitySvc)
 	analyticsSvc := analyticsuc.NewService(analyticsRepo)
 	passwordHasher := auth.NewBcryptPasswordHasher()
 	var mailer outbound.Mailer = maileradapter.NewLogMailer()
@@ -181,6 +186,7 @@ func main() {
 		Settings:    handler.NewSettingsHandler(settingsSvc),
 		Media:       handler.NewMediaHandler(mediaSvc),
 		Wiki:        handler.NewWikiHandler(wikiSvc),
+		Engagement:  handler.NewEngagementHandler(engagementSvc),
 		Analytics:   handler.NewAnalyticsHandler(analyticsSvc),
 		UserAdmin:   handler.NewUserAdminHandler(authSvc),
 		Digest:      handler.NewDigestHandler(digestSvc, cfg.TelegramBotUsername),

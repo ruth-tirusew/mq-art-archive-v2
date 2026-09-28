@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 import { AuthApi } from '$lib/adapters/api/authApi';
-import type { User } from '$lib/core/domain/auth';
+import type { NotificationPreferences, User } from '$lib/core/domain/auth';
 import { googleLoginUrl } from '$lib/core/domain/auth';
 
 const api = new AuthApi();
@@ -48,10 +48,38 @@ export const authService = {
 
 	async resetPassword(token: string, password: string): Promise<void> {
 		await api.resetPassword(token, password);
+	},
+
+	async updateProfile(displayName: string, avatarUrl: string): Promise<User> {
+		const user = await api.updateProfile(displayName, avatarUrl);
+		currentUser.set(user);
+		return user;
+	},
+
+	async changeEmail(email: string, currentPassword: string): Promise<User> {
+		const user = await api.changeEmail(email, currentPassword);
+		currentUser.set(user);
+		return user;
+	},
+
+	async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+		await api.changePassword(currentPassword, newPassword);
+	},
+
+	async getNotifications(): Promise<NotificationPreferences> {
+		return api.getNotifications();
+	},
+
+	async updateNotifications(prefs: NotificationPreferences): Promise<NotificationPreferences> {
+		return api.updateNotifications(prefs);
 	}
 };
 
 export function postLoginPath(user: User, returnTo = '/studio'): string {
 	if (user.role === 'artist') return returnTo;
+	// A plain reader isn't mid-application — don't force them into /apply. Honor an
+	// explicit returnTo (e.g. they were sent to login from a specific page); otherwise
+	// land on home rather than the generic '/studio' default, which they can't access.
+	if (user.role === 'public') return returnTo === '/studio' ? '/' : returnTo;
 	return '/apply';
 }

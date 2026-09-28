@@ -24,7 +24,7 @@ func NewArticleRepository(pool *Pool) outbound.ArticleRepository {
 
 const articleColumns = `id, slug, title, body, category, excerpt, reading_time, difficulty, verified, contributors, status, author_id, version, created_at, updated_at, published_at`
 
-const revisionColumns = `id, article_id, version, editor_id, title, body, slug, category, excerpt, reading_time, difficulty, verified, status, created_at`
+const revisionColumns = `id, article_id, version, editor_id, title, body, slug, category, excerpt, reading_time, difficulty, verified, status, created_at, submission_id`
 
 func (r *ArticleRepository) ListPublished(ctx context.Context, filter content.ListFilter) ([]content.Article, error) {
 	limit := filter.Limit
@@ -283,6 +283,79 @@ func (r *ArticleRepository) Update(ctx context.Context, article content.Article)
 	return nil, fmt.Errorf("update article: slug conflict")
 }
 
+// UpdateForApproval atomically applies a wiki-submission edit: it updates the article's
+// content and snapshots the version it's replacing as a revision, but only if the article
+// is still at expectedVersion — the version the submission was written against. Zero rows
+// affected means the article changed since the submission was created (another approval,
+// or a direct admin edit in the meantime), so the caller gets ErrConflict instead of a
+// silent overwrite. Both writes happen in one transaction: a conflict rolls back cleanly
+// with no revision inserted for an update that didn't happen.
+func (r *ArticleRepository) UpdateForApproval(ctx context.Context, article content.Article, expectedVersion int, revision content.ArticleRevision) (*content.Article, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("update article for approval: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	newVersion := expectedVersion + 1
+	tag, err := tx.Exec(ctx, `
+		UPDATE articles SET
+			slug = $2, title = $3, body = $4, category = $5, excerpt = $6,
+			reading_time = $7, difficulty = $8, verified = $9, contributors = $10,
+			status = $11, version = $12, updated_at = $13, published_at = $14
+		WHERE id = $1 AND version = $15
+	`,
+		article.ID,
+		article.Slug,
+		article.Title,
+		article.Body,
+		article.Category,
+		article.Excerpt,
+		article.ReadingTime,
+		article.Difficulty,
+		article.Verified,
+		article.Contributors,
+		string(article.Status),
+		newVersion,
+		article.UpdatedAt,
+		article.PublishedAt,
+		expectedVersion,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update article for approval: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrConflict
+	}
+
+	if revision.ID == uuid.Nil {
+		revision.ID = uuid.New()
+	}
+	if revision.CreatedAt.IsZero() {
+		revision.CreatedAt = time.Now().UTC()
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO article_revisions (
+			id, article_id, version, editor_id, title, body, slug, category, excerpt,
+			reading_time, difficulty, verified, status, created_at, submission_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+	`,
+		revision.ID, revision.ArticleID, revision.Version, revision.EditorID, revision.Title, revision.Body, revision.Slug,
+		revision.Category, revision.Excerpt, revision.ReadingTime, revision.Difficulty, revision.Verified,
+		string(revision.Status), revision.CreatedAt, revision.SubmissionID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update article for approval: insert revision: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("update article for approval: commit: %w", err)
+	}
+
+	article.Version = newVersion
+	return &article, nil
+}
+
 func (r *ArticleRepository) InsertRevision(ctx context.Context, rev content.ArticleRevision) error {
 	if rev.ID == uuid.Nil {
 		rev.ID = uuid.New()
@@ -293,12 +366,12 @@ func (r *ArticleRepository) InsertRevision(ctx context.Context, rev content.Arti
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO article_revisions (
 			id, article_id, version, editor_id, title, body, slug, category, excerpt,
-			reading_time, difficulty, verified, status, created_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+			reading_time, difficulty, verified, status, created_at, submission_id
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 	`,
 		rev.ID, rev.ArticleID, rev.Version, rev.EditorID, rev.Title, rev.Body, rev.Slug,
 		rev.Category, rev.Excerpt, rev.ReadingTime, rev.Difficulty, rev.Verified,
-		string(rev.Status), rev.CreatedAt,
+		string(rev.Status), rev.CreatedAt, rev.SubmissionID,
 	)
 	if err != nil {
 		return fmt.Errorf("insert article revision: %w", err)
@@ -406,6 +479,7 @@ func scanRevision(row scannable) (content.ArticleRevision, error) {
 		&rev.Verified,
 		&status,
 		&rev.CreatedAt,
+		&rev.SubmissionID,
 	)
 	if err != nil {
 		return content.ArticleRevision{}, err

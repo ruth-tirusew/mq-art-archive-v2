@@ -4,6 +4,16 @@ export interface User {
 	id: string;
 	email: string;
 	role: string;
+	display_name?: string;
+	avatar_url?: string;
+	has_password?: boolean;
+	email_verified?: boolean;
+}
+
+export interface NotificationPreferences {
+	email_on_new_application: boolean;
+	email_on_event_sync_summary: boolean;
+	newsletter_enabled: boolean;
 }
 
 /** Build Google OAuth start URL. Safe during SSR when `window` is unavailable. */

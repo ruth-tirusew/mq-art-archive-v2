@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import SearchTrigger from './GlobalSearch.svelte';
+	import ProfileDropdown from './ProfileDropdown.svelte';
 	import { authService, currentUser, authLoading } from '$lib/application/auth';
 
 	const primaryNav = [
@@ -150,16 +151,7 @@
 				{#if $authLoading}
 					<span class="text-muted-foreground">…</span>
 				{:else if $currentUser}
-					<span class="hidden max-w-[10rem] truncate text-muted-foreground xl:inline" title={$currentUser.email}>
-						{$currentUser.email}
-					</span>
-					<button
-						type="button"
-						class="text-muted-foreground transition hover:text-foreground"
-						onclick={logout}
-					>
-						Sign out
-					</button>
+					<ProfileDropdown />
 				{:else}
 					<a href="/login" class="text-muted-foreground transition hover:text-foreground">Sign in</a>
 				{/if}
@@ -214,15 +206,26 @@
 							</a>
 						</li>
 					{/if}
-					<li>
-						{#if $currentUser}
+					{#if $currentUser}
+						<li>
+							<a href="/account" class="{mobileLinkClass}" onclick={closeMenu}>Profile settings</a>
+						</li>
+						<li>
+							<a href="/account/activity" class="{mobileLinkClass}" onclick={closeMenu}>My activity</a>
+						</li>
+						<li>
+							<a href="/wiki/saved" class="{mobileLinkClass}" onclick={closeMenu}>Saved articles</a>
+						</li>
+						<li>
 							<button type="button" class="{mobileLinkClass} w-full text-left" onclick={logout}>
 								Sign out ({$currentUser.email})
 							</button>
-						{:else}
+						</li>
+					{:else}
+						<li>
 							<a href="/login" class="{mobileLinkClass}" onclick={closeMenu}>Sign in</a>
-						{/if}
-					</li>
+						</li>
+					{/if}
 				</ul>
 			</div>
 		</nav>

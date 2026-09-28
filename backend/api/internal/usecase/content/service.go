@@ -96,6 +96,44 @@ func (s *Service) AdminUpdate(ctx context.Context, id, editorID uuid.UUID, write
 		return nil, err
 	}
 
+	applyWrite(article, write)
+
+	return s.articles.Update(ctx, *article)
+}
+
+// ApproveEdit is AdminUpdate with an optimistic-concurrency check for the wiki submission
+// approval path — see inbound.ContentService for why this needs to be a separate method
+// rather than an extra AdminUpdate parameter (AdminUpdate is also used by direct admin
+// edits and revision restores, neither of which have a submission version to check against).
+func (s *Service) ApproveEdit(ctx context.Context, id, editorID uuid.UUID, expectedVersion int, submissionID uuid.UUID, write domain.ArticleWrite) (*domain.Article, error) {
+	if err := requireTitle(write.Title); err != nil {
+		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, err.Error())
+	}
+
+	article, err := s.articles.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if article.Version != expectedVersion {
+		// Fails fast on the common case without attempting a write; the atomic check in
+		// UpdateForApproval is what actually prevents the race (this article could still
+		// change between this read and that write).
+		return nil, apperrors.ErrConflict
+	}
+
+	revision := buildRevision(article, editorID)
+	revision.SubmissionID = &submissionID
+
+	applyWrite(article, write)
+
+	return s.articles.UpdateForApproval(ctx, *article, expectedVersion, revision)
+}
+
+// applyWrite mutates article in place with the fields from write, matching what
+// AdminUpdate and ApproveEdit both need to do before persisting — slug regeneration only
+// applies to drafts (a published article's URL shouldn't move out from under existing
+// links), version/timestamps/publish-date bookkeeping is otherwise identical either way.
+func applyWrite(article *domain.Article, write domain.ArticleWrite) {
 	title := strings.TrimSpace(write.Title)
 	if article.Status == domain.ArticleStatusDraft {
 		if strings.TrimSpace(write.Slug) != "" {
@@ -120,8 +158,6 @@ func (s *Service) AdminUpdate(ctx context.Context, id, editorID uuid.UUID, write
 	if article.Status == domain.ArticleStatusPublished && article.PublishedAt == nil {
 		article.PublishedAt = &article.UpdatedAt
 	}
-
-	return s.articles.Update(ctx, *article)
 }
 
 func (s *Service) AdminSetStatus(ctx context.Context, id uuid.UUID, status *domain.ArticleStatus, verified *bool) (*domain.Article, error) {
@@ -178,11 +214,19 @@ func (s *Service) AdminRestoreRevision(ctx context.Context, articleID uuid.UUID,
 }
 
 func (s *Service) snapshotCurrent(ctx context.Context, article *domain.Article, editorID uuid.UUID) error {
+	return s.articles.InsertRevision(ctx, buildRevision(article, editorID))
+}
+
+// buildRevision captures article's current (pre-mutation) state as a revision. Callers
+// apply it either immediately (snapshotCurrent, for AdminUpdate) or as part of a larger
+// transaction (ApproveEdit, via UpdateForApproval) — hence returning the value rather than
+// inserting it directly.
+func buildRevision(article *domain.Article, editorID uuid.UUID) domain.ArticleRevision {
 	version := article.Version
 	if version <= 0 {
 		version = 1
 	}
-	return s.articles.InsertRevision(ctx, domain.ArticleRevision{
+	return domain.ArticleRevision{
 		ID:          uuid.New(),
 		ArticleID:   article.ID,
 		Version:     version,
@@ -197,5 +241,5 @@ func (s *Service) snapshotCurrent(ctx context.Context, article *domain.Article, 
 		Verified:    article.Verified,
 		Status:      article.Status,
 		CreatedAt:   time.Now().UTC(),
-	})
+	}
 }

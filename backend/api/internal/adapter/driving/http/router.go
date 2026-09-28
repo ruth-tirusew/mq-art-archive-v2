@@ -27,6 +27,7 @@ type Handlers struct {
 	Analytics   *handler.AnalyticsHandler
 	UserAdmin   *handler.UserAdminHandler
 	Digest      *handler.DigestHandler
+	Engagement  *handler.EngagementHandler
 }
 
 type RouterDeps struct {
@@ -49,6 +50,21 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		v1.GET("/articles", handlers.Article.List)
 		v1.GET("/articles/:slug", handlers.Article.GetBySlug)
 		v1.POST("/articles", middleware.Authenticate(deps.Auth), middleware.RequireRole("admin"), handlers.Article.Create)
+
+		v1.GET("/favorites/:id", middleware.OptionalAuthenticate(deps.Auth), handlers.Engagement.GetFavoriteStatus)
+		v1.POST("/me/favorites/:id", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.ToggleFavorite)
+		v1.GET("/me/favorites", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyFavorites)
+		v1.GET("/me/highlights", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyActivityHighlights)
+		v1.GET("/me/comments", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyActivityComments)
+
+		v1.GET("/wiki/articles/:articleId/highlights/popular", handlers.Engagement.GetPopularHighlight)
+		v1.GET("/wiki/articles/:articleId/highlights/mine", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyHighlights)
+		v1.POST("/wiki/articles/:articleId/highlights", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.CreateHighlight)
+		v1.DELETE("/wiki/highlights/:id", middleware.Authenticate(deps.Auth), handlers.Engagement.DeleteHighlight)
+
+		v1.GET("/wiki/articles/:articleId/comments", handlers.Engagement.ListComments)
+		v1.POST("/wiki/articles/:articleId/comments", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.CreateComment)
+		v1.DELETE("/wiki/comments/:id", middleware.Authenticate(deps.Auth), handlers.Engagement.DeleteComment)
 
 		v1.GET("/artists", handlers.Profile.List)
 		v1.GET("/artists/:slug", handlers.Profile.GetBySlug)
@@ -92,6 +108,13 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		wiki.POST("/submissions", writeLimit, handlers.Wiki.Submit)
 		wiki.GET("/submissions", handlers.Wiki.ListMine)
 
+		wikiReview := v1.Group("/me/wiki")
+		wikiReview.Use(middleware.Authenticate(deps.Auth), middleware.RequireAnyRole("artist"))
+		wikiReview.GET("/submissions/pending", handlers.Wiki.ListOwnPending)
+		wikiReview.GET("/submissions/:id", handlers.Wiki.GetOwn)
+		wikiReview.POST("/submissions/:id/approve", writeLimit, handlers.Wiki.ApproveOwn)
+		wikiReview.POST("/submissions/:id/reject", writeLimit, handlers.Wiki.RejectOwn)
+
 		auth := v1.Group("/auth")
 		{
 			auth.GET("/google", handlers.Auth.GoogleLogin)
@@ -122,6 +145,7 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		admin.POST("/media/sign", writeLimit, handlers.Media.Sign)
 		admin.POST("/media/complete", writeLimit, handlers.Media.Complete)
 		admin.GET("/wiki/submissions", handlers.Wiki.ListPending)
+		admin.GET("/wiki/submissions/:id", handlers.Wiki.Get)
 		admin.POST("/wiki/submissions/:id/approve", handlers.Wiki.Approve)
 		admin.POST("/wiki/submissions/:id/reject", handlers.Wiki.Reject)
 		admin.GET("/analytics", handlers.Analytics.Query)

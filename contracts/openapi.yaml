@@ -1722,6 +1722,160 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmissionInput"}}}}
       responses:
         "201": {description: Pending submission, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmission"}}}}
+  /api/v1/me/wiki/submissions/pending:
+    get:
+      tags: [content]
+      summary: List submissions awaiting review against an article the caller owns (artist-only)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Owner-scoped pending submissions, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/WikiSubmission"}}}}}
+  /api/v1/me/wiki/submissions/{id}:
+    get:
+      tags: [content]
+      summary: Get a submission and its target article's current content, for a diff (artist-only, must own the article)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Submission with target article, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmissionReview"}}}}
+        "403": {description: Submission's article is not authored by the caller, or it is a new-article submission}
+  /api/v1/me/wiki/submissions/{id}/approve:
+    post:
+      tags: [content]
+      summary: Approve a wiki submission against an article the caller owns (artist-only)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Approved submission}
+        "403": {description: Submission's article is not authored by the caller, or it is a new-article submission}
+  /api/v1/me/wiki/submissions/{id}/reject:
+    post:
+      tags: [content]
+      summary: Reject a wiki submission against an article the caller owns (artist-only)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Rejected submission}
+        "403": {description: Submission's article is not authored by the caller, or it is a new-article submission}
+  /api/v1/favorites/{id}:
+    get:
+      tags: [content]
+      summary: Get an article's favorite count, and whether the caller has favorited it (public; favorited is always false when unauthenticated)
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}, description: Article ID}]
+      responses:
+        "200": {description: Favorite status, content: {application/json: {schema: {$ref: "#/components/schemas/FavoriteStatus"}}}}
+  /api/v1/me/favorites:
+    get:
+      tags: [content]
+      summary: List the caller's favorited articles
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Favorited articles, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Article"}}}}}
+  /api/v1/me/highlights:
+    get:
+      tags: [content]
+      summary: List the caller's own highlights across every article (personal activity feed)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: My highlights, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/ActivityHighlight"}}}}}
+  /api/v1/me/comments:
+    get:
+      tags: [content]
+      summary: List the caller's own comments across every article (personal activity feed)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: My comments, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/ActivityComment"}}}}}
+  /api/v1/me/favorites/{id}:
+    post:
+      tags: [content]
+      summary: Toggle the caller's favorite on an article (adds it if not favorited, removes it if it is)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}, description: Article ID}]
+      responses:
+        "200": {description: Resulting favorite status, content: {application/json: {schema: {$ref: "#/components/schemas/FavoriteStatus"}}}}
+        "404": {description: Article not found}
+  /api/v1/wiki/articles/{articleId}/highlights:
+    post:
+      tags: [content]
+      summary: Create a personal highlight anchored to a span of an article
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quoted_text, end]
+              properties:
+                quoted_text: {type: string}
+                start: {type: integer}
+                end: {type: integer}
+      responses:
+        "201": {description: Created highlight, content: {application/json: {schema: {$ref: "#/components/schemas/Highlight"}}}}
+        "400": {description: The span doesn't describe real, in-bounds text in the article's current body}
+        "404": {description: Article not found}
+  /api/v1/wiki/articles/{articleId}/highlights/mine:
+    get:
+      tags: [content]
+      summary: List the caller's own highlights on an article, resolved against its current body/version
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: My highlights, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Highlight"}}}}}
+  /api/v1/wiki/articles/{articleId}/highlights/popular:
+    get:
+      tags: [content]
+      summary: Get an article's most-highlighted passage across all readers (public)
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Popular highlight (or null), content: {application/json: {schema: {$ref: "#/components/schemas/PopularHighlight"}}}}
+  /api/v1/wiki/highlights/{id}:
+    delete:
+      tags: [content]
+      summary: Delete the caller's own highlight
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "204": {description: Deleted}
+        "404": {description: Not found, or not owned by the caller}
+  /api/v1/wiki/articles/{articleId}/comments:
+    get:
+      tags: [content]
+      summary: List an article's comments — anchored margin comments and general responses (public)
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Comments, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Comment"}}}}}
+    post:
+      tags: [content]
+      summary: Post a comment on an article — anchored to a span, or a general response
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: {type: string}
+                is_general: {type: boolean}
+                quoted_text: {type: string, description: Required when is_general is false}
+                start: {type: integer}
+                end: {type: integer}
+      responses:
+        "201": {description: Created comment, content: {application/json: {schema: {$ref: "#/components/schemas/Comment"}}}}
+        "400": {description: Empty body, or (for an anchored comment) a span that doesn't describe real, in-bounds text}
+        "404": {description: Article not found}
+  /api/v1/wiki/comments/{id}:
+    delete:
+      tags: [content]
+      summary: Delete the caller's own comment
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "204": {description: Deleted}
+        "404": {description: Not found, or not owned by the caller}
   /admin/v1/wiki/submissions:
     get:
       tags: [content]
@@ -1729,6 +1883,14 @@ paths:
       security: [{bearerAuth: []}, {cookieAuth: []}]
       responses:
         "200": {description: Pending submissions, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/WikiSubmission"}}}}}
+  /admin/v1/wiki/submissions/{id}:
+    get:
+      tags: [content]
+      summary: Get a submission and its target article's current content, for a diff (admin)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Submission with target article, content: {application/json: {schema: {$ref: "#/components/schemas/WikiSubmissionReview"}}}}
   /admin/v1/wiki/submissions/{id}/approve:
     post:
       tags: [content]
@@ -2523,8 +2685,72 @@ components:
         article_id: {type: string, format: uuid, nullable: true}
         title: {type: string}
         body: {type: string}
+        kind: {type: string, enum: [new, edit]}
+        based_on_version: {type: integer, nullable: true, description: "Target article's version at submission time (edit submissions only)."}
         status: {type: string, enum: [pending, approved, rejected]}
         review_notes: {type: string}
+    WikiSubmissionReview:
+      type: object
+      description: A submission alongside the current state of its target article, for rendering a diff. `article` is omitted for a new-article submission.
+      properties:
+        submission: {$ref: "#/components/schemas/WikiSubmission"}
+        article: {$ref: "#/components/schemas/Article"}
+    FavoriteStatus:
+      type: object
+      properties:
+        favorited: {type: boolean}
+        count: {type: integer}
+    Highlight:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        quoted_text: {type: string}
+        start: {type: integer}
+        end: {type: integer}
+        matched: {type: boolean, description: "False if the article changed enough since this was created that the quoted text can no longer be found — start/end are then meaningless."}
+        created_at: {type: string, format: date-time}
+    PopularHighlight:
+      type: object
+      nullable: true
+      description: The article's most-highlighted passage across all readers, or null if none has reached the minimum reader count to count as popular.
+      properties:
+        start: {type: integer}
+        end: {type: integer}
+        count: {type: integer, description: Number of distinct readers whose highlight covers this passage.}
+    Comment:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        user_id: {type: string, format: uuid}
+        author_name: {type: string}
+        body: {type: string}
+        is_general: {type: boolean, description: "True for an unanchored 'response' at the bottom of the article; false for a margin comment anchored to a span."}
+        quoted_text: {type: string}
+        start: {type: integer}
+        end: {type: integer}
+        matched: {type: boolean, description: "For an anchored comment, false if the article changed enough that the quoted text can no longer be found. Always false for a general comment."}
+        created_at: {type: string, format: date-time}
+    ActivityHighlight:
+      type: object
+      description: A user's own highlight, with enough of its article's identity to link back to it — for the personal activity feed, not re-anchored against the article's current body.
+      properties:
+        id: {type: string, format: uuid}
+        article_id: {type: string, format: uuid}
+        article_slug: {type: string}
+        article_title: {type: string}
+        quoted_text: {type: string}
+        created_at: {type: string, format: date-time}
+    ActivityComment:
+      type: object
+      description: A user's own comment, with enough of its article's identity to link back to it — for the personal activity feed.
+      properties:
+        id: {type: string, format: uuid}
+        article_id: {type: string, format: uuid}
+        article_slug: {type: string}
+        article_title: {type: string}
+        body: {type: string}
+        is_general: {type: boolean}
+        created_at: {type: string, format: date-time}
     PageViewInput:
       type: object
       required: [entity_type, entity_id]

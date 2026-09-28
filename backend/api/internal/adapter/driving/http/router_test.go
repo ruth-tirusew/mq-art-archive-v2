@@ -55,6 +55,9 @@ func (stubContent) AdminCreate(ctx context.Context, authorID uuid.UUID, write co
 func (stubContent) AdminUpdate(ctx context.Context, id, editorID uuid.UUID, write content.ArticleWrite) (*content.Article, error) {
 	return &content.Article{ID: id, Title: write.Title, Slug: "updated", Body: write.Body, Status: content.ArticleStatusDraft, Version: 2}, nil
 }
+func (stubContent) ApproveEdit(ctx context.Context, id, editorID uuid.UUID, expectedVersion int, submissionID uuid.UUID, write content.ArticleWrite) (*content.Article, error) {
+	return &content.Article{ID: id, Title: write.Title, Slug: "updated", Body: write.Body, Status: content.ArticleStatusDraft, Version: expectedVersion + 1}, nil
+}
 func (stubContent) AdminSetStatus(ctx context.Context, id uuid.UUID, status *content.ArticleStatus, verified *bool) (*content.Article, error) {
 	article := &content.Article{ID: id, Title: "Article", Slug: "seed", Status: content.ArticleStatusDraft, Version: 1}
 	if status != nil {

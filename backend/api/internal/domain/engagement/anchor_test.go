@@ -58,6 +58,33 @@ func TestAnchor_Resolve_emptyQuotedText_notMatched(t *testing.T) {
 	}
 }
 
+func TestAnchor_Resolve_usesRuneOffsetsNotByteOffsets(t *testing.T) {
+	// "—" (em dash, U+2014) is 3 UTF-8 bytes but 1 rune — a real anchor computed by the
+	// frontend (which indexes in JS string units, equal to runes for this content) must
+	// still resolve correctly here, not be thrown off by Go's byte-indexed strings.
+	body := "school — the paperwork"
+	quoted := "the paperwork"
+	runeOffset := len([]rune("school — ")) // 9
+	if runeOffset == len("school — ") {
+		t.Fatal("test body must contain a multi-byte rune for this test to be meaningful")
+	}
+
+	a := Anchor{QuotedText: quoted, TextOffsetStart: runeOffset, TextOffsetEnd: runeOffset + len([]rune(quoted)), ArticleVersionAtAnchor: 1}
+	res := a.Resolve(body, 1)
+	if !res.Matched || res.Start != runeOffset {
+		t.Fatalf("expected rune-offset anchor to resolve at %d, got %+v", runeOffset, res)
+	}
+}
+
+func TestSlice_usesRuneOffsets(t *testing.T) {
+	body := "school — the paperwork"
+	start := len([]rune("school — "))
+	got, ok := Slice(body, start, start+len([]rune("the paperwork")))
+	if !ok || got != "the paperwork" {
+		t.Fatalf("expected Slice to extract %q at rune offset %d, got %q (ok=%v)", "the paperwork", start, got, ok)
+	}
+}
+
 func TestResolveAll_resolvesEachIndependently(t *testing.T) {
 	body := "one two three"
 	anchors := []Anchor{

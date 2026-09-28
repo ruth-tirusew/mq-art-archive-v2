@@ -1779,6 +1779,89 @@ paths:
       responses:
         "200": {description: Resulting favorite status, content: {application/json: {schema: {$ref: "#/components/schemas/FavoriteStatus"}}}}
         "404": {description: Article not found}
+  /api/v1/wiki/articles/{articleId}/highlights:
+    post:
+      tags: [content]
+      summary: Create a personal highlight anchored to a span of an article
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quoted_text, end]
+              properties:
+                quoted_text: {type: string}
+                start: {type: integer}
+                end: {type: integer}
+      responses:
+        "201": {description: Created highlight, content: {application/json: {schema: {$ref: "#/components/schemas/Highlight"}}}}
+        "400": {description: The span doesn't describe real, in-bounds text in the article's current body}
+        "404": {description: Article not found}
+  /api/v1/wiki/articles/{articleId}/highlights/mine:
+    get:
+      tags: [content]
+      summary: List the caller's own highlights on an article, resolved against its current body/version
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: My highlights, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Highlight"}}}}}
+  /api/v1/wiki/articles/{articleId}/highlights/popular:
+    get:
+      tags: [content]
+      summary: Get an article's most-highlighted passage across all readers (public)
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Popular highlight (or null), content: {application/json: {schema: {$ref: "#/components/schemas/PopularHighlight"}}}}
+  /api/v1/wiki/highlights/{id}:
+    delete:
+      tags: [content]
+      summary: Delete the caller's own highlight
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "204": {description: Deleted}
+        "404": {description: Not found, or not owned by the caller}
+  /api/v1/wiki/articles/{articleId}/comments:
+    get:
+      tags: [content]
+      summary: List an article's comments — anchored margin comments and general responses (public)
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: Comments, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Comment"}}}}}
+    post:
+      tags: [content]
+      summary: Post a comment on an article — anchored to a span, or a general response
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: articleId, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: {type: string}
+                is_general: {type: boolean}
+                quoted_text: {type: string, description: Required when is_general is false}
+                start: {type: integer}
+                end: {type: integer}
+      responses:
+        "201": {description: Created comment, content: {application/json: {schema: {$ref: "#/components/schemas/Comment"}}}}
+        "400": {description: Empty body, or (for an anchored comment) a span that doesn't describe real, in-bounds text}
+        "404": {description: Article not found}
+  /api/v1/wiki/comments/{id}:
+    delete:
+      tags: [content]
+      summary: Delete the caller's own comment
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "204": {description: Deleted}
+        "404": {description: Not found, or not owned by the caller}
   /admin/v1/wiki/submissions:
     get:
       tags: [content]
@@ -2603,6 +2686,36 @@ components:
       properties:
         favorited: {type: boolean}
         count: {type: integer}
+    Highlight:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        quoted_text: {type: string}
+        start: {type: integer}
+        end: {type: integer}
+        matched: {type: boolean, description: "False if the article changed enough since this was created that the quoted text can no longer be found — start/end are then meaningless."}
+        created_at: {type: string, format: date-time}
+    PopularHighlight:
+      type: object
+      nullable: true
+      description: The article's most-highlighted passage across all readers, or null if none has reached the minimum reader count to count as popular.
+      properties:
+        start: {type: integer}
+        end: {type: integer}
+        count: {type: integer, description: Number of distinct readers whose highlight covers this passage.}
+    Comment:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        user_id: {type: string, format: uuid}
+        author_name: {type: string}
+        body: {type: string}
+        is_general: {type: boolean, description: "True for an unanchored 'response' at the bottom of the article; false for a margin comment anchored to a span."}
+        quoted_text: {type: string}
+        start: {type: integer}
+        end: {type: integer}
+        matched: {type: boolean, description: "For an anchored comment, false if the article changed enough that the quoted text can no longer be found. Always false for a general comment."}
+        created_at: {type: string, format: date-time}
     PageViewInput:
       type: object
       required: [entity_type, entity_id]

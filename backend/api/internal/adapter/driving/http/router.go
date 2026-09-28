@@ -55,6 +55,15 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		v1.POST("/me/favorites/:id", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.ToggleFavorite)
 		v1.GET("/me/favorites", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyFavorites)
 
+		v1.GET("/wiki/articles/:articleId/highlights/popular", handlers.Engagement.GetPopularHighlight)
+		v1.GET("/wiki/articles/:articleId/highlights/mine", middleware.Authenticate(deps.Auth), handlers.Engagement.ListMyHighlights)
+		v1.POST("/wiki/articles/:articleId/highlights", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.CreateHighlight)
+		v1.DELETE("/wiki/highlights/:id", middleware.Authenticate(deps.Auth), handlers.Engagement.DeleteHighlight)
+
+		v1.GET("/wiki/articles/:articleId/comments", handlers.Engagement.ListComments)
+		v1.POST("/wiki/articles/:articleId/comments", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.CreateComment)
+		v1.DELETE("/wiki/comments/:id", middleware.Authenticate(deps.Auth), handlers.Engagement.DeleteComment)
+
 		v1.GET("/artists", handlers.Profile.List)
 		v1.GET("/artists/:slug", handlers.Profile.GetBySlug)
 		v1.GET("/artists/:slug/posts", handlers.Art.ListByArtistSlug)

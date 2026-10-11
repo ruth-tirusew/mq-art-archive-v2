@@ -17,10 +17,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Sleuth is built from source. Its repository is private, so checking it out needs a token
-  # with read access to it, stored in this repository as the SLEUTH_REPO_TOKEN secret.
+  # Sleuth is built from source, pinned to a commit so every run tests with the same Sleuth.
+  # To upgrade, change SLEUTH_REF to a newer commit of https://github.com/ruth-tirusew/sleuth.
   SLEUTH_REPO: ruth-tirusew/sleuth
-  SLEUTH_REF: cleeanup/secretLeaks
+  SLEUTH_REF: 0b7cdddea28bbce346d25c174f50c61e7b699ff0
 
 jobs:
   flows:
@@ -75,7 +75,6 @@ jobs:
           repository: ${{ env.SLEUTH_REPO }}
           ref: ${{ env.SLEUTH_REF }}
           path: .sleuth
-          token: ${{ secrets.SLEUTH_REPO_TOKEN }}
 
       - name: Build Sleuth
         working-directory: .sleuth/sleuth

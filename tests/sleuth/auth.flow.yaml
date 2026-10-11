@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ruth-tirusew/sleuth/main/sleuth/schema/flow.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ruth-tirusew/sleuth/0b7cdddea28bbce346d25c174f50c61e7b699ff0/sleuth/schema/flow.schema.json
 version: 1
 name: auth
 description: >

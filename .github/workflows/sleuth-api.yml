@@ -1,0 +1,134 @@
+name: API flows (Sleuth)
+
+# Runs the Sleuth API flows in tests/sleuth against a freshly built API and an empty Postgres:
+# every call is checked against contracts/openapi.yaml, and results are published as JUnit
+# XML plus Sleuth's evidence files.
+on:
+  pull_request:
+  push:
+    branches: [main, ci/sleuth-contract-tests]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sleuth-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Sleuth is built from source. Its repository is private, so checking it out needs a token
+  # with read access to it, stored in this repository as the SLEUTH_REPO_TOKEN secret.
+  SLEUTH_REPO: ruth-tirusew/sleuth
+  SLEUTH_REF: cleeanup/secretLeaks
+
+jobs:
+  flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mq
+          POSTGRES_PASSWORD: mq
+          POSTGRES_DB: mq
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mq -d mq"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/api/go.mod
+          cache-dependency-path: backend/api/go.sum
+
+      - name: Build the API
+        working-directory: backend/api
+        run: go build -o "$RUNNER_TEMP/mq-api" ./cmd/api
+
+      - name: Start the API (it applies its migrations on boot)
+        env:
+          APP_ENV: development
+          DATABASE_URL: postgres://mq:mq@localhost:5432/mq?sslmode=disable
+          HTTP_PORT: "8080"
+          JWT_SECRET: ci-only-not-a-real-secret
+          AUTH_DEV_MODE: "true"
+          SCRAPE_ENABLED: "false"
+          TELEGRAM_ENABLED: "false"
+          CLOUDINARY_ENABLED: "false"
+          CORS_ORIGINS: http://localhost:5173
+        run: |
+          nohup "$RUNNER_TEMP/mq-api" > "$RUNNER_TEMP/api.log" 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/health; then echo; exit 0; fi
+            sleep 1
+          done
+          echo "the API did not become healthy"; cat "$RUNNER_TEMP/api.log"; exit 1
+
+      - name: Check out Sleuth
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SLEUTH_REPO }}
+          ref: ${{ env.SLEUTH_REF }}
+          path: .sleuth
+          token: ${{ secrets.SLEUTH_REPO_TOKEN }}
+
+      - name: Build Sleuth
+        working-directory: .sleuth/sleuth
+        run: go build -o "$RUNNER_TEMP/sleuth" ./cmd/sleuth
+
+      - name: Run the flows
+        id: flows
+        working-directory: tests/sleuth
+        env:
+          MQ_BASE_URL: http://localhost:8080
+          MQ_TEST_EMAIL: ci-${{ github.run_id }}-${{ github.run_attempt }}@example.test
+        run: |
+          # a fresh password per run, masked in the GitHub log too
+          MQ_TEST_PASSWORD="$(openssl rand -hex 16)"; echo "::add-mask::$MQ_TEST_PASSWORD"; export MQ_TEST_PASSWORD
+          mkdir -p "$RUNNER_TEMP/evidence" "$RUNNER_TEMP/junit"
+          set +e # run every flow even if one fails, then report the worst exit code
+          worst=0
+          for flow in public-browse auth; do
+            "$RUNNER_TEMP/sleuth" run -env env.yaml -parallel 4 -timeout 5m \
+              -out "$RUNNER_TEMP/evidence/$flow.json" -junit "$RUNNER_TEMP/junit/$flow.xml" "$flow.flow.yaml"
+            code=$?
+            echo "$flow exited $code"
+            if [ "$code" -gt "$worst" ]; then worst=$code; fi
+          done
+          # 1: an assertion or contract failed; 2: a flow or setup error; 3: infrastructure only
+          echo "exit_code=$worst" >> "$GITHUB_OUTPUT"
+          exit $worst
+
+      - name: Summary
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import glob, os, xml.etree.ElementTree as ET
+          print("## Sleuth API flows\n")
+          print("| Flow | Tests | Failures | Errors | Skipped |")
+          print("|---|---|---|---|---|")
+          for f in sorted(glob.glob(os.path.join(os.environ["RUNNER_TEMP"], "junit", "*.xml"))):
+              s = ET.parse(f).getroot().find("testsuite")
+              print(f"| {s.get('name')} | {s.get('tests')} | {s.get('failures')} | {s.get('errors')} | {s.get('skipped')} |")
+              for c in s.findall("testcase"):
+                  p = c.find("failure") if c.find("failure") is not None else c.find("error")
+                  if p is not None:
+                      print(f"\n**{s.get('name')} / {c.get('name')}** ({p.get('type')}): {p.get('message')}")
+          PY
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sleuth-results
+          path: |
+            ${{ runner.temp }}/evidence
+            ${{ runner.temp }}/junit
+            ${{ runner.temp }}/api.log
+          if-no-files-found: warn
+          retention-days: 14

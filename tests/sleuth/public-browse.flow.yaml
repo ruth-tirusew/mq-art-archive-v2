@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ruth-tirusew/sleuth/0b7cdddea28bbce346d25c174f50c61e7b699ff0/sleuth/schema/flow.schema.json
+version: 1
+name: public-browse
+description: >
+  What an anonymous visitor does: list articles, artists, posts and events, open one of each,
+  search. Every call is checked against contracts/openapi.yaml; ids and slugs come from the
+  previous responses, so nothing depends on fixed seed data.
+nodes:
+  - id: health
+    kind: request
+    contract: api
+    request: {url: "{{ .env.base_url }}/health"}
+
+  - id: articles
+    kind: request
+    contract: api
+    request:
+      url: "{{ .env.base_url }}/api/v1/articles"
+      extract: {slug: body.0.slug}
+  - id: article
+    kind: request
+    contract: api
+    request: {url: "{{ .env.base_url }}/api/v1/articles/{{ .nodes.articles.out.slug }}"}
+
+  - id: artists
+    kind: request
+    contract: api
+    request:
+      url: "{{ .env.base_url }}/api/v1/artists"
+      extract: {slug: body.0.slug}
+  - id: artist
+    kind: request
+    contract: api
+    request: {url: "{{ .env.base_url }}/api/v1/artists/{{ .nodes.artists.out.slug }}"}
+  - id: artist_posts
+    kind: request
+    contract: api
+    request: {url: "{{ .env.base_url }}/api/v1/artists/{{ .nodes.artists.out.slug }}/posts"}
+
+  - id: posts
+    kind: request
+    contract: api
+    request:
+      url: "{{ .env.base_url }}/api/v1/posts"
+      extract: {id: body.0.id}
+  - id: post
+    kind: request
+    contract: api
+    request: {url: "{{ .env.base_url }}/api/v1/posts/{{ .nodes.posts.out.id }}"}
+
+  - id: events
+    kind: request
+    contract: api
+    request: {url: "{{ .env.base_url }}/api/v1/events"}
+
+  - id: search
+    kind: request
+    contract: api
+    request: {url: "{{ .env.base_url }}/api/v1/search", query: {q: a}}
+
+  - id: missing_article
+    kind: request
+    contract: {source: api, on_violation: warn}
+    request: {url: "{{ .env.base_url }}/api/v1/articles/no-such-article-sleuth"}
+
+  - id: browse_ok
+    kind: assertion
+    assert:
+      - {path: nodes.health.response.body.status, equals: ok}
+      - {path: nodes.article.response.status, equals: 200}
+      - {path: nodes.article.response.body.slug, equals: "{{ .nodes.articles.out.slug }}"}
+      - {path: nodes.artist.response.body.slug, equals: "{{ .nodes.artists.out.slug }}"}
+      - {path: nodes.artist_posts.response.status, equals: 200}
+      - {path: nodes.post.response.body.id, equals: "{{ .nodes.posts.out.id }}"}
+      - {path: nodes.events.response.status, equals: 200}
+      - {path: nodes.search.response.status, equals: 200}
+      - {path: nodes.missing_article.response.status, equals: 404, message: an unknown slug is a 404}

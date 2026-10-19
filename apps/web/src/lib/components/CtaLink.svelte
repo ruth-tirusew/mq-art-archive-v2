@@ -22,8 +22,7 @@
 				'rounded-full bg-accent px-5 py-2.5 text-accent-foreground shadow-sm hover:bg-foreground hover:text-background hover:shadow-md hover:-translate-y-0.5',
 			secondary:
 				'rounded-full border border-foreground/25 px-5 py-2.5 text-foreground hover:border-foreground hover:bg-foreground/5 hover:-translate-y-0.5',
-			tertiary:
-				'text-foreground underline decoration-accent decoration-2 underline-offset-8 hover:text-accent'
+			tertiary: 'border-b-2 border-accent pb-1.5 text-foreground hover:text-accent'
 		},
 		'on-dark': {
 			primary:
@@ -32,8 +31,7 @@
 				'rounded-full bg-accent px-5 py-2.5 text-accent-foreground shadow-sm hover:bg-cream hover:text-ink hover:shadow-md hover:-translate-y-0.5',
 			secondary:
 				'rounded-full border border-cream/30 px-5 py-2.5 text-cream hover:border-cream hover:bg-cream/10 hover:-translate-y-0.5',
-			tertiary:
-				'text-cream/80 underline decoration-accent decoration-2 underline-offset-8 hover:text-cream'
+			tertiary: 'border-b-2 border-accent pb-1.5 text-cream/80 hover:text-cream'
 		}
 	};
 </script>
@@ -42,6 +40,8 @@
 	{href}
 	class={cn(
 		'inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] transition duration-200',
+		// Tertiary links use a bottom border, not text-decoration: inline-flex children are
+		// underlined separately, which left a gap before the trailing arrow.
 		variantStyles[tone][variant],
 		className
 	)}

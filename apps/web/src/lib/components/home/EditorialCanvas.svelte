@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CtaLink from '$lib/components/CtaLink.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
 	import {
 		acquisitionArtistName,
@@ -39,6 +40,11 @@
 	function medium(post: ArtPost) {
 		return acquisitionMedium(post) ?? '';
 	}
+
+	/** Dead media URLs: hide the <img> so the tile falls back to its muted fill + caption. */
+	function hideBroken(event: Event) {
+		(event.currentTarget as HTMLImageElement).style.visibility = 'hidden';
+	}
 </script>
 
 {#if spread}
@@ -47,9 +53,7 @@
 			<div class="spread" data-layout={spread.layoutId}>
 				<!-- Intro claim -->
 				<div class="cell cell-intro flex flex-col justify-center py-1 md:py-4 md:pr-4 lg:pr-8">
-					<p class="font-mono text-[10px] uppercase tracking-[0.28em] text-accent">
-						{spread.intro.eyebrow}
-					</p>
+					<p class="t-eyebrow text-accent">{spread.intro.eyebrow}</p>
 					<h1
 						class="mt-3 max-w-[14ch] font-display text-[1.75rem] leading-[1.12] tracking-tight text-foreground sm:max-w-[16ch] md:mt-4 md:text-[2.15rem] lg:text-[2.55rem]"
 					>
@@ -60,12 +64,9 @@
 					>
 						{spread.intro.body}
 					</p>
-					<a
-						href={spread.intro.ctaHref}
-						class="mt-5 inline-flex w-fit font-mono text-[11px] uppercase tracking-[0.2em] text-foreground underline decoration-accent decoration-2 underline-offset-8 transition hover:text-accent md:mt-6"
-					>
-						{spread.intro.ctaLabel} →
-					</a>
+					<CtaLink href={spread.intro.ctaHref} class="mt-5 w-fit md:mt-6">
+						{spread.intro.ctaLabel} <span aria-hidden="true">→</span>
+					</CtaLink>
 				</div>
 
 				{@render artistTile(spread.feature, 'cell-feature')}
@@ -83,9 +84,9 @@
 					onclick={prev}
 					disabled={spreads.length <= 1}
 					aria-label="Previous curation"
-					class="flex h-9 w-9 items-center justify-center border border-foreground/20 text-foreground transition hover:border-foreground hover:bg-foreground hover:text-cream disabled:pointer-events-none disabled:opacity-30"
+					class="flex h-10 w-10 items-center justify-center rounded-full border border-foreground/25 text-foreground transition hover:border-foreground hover:bg-foreground hover:text-cream disabled:pointer-events-none disabled:opacity-30"
 				>
-					←
+					<span aria-hidden="true">←</span>
 				</button>
 				<div class="flex items-center gap-2" role="tablist" aria-label="Curations">
 					{#each spreads as _, i}
@@ -106,18 +107,15 @@
 					onclick={next}
 					disabled={spreads.length <= 1}
 					aria-label="Next curation"
-					class="flex h-9 w-9 items-center justify-center border border-foreground/20 text-foreground transition hover:border-foreground hover:bg-foreground hover:text-cream disabled:pointer-events-none disabled:opacity-30"
+					class="flex h-10 w-10 items-center justify-center rounded-full border border-foreground/25 text-foreground transition hover:border-foreground hover:bg-foreground hover:text-cream disabled:pointer-events-none disabled:opacity-30"
 				>
-					→
+					<span aria-hidden="true">→</span>
 				</button>
 			</div>
 
-			<a
-				href="/archive"
-				class="browse-archive font-mono text-[11px] uppercase tracking-[0.2em] text-foreground underline decoration-accent decoration-2 underline-offset-8 transition hover:text-accent"
-			>
-				Browse the archive →
-			</a>
+			<CtaLink href="/archive" class="browse-archive">
+				Browse the archive <span aria-hidden="true">→</span>
+			</CtaLink>
 		</div>
 	</section>
 {/if}
@@ -130,6 +128,7 @@
 			alt={acquisitionTitle(post)}
 			class="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.03]"
 			loading={cellClass === 'cell-feature' ? 'eager' : 'lazy'}
+			onerror={hideBroken}
 		/>
 		<div
 			class="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/10 to-transparent"
@@ -137,7 +136,7 @@
 
 		{#if tile.badge}
 			<span
-				class="absolute left-3 top-3 bg-cream px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.22em] text-foreground md:left-4 md:top-4"
+				class="t-eyebrow absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-sm bg-cream px-2.5 py-1 text-foreground md:top-4 md:left-4"
 			>
 				{tile.badge}
 			</span>
@@ -154,16 +153,16 @@
 				</p>
 				{#if medium(post)}
 					<p
-						class="mt-1 truncate font-mono text-[9px] uppercase tracking-[0.16em] text-cream/75 md:text-[10px] md:tracking-[0.18em]"
+						class="t-eyebrow mt-1 truncate text-cream/80"
 					>
 						{medium(post)}
 					</p>
 				{/if}
 			</div>
 			<span
-				class="tile-cta shrink-0 font-mono text-[10px] uppercase tracking-[0.16em] text-cream/90 transition group-hover:text-cream"
+				class="tile-cta t-eyebrow shrink-0 text-cream/90 transition group-hover:text-cream"
 			>
-				View artist →
+				View artist <span aria-hidden="true">→</span>
 			</span>
 		</div>
 	</a>
@@ -171,7 +170,7 @@
 
 {#snippet noteTile(note: CuratorModule)}
 	<div class="cell-note flex flex-col justify-center py-5 md:px-2 md:py-4 lg:px-4">
-		<p class="font-mono text-[10px] uppercase tracking-[0.28em] text-accent">{note.eyebrow}</p>
+		<p class="t-eyebrow text-accent">{note.eyebrow}</p>
 		<h2
 			class="mt-3 max-w-[16ch] font-display text-[1.55rem] leading-[1.15] tracking-tight text-foreground md:mt-4 md:max-w-[18ch] md:text-[1.65rem] lg:text-[1.85rem]"
 		>
@@ -180,12 +179,9 @@
 		<p class="note-body mt-3 max-w-[34ch] text-sm leading-relaxed text-muted-foreground">
 			{note.body}
 		</p>
-		<a
-			href={note.href}
-			class="mt-4 inline-flex w-fit font-mono text-[11px] uppercase tracking-[0.2em] text-foreground underline decoration-accent decoration-2 underline-offset-8 transition hover:text-accent md:mt-5"
-		>
-			{note.cta} →
-		</a>
+		<CtaLink href={note.href} class="mt-4 w-fit md:mt-5">
+			{note.cta} <span aria-hidden="true">→</span>
+		</CtaLink>
 	</div>
 {/snippet}
 
@@ -282,11 +278,6 @@
 			display: block;
 		}
 
-		.spread .cell-archive .tile-cta,
-		.spread .cell-support .tile-cta,
-		.spread .cell-emerging .tile-cta {
-			display: inline;
-		}
 
 		.spread .cell-feature,
 		.spread .cell-archive,

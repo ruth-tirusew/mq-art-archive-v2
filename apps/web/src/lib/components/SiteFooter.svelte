@@ -1,36 +1,21 @@
 <script lang="ts">
-	const footerLinks = [
-		{ href: '/archive', label: 'Archive' },
-		{ href: '/artists', label: 'Artists' },
-		{ href: '/wiki', label: 'Wiki' },
-		{ href: '/events', label: 'Events' },
-		{ href: '/portfolio', label: 'Portfolio' },
-		{ href: '/about', label: 'About' }
-	];
-
 	const year = new Date().getFullYear();
 </script>
 
-<footer class="border-t border-border/60">
-	<div class="mx-auto grid max-w-[1600px] gap-8 px-6 py-12 md:grid-cols-3 md:px-10">
-		<div>
-			<p class="font-display text-3xl text-foreground">artiv.</p>
-			<p class="mt-2 max-w-xs text-sm text-muted-foreground">
-				Modern Ethiopian art, held in common.
-			</p>
+<footer class="overflow-hidden border-t border-border/60">
+	<div class="mx-auto flex max-w-[1600px] flex-col gap-10 px-6 pt-12 md:px-10">
+		<div class="flex flex-wrap items-baseline justify-between gap-4">
+			<p class="text-sm text-muted-foreground">Modern Ethiopian art, held in common.</p>
+			<p class="t-eyebrow text-muted-foreground">© {year} Artiv · Addis Ababa</p>
 		</div>
-		<div class="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-			<p class="mb-3 text-foreground">Index</p>
-			<ul class="space-y-2">
-				{#each footerLinks as l}
-					<li>
-						<a href={l.href} class="transition hover:text-foreground">{l.label}</a>
-					</li>
-				{/each}
-			</ul>
-		</div>
-		<div class="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground md:text-right">
-			<p>© {year} Artiv Archive</p>
-		</div>
+
+		<!-- Signature wordmark: the logo at page width, closing every page. "artiv." in Fraunces is
+		     ~1.62em wide, so these sizes fill the padded container at each breakpoint. -->
+		<p
+			class="font-display text-center text-[54vw] leading-[0.82] tracking-[-0.045em] text-foreground select-none md:text-[min(55vw,58rem)]"
+			aria-hidden="true"
+		>
+			artiv.
+		</p>
 	</div>
 </footer>

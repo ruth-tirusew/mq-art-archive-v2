@@ -9,10 +9,10 @@
 </script>
 
 <section
-	class="relative flex h-[100vh] min-h-[100vh] flex-col justify-between overflow-hidden border-b border-border/60 bg-ink"
+	class="relative flex h-screen min-h-screen flex-col justify-between overflow-hidden border-b border-border/60 bg-ink"
 >
 	<div
-		class="relative z-20 mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 pt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-cream/70 md:px-10"
+		class="relative z-20 mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 pt-6 t-eyebrow text-cream/70 md:px-10"
 	>
 		<span class="flex items-center gap-3">
 			<span class="text-accent">●</span> Editorial archive
@@ -21,7 +21,7 @@
 	</div>
 
 	<div class="relative mx-auto flex w-full max-w-[1600px] flex-1 flex-col justify-center px-6 py-16 md:px-10 md:py-24">
-		<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">02 / Welcome</p>
+		<p class="t-eyebrow text-ochre">Welcome</p>
 		<h1 class="mt-6 max-w-4xl font-display text-[14vw] leading-[0.9] tracking-tight text-cream md:text-[7.5vw]">
 			Artiv
 		</h1>

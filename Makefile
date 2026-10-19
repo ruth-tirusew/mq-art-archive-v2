@@ -67,12 +67,12 @@ logs:
 migrate: env
 	@set -a && . ./.env && set +a && \
 	if [ -n "$(GO)" ]; then \
-		cd backend/api && GOTOOLCHAIN=local $(GO) run github.com/pressly/goose/v3/cmd/goose@latest -dir migrations postgres "$$DATABASE_URL" up; \
+		cd backend/api && GOTOOLCHAIN=local $(GO) run github.com/pressly/goose/v3/cmd/goose@v3.27.2 -dir migrations postgres "$$DATABASE_URL" up; \
 	else \
 		docker run --rm --network host \
 			-e "DATABASE_URL=$$DATABASE_URL" \
 			-v "$(CURDIR)/backend/api:/app" -w /app \
-			$(GO_DOCKER_IMAGE) sh -c 'go install github.com/pressly/goose/v3/cmd/goose@latest && goose -dir migrations postgres "$$DATABASE_URL" up'; \
+			$(GO_DOCKER_IMAGE) sh -c 'go install github.com/pressly/goose/v3/cmd/goose@v3.27.2 && goose -dir migrations postgres "$$DATABASE_URL" up'; \
 	fi
 
 api: env

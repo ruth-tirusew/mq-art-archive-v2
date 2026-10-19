@@ -49,7 +49,7 @@ export type EditorialSpread = {
 const INTRO = {
 	eyebrow: "Today's curation",
 	headline: 'Discover Ethiopian artists. Explore their worlds.',
-	body: 'A living archive of modern Ethiopian art and its diaspora — portraits, practices, and the conversations that hold them.',
+	body: 'A living archive of modern Ethiopian art — portraits, practices, and the conversations that hold them.',
 	ctaLabel: 'Explore all artists',
 	ctaHref: '/artists'
 } as const;

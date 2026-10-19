@@ -9,14 +9,23 @@
 </script>
 
 {#if items.length > 0}
-	<div class="overflow-hidden border-b border-border/60 bg-ink text-cream">
-		<div class="flex animate-marquee gap-12 whitespace-nowrap py-3 font-mono text-[11px] uppercase tracking-[0.3em]">
-			{#each row as t}
-				<span class="flex items-center gap-12 text-cream/80">
-					{t}
-					<span class="text-accent">✺</span>
-				</span>
-			{/each}
+	<div class="flex items-center gap-6 border-y border-border/60 bg-background py-5 md:gap-10">
+		<p class="t-eyebrow shrink-0 pl-6 text-accent md:pl-10">Coming up</p>
+		<div class="marquee-mask min-w-0 flex-1 overflow-hidden">
+			<div class="flex w-max animate-marquee gap-14 font-display text-xl whitespace-nowrap text-foreground md:text-2xl">
+				{#each row as t}
+					<span class="flex items-center gap-14">
+						{t}
+						<span class="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true"></span>
+					</span>
+				{/each}
+			</div>
 		</div>
 	</div>
 {/if}
+
+<style>
+	.marquee-mask {
+		mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+	}
+</style>

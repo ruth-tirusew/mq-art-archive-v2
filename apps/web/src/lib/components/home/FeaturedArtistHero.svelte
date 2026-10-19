@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import CtaLink from '$lib/components/CtaLink.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
 	import type { ArtistProfile } from '$lib/core/domain/profile';
 	import {
@@ -10,8 +12,7 @@
 		artistSlug,
 		artistTagline,
 		artistYearsActive,
-		postImageUrl,
-		splitDisplayName
+		postImageUrl
 	} from '$lib/utils/fields';
 
 	type Props = {
@@ -21,149 +22,89 @@
 
 	let { artist, posts = [] }: Props = $props();
 
-	const featuredWork = $derived(posts[0]);
-	const coverUrl = $derived(
-		featuredWork
-			? (postImageUrl(featuredWork.media, featuredWork.id, featuredWork.artist_slug) ??
-				artistPortrait(artist))
-			: artistPortrait(artist)
+	const works = $derived(
+		posts
+			.map((post) => ({ post, src: postImageUrl(post.media, post.id, post.artist_slug) }))
+			.filter((w): w is { post: ArtPost; src: string } => Boolean(w.src))
+			.slice(0, 5)
 	);
-	const nameParts = $derived(splitDisplayName(artistName(artist)));
+	const portrait = $derived(artistPortrait(artist));
+	const href = $derived(`/artists/${artistSlug(artist)}`);
 
-	let cursor = $state({ x: 0, y: 0, visible: false });
-	let heroEl: HTMLElement | undefined = $state();
-
-	$effect(() => {
-		const el = heroEl;
-		if (!el) return;
-		const onMove = (e: MouseEvent) => {
-			const r = el.getBoundingClientRect();
-			cursor = { x: e.clientX - r.left, y: e.clientY - r.top, visible: true };
-		};
-		const onLeave = () => {
-			cursor = { ...cursor, visible: false };
-		};
-		el.addEventListener('mousemove', onMove);
-		el.addEventListener('mouseleave', onLeave);
-		return () => {
-			el.removeEventListener('mousemove', onMove);
-			el.removeEventListener('mouseleave', onLeave);
-		};
+	let current = $state(0);
+	onMount(() => {
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		const timer = setInterval(() => {
+			if (works.length > 1) current = (current + 1) % works.length;
+		}, 4500);
+		return () => clearInterval(timer);
 	});
 
-	const today = new Date().toLocaleDateString('en-GB', {
-		day: '2-digit',
-		month: 'short',
-		year: 'numeric'
-	});
+	const facts = $derived(
+		[
+			{ label: 'Based', value: artistLocation(artist) },
+			{ label: 'Discipline', value: artistDiscipline(artist) },
+			{ label: 'Born', value: artistBorn(artist) },
+			{ label: 'Active', value: artistYearsActive(artist) }
+		].filter((f): f is { label: string; value: string } => Boolean(f.value))
+	);
 </script>
 
-<section
-	bind:this={heroEl}
-	class="relative flex h-[100vh] min-h-[100vh] flex-col overflow-hidden border-b border-border/60 bg-ink"
->
-	<div
-		class="relative z-20 mx-auto flex w-full max-w-[1600px] shrink-0 items-center justify-between px-6 pt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-cream/70 md:px-10"
-	>
-		<span class="flex items-center gap-3">
-			<span class="text-accent">●</span> Featured artist · Vol. 04
-		</span>
-		<span class="hidden md:inline">{artistYearsActive(artist) ?? '—'}</span>
-		<span>{today}</span>
-	</div>
-
-	<div
-		class="relative mx-auto grid min-h-0 w-full max-w-[1600px] flex-1 grid-cols-12 gap-4 px-6 pt-6 pb-8 md:gap-6 md:px-10 md:pt-8 md:pb-10"
-	>
-		<a
-			href="/artists/{artistSlug(artist)}"
-			class="group relative col-span-12 min-h-[42vh] overflow-hidden rounded-sm bg-card md:col-span-8 md:min-h-0 md:h-full"
-		>
-			{#if coverUrl}
-				<img
-					src={coverUrl}
-					alt={featuredWork?.title ?? artistName(artist)}
-					class="h-full w-full object-cover transition duration-[1200ms] ease-out group-hover:scale-[1.04]"
-				/>
-			{/if}
-			<div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/10 to-transparent"></div>
-
-			<div class="pointer-events-none absolute inset-x-0 bottom-0 px-5 pb-5 md:px-8 md:pb-8">
-				<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-cream/70">
-					Now showing / {featuredWork?.title ?? artistName(artist)}
-				</p>
-				<h1 class="mt-2 font-display text-[12vw] leading-[0.9] tracking-tight text-cream md:text-[6.5vw] lg:text-[5.5vw]">
-					{nameParts.first}
-					<br />
-					<span class="italic text-cream/90">{nameParts.last}</span>
-				</h1>
+<section class="bg-ink text-cream" aria-labelledby="featured-artist-name">
+	<div class="mx-auto grid max-w-[1600px] gap-10 px-6 py-20 md:px-10 md:py-28 lg:grid-cols-12 lg:gap-16">
+		<!-- Media -->
+		<a {href} class="group relative block overflow-hidden rounded-sm bg-cream/5 lg:col-span-7" tabindex="-1" aria-hidden="true">
+			<div class="aspect-[4/3]">
+				{#if works.length > 0}
+					{#each works as work, i (work.post.id)}
+						<img
+							src={work.src}
+							alt=""
+							loading={i === 0 ? 'eager' : 'lazy'}
+							class="absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-1000 ease-out group-hover:scale-[1.03]"
+							style:opacity={i === current ? 1 : 0}
+						/>
+					{/each}
+				{:else if portrait}
+					<img src={portrait} alt="" class="h-full w-full object-cover" />
+				{/if}
 			</div>
-
-			{#if cursor.visible}
-				<div
-					class="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-foreground shadow-lg"
-					style:left="{cursor.x}px"
-					style:top="{cursor.y}px"
-				>
-					Open profile →
-				</div>
-			{/if}
 		</a>
 
-		<aside class="col-span-12 flex min-h-0 flex-col justify-between gap-6 md:col-span-4 md:gap-8">
-			<div>
-				<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">02 / Featured</p>
-				<p class="mt-4 font-display text-xl leading-snug text-cream md:text-2xl lg:text-3xl">
-					{artistTagline(artist)}
+		<!-- Copy -->
+		<div class="flex flex-col justify-center gap-8 lg:col-span-5">
+			<div class="flex flex-col gap-4">
+				<p class="t-eyebrow text-ochre">Featured artist · Vol. 04</p>
+				<h2 id="featured-artist-name" class="t-h2">
+					<a {href} class="transition-colors hover:text-ochre">{artistName(artist)}</a>
+				</h2>
+				{#if artistTagline(artist)}
+					<p class="t-lead text-cream/75">{artistTagline(artist)}</p>
+				{/if}
+			</div>
+
+			{#if facts.length > 0}
+				<dl class="grid grid-cols-2 gap-x-6 gap-y-5 border-t border-cream/15 pt-6">
+					{#each facts as fact}
+						<div class="flex flex-col gap-1">
+							<dt class="t-eyebrow text-cream/60">{fact.label}</dt>
+							<dd class="text-[15px] text-cream">{fact.value}</dd>
+						</div>
+					{/each}
+				</dl>
+			{/if}
+
+			{#if works[current]}
+				<p class="text-sm text-cream/70">
+					Now showing <span class="font-display text-base text-cream italic">{works[current].post.title}</span>
+					{#if works.length > 1}<span class="text-cream/60"> · {current + 1} / {works.length}</span>{/if}
 				</p>
-			</div>
+			{/if}
 
-			<dl
-				class="grid grid-cols-2 gap-x-6 gap-y-5 border-t border-cream/15 pt-6 font-mono text-[10px] uppercase tracking-[0.2em] text-cream/70"
-			>
-				{#if artistBorn(artist)}
-					<div>
-						<dt class="text-cream/40">Born</dt>
-						<dd class="mt-1 text-cream">{artistBorn(artist)}</dd>
-					</div>
-				{/if}
-				{#if artistLocation(artist)}
-					<div>
-						<dt class="text-cream/40">Based</dt>
-						<dd class="mt-1 text-cream">{artistLocation(artist)}</dd>
-					</div>
-				{/if}
-				{#if artistDiscipline(artist)}
-					<div>
-						<dt class="text-cream/40">Discipline</dt>
-						<dd class="mt-1 text-cream">{artistDiscipline(artist)}</dd>
-					</div>
-				{/if}
-				<div>
-					<dt class="text-cream/40">Palette</dt>
-					<dd class="mt-1 flex gap-1">
-						{#each featuredWork?.palette ?? [] as c}
-							<span class="h-4 w-2" style:background={c}></span>
-						{/each}
-					</dd>
-				</div>
-			</dl>
-
-			<div class="flex flex-wrap items-center gap-4">
-				<a
-					href="/artists/{artistSlug(artist)}"
-					class="group inline-flex items-center gap-3 rounded-full bg-cream px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-ink transition hover:bg-accent hover:text-accent-foreground"
-				>
-					Enter profile
-					<span class="transition group-hover:translate-x-1">→</span>
-				</a>
-				<a
-					href="/archive"
-					class="font-mono text-[11px] uppercase tracking-[0.2em] text-cream/80 underline decoration-accent decoration-2 underline-offset-8 hover:text-cream"
-				>
-					All works
-				</a>
+			<div class="flex flex-wrap items-center gap-6">
+				<CtaLink {href} variant="primary" tone="on-dark">Enter profile <span aria-hidden="true">→</span></CtaLink>
+				<CtaLink href="/archive" tone="on-dark">All works</CtaLink>
 			</div>
-		</aside>
+		</div>
 	</div>
 </section>

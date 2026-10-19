@@ -96,6 +96,44 @@
 	}
 }
 
+/*
+ * Type roles — one definition per role so sections can't drift apart.
+ *   t-eyebrow  small mono label (section kicker, metadata). Never below 11px.
+ *   t-h2       section heading (Fraunces). One size for every section.
+ *   t-h3       item title inside a section (Fraunces).
+ *   t-lead     body copy under a heading; capped at a readable line length.
+ * Interactive text uses CtaLink (filled pill = primary, underlined = secondary).
+ */
+@layer components {
+	.t-eyebrow {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		line-height: 1.5;
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+	}
+	.t-h2 {
+		font-family: var(--font-display);
+		font-weight: 400;
+		font-size: clamp(2.25rem, 1.5rem + 2.4vw, 3.5rem);
+		line-height: 1.05;
+		letter-spacing: -0.02em;
+		text-wrap: balance;
+	}
+	.t-h3 {
+		font-family: var(--font-display);
+		font-weight: 400;
+		font-size: 1.5rem;
+		line-height: 1.2;
+		letter-spacing: -0.01em;
+	}
+	.t-lead {
+		font-size: 1rem;
+		line-height: 1.65;
+		max-width: 62ch;
+	}
+}
+
 @layer utilities {
 	.font-display {
 		font-family: var(--font-display);
@@ -143,5 +181,10 @@
 
 	.animate-marquee {
 		animation: marquee 45s linear infinite;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.animate-marquee {
+			animation: none;
+		}
 	}
 }

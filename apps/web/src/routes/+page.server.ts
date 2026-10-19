@@ -53,10 +53,9 @@ export const load: PageServerLoad = async ({ fetch }) => {
 	// Wake the API before fan-out (helps Render free tier cold start on Vercel SSR).
 	await fetch(`${getApiBaseUrl()}/health`, { signal: AbortSignal.timeout(25_000) }).catch(() => {});
 
-	const [artistsResult, artistsTotalResult, acquisitionsResult, articlesResult, upcomingEventsResult] =
+	const [artistsResult, acquisitionsResult, articlesResult, upcomingEventsResult] =
 		await Promise.allSettled([
 			artistsService.list({ limit: 20 }),
-			artistsService.listPage({ limit: 1 }),
 			loadPosts(() => artPostService.list({ limit: 12, featured: true })),
 			articleService.listPublished({ limit: 6 }),
 			eventsService.list({ upcoming: true, limit: 20 })
@@ -64,10 +63,6 @@ export const load: PageServerLoad = async ({ fetch }) => {
 
 	const artists =
 		artistsResult.status === 'fulfilled' ? artistsResult.value : [...empty];
-	// Falls back to the length of the capped list above (20) if the count endpoint fails,
-	// so the discovery section still shows a sensible number instead of zero.
-	const artistsTotal =
-		artistsTotalResult.status === 'fulfilled' ? artistsTotalResult.value.total : artists.length;
 	let acquisitions =
 		acquisitionsResult.status === 'fulfilled' ? acquisitionsResult.value : [...emptyPosts];
 
@@ -123,7 +118,6 @@ export const load: PageServerLoad = async ({ fetch }) => {
 		featuredPosts,
 		acquisitions,
 		artists,
-		artistsTotal,
 		editorialSpreads,
 		editorialSpreadsPayload,
 		/** @deprecated — prefer editorialSpreads */
@@ -132,6 +126,7 @@ export const load: PageServerLoad = async ({ fetch }) => {
 		showEditorialHero: editorialSpreads.length > 0,
 		articles,
 		marqueeItems: marqueeItemsFromApiEvents(upcomingEvents),
+		upcomingEvents: upcomingEvents.slice(0, 4),
 		featured: Boolean(featuredArtist)
 	};
 };

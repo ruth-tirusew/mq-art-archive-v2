@@ -88,11 +88,16 @@ export const load: PageServerLoad = async ({ fetch }) => {
 		loadPosts(() => artPostService.list({ limit: 80 })).catch(() => [...acquisitions])
 	]);
 
+	// The featured artist has their own section below the hero, so the hero draws from
+	// everyone else — unless that leaves too few works to fill a spread.
+	const withoutFeatured = (pool: ArtPost[]) => {
+		const rest = pool.filter((post) => post.artist_slug !== featuredArtist?.slug);
+		return rest.length >= 4 ? rest : pool;
+	};
+
 	const canvasPool = mergePosts(acquisitions, coverPosts, featuredPosts);
-	let editorialSpreads = buildEditorialSpreads(canvasPool, {
+	let editorialSpreads = buildEditorialSpreads(withoutFeatured(canvasPool), {
 		spreadCount: 4,
-		featuredArtist,
-		featuredPosts,
 		articles
 	});
 
@@ -101,10 +106,8 @@ export const load: PageServerLoad = async ({ fetch }) => {
 			() => [...emptyPosts]
 		);
 		if (rescue.length > 0) {
-			editorialSpreads = buildEditorialSpreads(mergePosts(rescue, featuredPosts), {
+			editorialSpreads = buildEditorialSpreads(withoutFeatured(mergePosts(rescue, featuredPosts)), {
 				spreadCount: 4,
-				featuredArtist,
-				featuredPosts,
 				articles
 			});
 		}

@@ -114,7 +114,7 @@
 				{/if}
 			</button>
 
-			<nav class="hidden items-center gap-x-4 gap-y-2 font-medium text-[12px] uppercase lg:flex">
+			<nav class="t-eyebrow hidden items-center gap-x-5 gap-y-2 lg:flex">
 				{#each primaryNav as n}
 					<a
 						href={n.href}

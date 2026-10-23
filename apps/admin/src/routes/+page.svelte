@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { Skeleton } from '$lib/components/ui/skeleton';
   import { onMount } from 'svelte';
   import { artistsService } from '$lib/application/artists';
   import { postsService } from '$lib/application/posts';
   import { onboardingService } from '$lib/application/onboarding';
   import { eventsService } from '$lib/application/events';
   import { getAnalyticsSummary, type AnalyticsSummary } from '$lib/application/analytics';
+  import { plural } from '$lib/utils/plural';
   import BotanicalMark from '$lib/components/BotanicalMark.svelte';
   import BotanicalAdornment from '$lib/components/BotanicalAdornment.svelte';
   import type { ArtistProfile } from '$lib/core/domain/artist';
@@ -347,7 +349,7 @@
 <header class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
   <div>
     <p class="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-      01 — Operations
+      Operations
     </p>
     <h1 class="mt-2 font-display text-4xl tracking-tight text-foreground md:text-5xl">
       Editorial dashboard
@@ -358,13 +360,14 @@
   </div>
   <div class="text-left lg:text-right">
     <p class="text-sm text-foreground">{todayLabel}</p>
-    <p class="mt-1 text-sm text-muted-foreground">
+    <div class="mt-1 text-sm text-muted-foreground">
       {#if loading}
-        Loading queue…
+        <Skeleton class="h-4 w-48 lg:ml-auto" />
       {:else}
-        <span class="font-medium text-foreground">{pendingReview}</span> actions require attention today.
+        <span class="font-medium text-foreground">{pendingReview}</span>
+        {pendingReview === 1 ? 'item needs' : 'items need'} your attention today.
       {/if}
-    </p>
+    </div>
   </div>
 </header>
 
@@ -389,18 +392,10 @@
     class="relative overflow-hidden rounded-xl border border-border/70 bg-card p-6 lg:col-span-4"
   >
     <BotanicalAdornment
-      variant="lily"
-      class="absolute -left-4 -top-6 w-28 opacity-[0.22] sm:w-32"
-    />
-    <BotanicalAdornment
       variant="daisies"
-      class="absolute -bottom-4 -right-3 w-32 opacity-[0.2] sm:w-36"
+      class="pointer-events-none absolute -bottom-4 -right-3 w-32 opacity-[0.14] sm:w-36"
     />
-    <BotanicalAdornment
-      variant="slender"
-      class="absolute right-8 top-2 w-14 opacity-[0.12] rotate-12"
-    />
-    <p class="relative text-sm text-muted-foreground">Pending review</p>
+    <p class="relative text-sm text-muted-foreground">Awaiting review</p>
     <p class="relative mt-3 font-display text-6xl leading-none tracking-tight text-foreground">
       {loading ? '—' : pendingReview}
     </p>
@@ -421,7 +416,7 @@
       href="/applications"
       class="relative mt-8 inline-flex items-center rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-cream transition hover:bg-foreground/90"
     >
-      View review queue →
+      Review applications →
     </a>
   </article>
 
@@ -493,7 +488,7 @@
               class="fill-cream"
               style="font-size: 10px; font-weight: 600; font-family: Inter, sans-serif"
             >
-              {lineChart.peak.v} submissions
+              {plural(lineChart.peak.v, 'submission')}
             </text>
           </g>
         {/if}
@@ -538,7 +533,12 @@
   <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
     <h2 class="text-base font-medium text-foreground">Recent activity</h2>
     {#if loading}
-      <p class="mt-6 text-sm text-muted-foreground">Loading…</p>
+      <div class="mt-6 space-y-2" role="status" aria-live="polite">
+        <span class="sr-only">Loading</span>
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-full" />
+      </div>
     {:else if recentActivity.length === 0}
       <p class="mt-6 text-sm text-muted-foreground">No recent activity.</p>
     {:else}
@@ -667,7 +667,12 @@
   <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
     <h2 class="text-base font-medium text-foreground">Content by type</h2>
     {#if loading}
-      <p class="mt-6 text-sm text-muted-foreground">Loading…</p>
+      <div class="mt-6 space-y-2" role="status" aria-live="polite">
+        <span class="sr-only">Loading</span>
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-full" />
+      </div>
     {:else if contentByType.length === 0}
       <p class="mt-6 text-sm text-muted-foreground">No posts yet.</p>
     {:else}
@@ -728,7 +733,12 @@
   <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
     <h2 class="text-base font-medium text-foreground">Recent approvals</h2>
     {#if loading}
-      <p class="mt-6 text-sm text-muted-foreground">Loading…</p>
+      <div class="mt-6 space-y-2" role="status" aria-live="polite">
+        <span class="sr-only">Loading</span>
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-full" />
+        <Skeleton class="h-10 w-full" />
+      </div>
     {:else if recentApprovals.length === 0}
       <p class="mt-6 text-sm text-muted-foreground">No approvals yet.</p>
     {:else}

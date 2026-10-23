@@ -35,6 +35,8 @@
   --color-viz-terracotta: var(--viz-terracotta);
   --color-viz-navy: var(--viz-navy);
   --color-viz-sage: var(--viz-sage);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
 
   --font-display: 'Fraunces', Georgia, serif;
   --font-sans: 'Inter', system-ui, sans-serif;
@@ -82,6 +84,10 @@
   --viz-terracotta: #a85a45;
   --viz-navy: #3d4a5c;
   --viz-sage: #5f7a5a;
+
+  /* Status colours (readable on the cream card background) */
+  --success: #566a3c;
+  --warning: #946320;
 }
 
 @layer base {
@@ -101,5 +107,24 @@
 @layer utilities {
   .font-display {
     font-family: var(--font-display);
+  }
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--bits-accordion-content-height); }
+}
+
+@keyframes accordion-up {
+  from { height: var(--bits-accordion-content-height); }
+  to { height: 0; }
+}
+
+@layer utilities {
+  .animate-accordion-down {
+    animation: accordion-down 0.2s ease-out;
+  }
+  .animate-accordion-up {
+    animation: accordion-up 0.2s ease-out;
   }
 }

@@ -14,6 +14,7 @@
 
   let title = $state('');
   let description = $state('');
+  const eventTypes = ['Opening', 'Exhibition', 'Talk', 'Workshop', 'Screening', 'Performance', 'Poetry', 'Theatre', 'Pop-up', 'Fair'];
   let eventType = $state('Opening');
   let venue = $state('');
   let city = $state('');
@@ -52,11 +53,11 @@
 </script>
 
 <svelte:head>
-  <title>New event — mq admin</title>
+  <title>New event — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="03 — Events"
+  eyebrow="Events"
   title="New event"
   description="Manually add an art event for review or publication."
 />
@@ -77,7 +78,10 @@
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="space-y-2">
           <Label for="event_type">Type</Label>
-          <input id="event_type" bind:value={eventType} class={inputClass} />
+          <input id="event_type" list="event-types" bind:value={eventType} class={inputClass} />
+          <datalist id="event-types">
+            {#each eventTypes as type}<option value={type}></option>{/each}
+          </datalist>
         </div>
         <div class="space-y-2">
           <Label for="status">Status</Label>

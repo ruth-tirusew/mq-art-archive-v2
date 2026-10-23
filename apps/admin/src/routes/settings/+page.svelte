@@ -202,11 +202,11 @@
 </script>
 
 <svelte:head>
-  <title>Settings — mq admin</title>
+  <title>Settings — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="08 — Settings"
+  eyebrow="Settings"
   title="Settings"
   description="Manage your admin profile, account security, notifications, and scrape integrations."
 />

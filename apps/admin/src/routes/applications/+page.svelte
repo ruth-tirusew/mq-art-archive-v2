@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/EmptyState.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { Badge } from '$lib/components/ui/badge';
   import {
@@ -23,17 +24,20 @@
 </script>
 
 <svelte:head>
-  <title>Pending applications — mq admin</title>
+  <title>Pending applications — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="02 — Onboarding"
+  eyebrow="Applications"
   title="Pending applications"
-  description="Review artist and institution applications before they can use the platform."
+  description="Review artist applications. Approving one creates a private draft profile the artist can publish themselves."
 />
 
 {#if data.applications.length === 0}
-  <p class="text-sm text-muted-foreground">No pending applications.</p>
+  <EmptyState
+    title="You're all caught up"
+    description="New artist applications will show up here for review."
+  />
 {:else}
   <Table>
     <TableHeader>

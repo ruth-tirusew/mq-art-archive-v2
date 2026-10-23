@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import BotanicalMark from '$lib/components/BotanicalMark.svelte';
@@ -111,8 +113,10 @@
     }
   }
 
+  let confirmDelete = $state(false);
+  let coverFailed = $state(false);
+
   async function remove() {
-    if (!confirm('Delete this post? This cannot be undone.')) return;
     saving = true;
     errorMessage = '';
     try {
@@ -120,23 +124,29 @@
       await goto('/posts');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Delete failed';
+      confirmDelete = false;
       saving = false;
     }
   }
 </script>
 
 <svelte:head>
-  <title>{post.title} — mq admin</title>
+  <title>{post.title} — Artiv admin</title>
 </svelte:head>
 
-<PageHeader eyebrow="05 — Posts" title={post.title} description="Edit content, moderate status, and manage acquisition flag." />
+<PageHeader eyebrow="Posts" title={post.title} description="Edit content, moderate status, and manage acquisition flag." />
 
 <div class="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
   <div class="space-y-6">
     <Card class="overflow-hidden">
       <div class="aspect-[4/3] bg-muted">
-        {#if coverUrl}
-          <img src={coverUrl} alt={post.title} class="h-full w-full object-cover" />
+        {#if coverUrl && !coverFailed}
+          <img
+            src={coverUrl}
+            alt={post.title}
+            class="h-full w-full object-cover"
+            onerror={() => (coverFailed = true)}
+          />
         {:else}
           <div class="flex h-full w-full items-center justify-center">
             <BotanicalMark class="h-16 w-14 text-foreground/20" />
@@ -145,25 +155,38 @@
       </div>
       <CardHeader>
         <div class="flex flex-wrap items-center gap-2">
-          <Badge>{post.status}</Badge>
+          <StatusBadge status={post.status} />
           {#if post.featured_acquisition}<Badge variant="secondary">Featured acquisition</Badge>{/if}
         </div>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div class="flex flex-wrap gap-2">
-          <Button disabled={saving} onclick={() => setStatus('published')}>Publish</Button>
-          <Button variant="secondary" disabled={saving} onclick={() => setStatus('draft')}>Draft</Button>
-          <Button variant="secondary" disabled={saving} onclick={() => setStatus('archived')}>Archive</Button>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="mr-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Status
+          </span>
+          {#each [['draft', 'Draft'], ['published', 'Published'], ['archived', 'Archived']] as [value, label]}
+            <Button
+              variant={post.status === value ? 'default' : 'secondary'}
+              class="disabled:opacity-100"
+              disabled={saving || post.status === value}
+              onclick={() => setStatus(value as 'draft' | 'published' | 'archived')}>{label}</Button
+            >
+          {/each}
+          <span class="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true"></span>
           <Button variant="outline" disabled={saving} onclick={() => toggleFeatured()}>
             {post.featured_acquisition ? 'Unfeature' : 'Feature acquisition'}
           </Button>
-          <Button variant="destructive" disabled={saving} onclick={() => remove()}>Delete</Button>
         </div>
 
         {#if message}<Alert>{message}</Alert>{/if}
         {#if errorMessage}<Alert variant="destructive">{errorMessage}</Alert>{/if}
 
-        <Button variant="ghost" onclick={() => goto('/posts')}>Back to list</Button>
+        <div class="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
+          <p class="text-xs text-muted-foreground">Deleting a post cannot be undone.</p>
+          <Button variant="destructive" size="sm" disabled={saving} onclick={() => (confirmDelete = true)}>
+            Delete post
+          </Button>
+        </div>
       </CardContent>
     </Card>
 
@@ -289,7 +312,7 @@
               {artist.tagline || artist.bio || 'No bio.'}
             </p>
             <div class="flex flex-wrap gap-1.5 pt-1">
-              {#if artist.status}<Badge variant="secondary">{artist.status}</Badge>{/if}
+              {#if artist.status}<StatusBadge status={artist.status} />{/if}
               {#if artist.featured}<Badge variant="secondary">Featured</Badge>{/if}
             </div>
           </div>
@@ -300,3 +323,12 @@
     </CardContent>
   </Card>
 </div>
+<ConfirmDialog
+  bind:open={confirmDelete}
+  title="Delete this post?"
+  description="This cannot be undone."
+  confirmLabel="Delete post"
+  destructive
+  busy={saving}
+  onconfirm={remove}
+/>

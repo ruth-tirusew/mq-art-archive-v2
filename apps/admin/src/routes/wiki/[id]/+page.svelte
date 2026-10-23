@@ -1,4 +1,6 @@
 <script lang="ts">
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import { Skeleton } from '$lib/components/ui/skeleton';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { articlesService } from '$lib/application/articles';
@@ -167,17 +169,17 @@
 </script>
 
 <svelte:head>
-  <title>{article.title} — mq admin</title>
+  <title>{article.title} — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="06 — Wiki"
+  eyebrow="Wiki"
   title={article.title}
   description="Edit content, then publish when ready for the public wiki."
 />
 
 <div class="mb-4 flex flex-wrap items-center gap-2">
-  <Badge>{article.status}</Badge>
+  <StatusBadge status={article.status} />
   {#if article.verified}<Badge variant="secondary">Verified</Badge>{/if}
   <Badge variant="outline">v{article.version ?? 1}</Badge>
   <span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
@@ -264,7 +266,7 @@
       </div>
 
       {#if revisionsLoading}
-        <p class="text-xs text-muted-foreground">Loading revisions…</p>
+        <div class="space-y-2" role="status"><span class="sr-only">Loading revisions</span><Skeleton class="h-8 w-full" /><Skeleton class="h-8 w-full" /></div>
       {:else if revisions.length === 0}
         <p class="text-xs text-muted-foreground">No prior revisions yet.</p>
       {:else}
@@ -291,7 +293,7 @@
       {/if}
 
       {#if previewLoading}
-        <p class="text-xs text-muted-foreground">Loading preview…</p>
+        <div class="space-y-2" role="status"><span class="sr-only">Loading preview</span><Skeleton class="h-24 w-full" /></div>
       {:else if preview}
         <div class="space-y-2 border-t border-border pt-4">
           <p class="text-xs font-medium">Preview v{preview.version}</p>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
@@ -24,13 +26,13 @@
 </script>
 
 <svelte:head>
-  <title>Wiki — mq admin</title>
+  <title>Wiki — Artiv admin</title>
 </svelte:head>
 
 <div class="mb-2 flex flex-wrap items-start justify-between gap-4">
   <div class="min-w-0 flex-1">
     <PageHeader
-      eyebrow="06 — Wiki"
+      eyebrow="Wiki"
       title="Wiki articles"
       description="Write and publish handbook entries for the public wiki."
     />
@@ -39,13 +41,18 @@
 </div>
 
 {#if data.articles.length === 0}
-  <p class="text-sm text-muted-foreground">No articles in this view.</p>
+  <EmptyState
+    title="No articles in this view"
+    description="Write a handbook entry, or review community submissions."
+    actionLabel="New article"
+    actionHref="/wiki/new"
+  />
 {:else}
   <Table>
     <TableHeader>
       <TableRow>
         <TableHead>Title</TableHead>
-        <TableHead>Category</TableHead>
+        <TableHead class="hidden sm:table-cell">Category</TableHead>
         <TableHead>Status</TableHead>
         <TableHead>Updated</TableHead>
       </TableRow>
@@ -64,8 +71,8 @@
               <Badge variant="outline" class="ml-2">Verified</Badge>
             {/if}
           </TableCell>
-          <TableCell class="text-muted-foreground">{article.category || '—'}</TableCell>
-          <TableCell><Badge variant="secondary">{article.status}</Badge></TableCell>
+          <TableCell class="text-muted-foreground hidden sm:table-cell">{article.category || '—'}</TableCell>
+          <TableCell><StatusBadge status={article.status} /></TableCell>
           <TableCell class="text-muted-foreground">{formatDate(article.updated_at)}</TableCell>
         </TableRow>
       {/each}

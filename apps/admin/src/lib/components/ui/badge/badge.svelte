@@ -1,7 +1,14 @@
 <script lang="ts">
   import { cn } from '$lib/utils';
 
-  type Variant = 'default' | 'secondary' | 'outline' | 'destructive';
+  type Variant =
+    | 'default'
+    | 'secondary'
+    | 'outline'
+    | 'destructive'
+    | 'success'
+    | 'warning'
+    | 'muted';
 
   let {
     variant = 'default',
@@ -13,7 +20,10 @@
     default: 'border-transparent bg-primary text-primary-foreground',
     secondary: 'border-transparent bg-secondary text-secondary-foreground',
     outline: 'text-foreground border-border',
-    destructive: 'border-transparent bg-destructive text-destructive-foreground'
+    destructive: 'border-transparent bg-destructive text-destructive-foreground',
+    success: 'border-success/30 bg-success/10 text-success',
+    warning: 'border-warning/30 bg-warning/10 text-warning',
+    muted: 'border-border bg-muted/60 text-muted-foreground'
   };
 </script>
 

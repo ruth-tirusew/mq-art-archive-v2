@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import BotanicalMark from '$lib/components/BotanicalMark.svelte';
@@ -102,8 +104,9 @@
     }
   }
 
+  let confirmDelete = $state(false);
+
   async function remove() {
-    if (!confirm('Delete this artist profile? Only works if they have no posts.')) return;
     saving = true;
     errorMessage = '';
     try {
@@ -111,27 +114,24 @@
       await goto('/artists');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Delete failed';
+      confirmDelete = false;
       saving = false;
     }
   }
 </script>
 
 <svelte:head>
-  <title>{artist.display_name} — mq admin</title>
+  <title>{artist.display_name} — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="04 — Artists"
+  eyebrow="Artists"
   title={artist.display_name}
   description="Edit profile content and moderate status."
 />
 
 <div class="space-y-6">
   <Card class="relative overflow-hidden">
-    <BotanicalAdornment
-      variant="peony"
-      class="absolute -left-4 -top-6 w-32 opacity-[0.2] sm:w-40"
-    />
     <BotanicalAdornment
       variant="grass"
       class="absolute -right-3 top-8 w-20 opacity-[0.14] -rotate-6"
@@ -154,7 +154,7 @@
         </div>
         <div class="min-w-0 space-y-2">
           <div class="flex flex-wrap items-center gap-2">
-            <Badge>{artist.status}</Badge>
+            <StatusBadge status={artist.status} />
             {#if artist.featured}<Badge variant="secondary">Featured</Badge>{/if}
           </div>
           <CardTitle>@{artist.handle ?? artist.slug}</CardTitle>
@@ -165,20 +165,40 @@
       </div>
     </CardHeader>
     <CardContent class="relative space-y-4">
-      <div class="flex flex-wrap gap-2">
-        <Button disabled={saving} onclick={() => setStatus('approved')}>Approve</Button>
-        <Button variant="secondary" disabled={saving} onclick={() => setStatus('pending')}>Pending</Button>
-        <Button variant="secondary" disabled={saving} onclick={() => setStatus('draft')}>Draft</Button>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="mr-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          Visibility
+        </span>
+        <Button
+          variant={artist.status === 'draft' ? 'default' : 'secondary'}
+          class="disabled:opacity-100"
+          disabled={saving || artist.status === 'draft'}
+          onclick={() => setStatus('draft')}>Draft</Button
+        >
+        {#if artist.status === 'pending'}
+          <Button variant="default" class="disabled:opacity-100" disabled>Pending</Button>
+        {/if}
+        <Button
+          variant={artist.status === 'approved' ? 'default' : 'secondary'}
+          class="disabled:opacity-100"
+          disabled={saving || artist.status === 'approved'}
+          onclick={() => setStatus('approved')}>Published</Button
+        >
+        <span class="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true"></span>
         <Button variant="outline" disabled={saving} onclick={() => toggleFeatured()}>
-          {artist.featured ? 'Unfeature' : 'Feature'}
+          {artist.featured ? 'Unfeature' : 'Feature on home'}
         </Button>
-        <Button variant="destructive" disabled={saving} onclick={() => remove()}>Delete</Button>
       </div>
 
       {#if message}<Alert>{message}</Alert>{/if}
       {#if errorMessage}<Alert variant="destructive">{errorMessage}</Alert>{/if}
 
-      <Button variant="ghost" onclick={() => goto('/artists')}>Back to list</Button>
+      <div class="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
+        <p class="text-xs text-muted-foreground">Deleting only works if the artist has no posts.</p>
+        <Button variant="destructive" size="sm" disabled={saving} onclick={() => (confirmDelete = true)}>
+          Delete artist
+        </Button>
+      </div>
     </CardContent>
   </Card>
 
@@ -240,3 +260,12 @@
     </CardContent>
   </Card>
 </div>
+<ConfirmDialog
+  bind:open={confirmDelete}
+  title="Delete this artist?"
+  description="This permanently removes the profile. It only works if they have no posts."
+  confirmLabel="Delete artist"
+  destructive
+  busy={saving}
+  onconfirm={remove}
+/>

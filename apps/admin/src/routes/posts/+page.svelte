@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
@@ -15,13 +17,13 @@
 </script>
 
 <svelte:head>
-  <title>Posts — mq admin</title>
+  <title>Posts — Artiv admin</title>
 </svelte:head>
 
 <div class="mb-2 flex flex-wrap items-start justify-between gap-4">
   <div class="min-w-0 flex-1">
     <PageHeader
-      eyebrow="05 — Posts"
+      eyebrow="Posts"
       title="Art posts"
       description="Moderate drafts, publications, and featured acquisitions."
     />
@@ -30,7 +32,12 @@
 </div>
 
 {#if data.posts.length === 0}
-  <p class="text-sm text-muted-foreground">No posts in this view.</p>
+  <EmptyState
+    title="No posts in this view"
+    description="Posts appear here once artists publish work or you add one."
+    actionLabel="New post"
+    actionHref="/posts/new"
+  />
 {:else}
   <Table>
     <TableHeader>
@@ -38,7 +45,7 @@
         <TableHead>Title</TableHead>
         <TableHead>Artist</TableHead>
         <TableHead>Status</TableHead>
-        <TableHead>Featured</TableHead>
+        <TableHead class="hidden sm:table-cell">Featured</TableHead>
       </TableRow>
     </TableHeader>
     <TableBody>
@@ -53,8 +60,8 @@
             </a>
           </TableCell>
           <TableCell class="text-muted-foreground">{post.artist_name ?? '—'}</TableCell>
-          <TableCell><Badge variant="secondary">{post.status}</Badge></TableCell>
-          <TableCell>{post.featured_acquisition ? 'Yes' : '—'}</TableCell>
+          <TableCell><StatusBadge status={post.status} /></TableCell>
+          <TableCell class="hidden sm:table-cell">{post.featured_acquisition ? 'Yes' : '—'}</TableCell>
         </TableRow>
       {/each}
     </TableBody>

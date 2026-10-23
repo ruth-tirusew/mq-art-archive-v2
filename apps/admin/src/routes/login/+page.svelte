@@ -56,13 +56,13 @@
 </script>
 
 <svelte:head>
-  <title>Login — mq admin</title>
+  <title>Login — Artiv admin</title>
 </svelte:head>
 
 <div class="flex min-h-screen items-center justify-center px-6 py-12">
   <Card class="w-full max-w-md">
     <CardHeader>
-      <p class="font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">mq admin</p>
+      <p class="font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">Artiv admin</p>
       <CardTitle>{mode === 'signup' ? 'Create account' : 'Sign in'}</CardTitle>
       <CardDescription>
         Use email and password or Google. Admin privileges are required to continue.

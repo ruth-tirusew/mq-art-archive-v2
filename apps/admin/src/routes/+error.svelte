@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head>
-  <title>{status} — mq admin</title>
+  <title>{status} — Artiv admin</title>
 </svelte:head>
 
 <div class="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center px-6 text-center">

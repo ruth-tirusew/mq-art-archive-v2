@@ -1,4 +1,5 @@
 <script lang="ts">
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { onboardingService } from '$lib/application/onboarding';
@@ -27,8 +28,12 @@
   }
 
   async function review(status: 'approved' | 'rejected') {
-    submitting = true;
     errorMessage = '';
+    if (status === 'rejected' && !notes.trim()) {
+      errorMessage = 'Add a reason before rejecting. The applicant will see it.';
+      return;
+    }
+    submitting = true;
     try {
       await onboardingService.review(data.application.id, status, notes);
       await goto('/applications');
@@ -41,20 +46,20 @@
 </script>
 
 <svelte:head>
-  <title>{data.application.display_name} — mq admin</title>
+  <title>{data.application.display_name} — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="02 — Onboarding"
+  eyebrow="Applications"
   title={data.application.display_name}
-  description="Review this application and approve or reject with optional notes."
+  description="Approve or reject this application. Your note is shown to the applicant."
 />
 
 <Card>
   <CardHeader>
     <div class="flex flex-wrap items-center gap-2">
       <Badge variant="secondary">{data.application.applicant_type}</Badge>
-      <Badge>{data.application.status}</Badge>
+      <StatusBadge status={data.application.status} />
     </div>
     <CardTitle class="pt-2">{data.application.display_name}</CardTitle>
   </CardHeader>
@@ -99,10 +104,17 @@
       </div>
     {/if}
 
+    {#if data.application.review_notes}
+      <div>
+        <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Note sent to applicant</p>
+        <p class="mt-2 whitespace-pre-wrap text-sm text-foreground">{data.application.review_notes}</p>
+      </div>
+    {/if}
+
     {#if data.application.status === 'pending'}
       <div class="space-y-2">
-        <Label for="notes">Review notes</Label>
-        <Textarea id="notes" bind:value={notes} placeholder="Optional notes for the applicant or internal record" />
+        <Label for="notes">Note to applicant</Label>
+        <Textarea id="notes" bind:value={notes} placeholder="Required when rejecting (explain what to fix). Optional when approving, e.g. a welcome message." />
       </div>
 
       <div class="flex flex-wrap gap-3">
@@ -114,7 +126,5 @@
     {#if errorMessage}
       <Alert variant="destructive">{errorMessage}</Alert>
     {/if}
-
-    <Button variant="ghost" href="/applications">Back to list</Button>
   </CardContent>
 </Card>

@@ -55,11 +55,11 @@
 </script>
 
 <svelte:head>
-  <title>New artist — mq admin</title>
+  <title>New artist — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="04 — Artists"
+  eyebrow="Artists"
   title="New artist"
   description="Create a user account and artist profile."
 />

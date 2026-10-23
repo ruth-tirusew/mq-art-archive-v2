@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { eventsService } from '$lib/application/events';
@@ -95,8 +97,10 @@
     }
   }
 
+  const eventTypes = ['Opening', 'Exhibition', 'Talk', 'Workshop', 'Screening', 'Performance', 'Poetry', 'Theatre', 'Pop-up', 'Fair'];
+  let confirmDelete = $state(false);
+
   async function remove() {
-    if (!confirm('Delete this event? This cannot be undone.')) return;
     saving = true;
     errorMessage = '';
     try {
@@ -104,17 +108,18 @@
       await goto('/events');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Delete failed';
+      confirmDelete = false;
       saving = false;
     }
   }
 </script>
 
 <svelte:head>
-  <title>{event.title} — mq admin</title>
+  <title>{event.title} — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="03 — Events"
+  eyebrow="Events"
   title={event.title}
   description="Edit event content and review publication status."
 />
@@ -124,7 +129,7 @@
     <CardHeader>
       <div class="flex flex-wrap items-center gap-2">
         <Badge variant="secondary">{event.event_type}</Badge>
-        <Badge>{event.status}</Badge>
+        <StatusBadge status={event.status} />
       </div>
       <CardTitle class="pt-2">{event.title}</CardTitle>
     </CardHeader>
@@ -134,13 +139,25 @@
         <Textarea id="notes" bind:value={notes} placeholder="Optional review notes" />
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button disabled={saving} onclick={() => review('approved')}>Approve</Button>
-        <Button variant="destructive" disabled={saving} onclick={() => review('rejected')}>Reject</Button>
-        <Button variant="outline" disabled={saving} onclick={() => remove()}>Delete</Button>
+        <Button class="disabled:opacity-100" disabled={saving || event.status === 'approved'} onclick={() => review('approved')}>
+          {event.status === 'approved' ? 'Approved' : 'Approve'}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={saving || event.status === 'rejected'}
+          onclick={() => review('rejected')}
+        >
+          {event.status === 'rejected' ? 'Rejected' : 'Reject'}
+        </Button>
       </div>
       {#if message}<Alert>{message}</Alert>{/if}
       {#if errorMessage}<Alert variant="destructive">{errorMessage}</Alert>{/if}
-      <Button variant="ghost" href="/events">Back to list</Button>
+      <div class="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
+        <p class="text-xs text-muted-foreground">Deleting an event cannot be undone.</p>
+        <Button variant="destructive" size="sm" disabled={saving} onclick={() => (confirmDelete = true)}>
+          Delete event
+        </Button>
+      </div>
     </CardContent>
   </Card>
 
@@ -161,7 +178,10 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="space-y-2">
             <Label for="event_type">Type</Label>
-            <input id="event_type" bind:value={eventType} class={inputClass} />
+            <input id="event_type" list="event-types" bind:value={eventType} class={inputClass} />
+            <datalist id="event-types">
+              {#each eventTypes as type}<option value={type}></option>{/each}
+            </datalist>
           </div>
           <div class="space-y-2">
             <Label for="status">Status</Label>
@@ -201,3 +221,12 @@
     </CardContent>
   </Card>
 </div>
+<ConfirmDialog
+  bind:open={confirmDelete}
+  title="Delete this event?"
+  description="This cannot be undone."
+  confirmLabel="Delete event"
+  destructive
+  busy={saving}
+  onconfirm={remove}
+/>

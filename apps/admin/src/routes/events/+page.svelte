@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { invalidateAll } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { eventsService } from '$lib/application/events';
@@ -48,13 +50,13 @@
 </script>
 
 <svelte:head>
-  <title>Events — mq admin</title>
+  <title>Events — Artiv admin</title>
 </svelte:head>
 
 <div class="mb-2 flex flex-wrap items-start justify-between gap-4">
   <div class="min-w-0 flex-1">
     <PageHeader
-      eyebrow="03 — Events"
+      eyebrow="Events"
       title="Events"
       description="Create, edit, and review art events before they appear on the public site."
     />
@@ -75,15 +77,20 @@
 {/if}
 
 {#if data.events.length === 0}
-  <p class="text-sm text-muted-foreground">No events in this view.</p>
+  <EmptyState
+    title="No events in this view"
+    description="Run a sync to pull in events from your sources, or add one manually."
+    actionLabel="New event"
+    actionHref="/events/new"
+  />
 {:else}
   <Table>
     <TableHeader>
       <TableRow>
         <TableHead>Title</TableHead>
-        <TableHead>Type</TableHead>
+        <TableHead class="hidden sm:table-cell">Type</TableHead>
         <TableHead>Status</TableHead>
-        <TableHead>City</TableHead>
+        <TableHead class="hidden sm:table-cell">City</TableHead>
         <TableHead>Starts</TableHead>
       </TableRow>
     </TableHeader>
@@ -95,11 +102,11 @@
               {event.title}
             </a>
           </TableCell>
-          <TableCell>
+          <TableCell class="hidden sm:table-cell">
             <Badge variant="outline">{event.event_type}</Badge>
           </TableCell>
-          <TableCell><Badge variant="secondary">{event.status}</Badge></TableCell>
-          <TableCell class="text-muted-foreground">{event.city || '—'}</TableCell>
+          <TableCell><StatusBadge status={event.status} /></TableCell>
+          <TableCell class="text-muted-foreground hidden sm:table-cell">{event.city || '—'}</TableCell>
           <TableCell class="text-muted-foreground">{formatDate(event.starts_at)}</TableCell>
         </TableRow>
       {/each}

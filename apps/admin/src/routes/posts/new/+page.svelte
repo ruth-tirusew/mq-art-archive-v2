@@ -65,11 +65,11 @@
 </script>
 
 <svelte:head>
-  <title>New post — mq admin</title>
+  <title>New post — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="05 — Posts"
+  eyebrow="Posts"
   title="New post"
   description="Create an art post on behalf of an artist."
 />

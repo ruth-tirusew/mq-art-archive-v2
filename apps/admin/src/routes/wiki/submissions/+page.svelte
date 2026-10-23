@@ -1,4 +1,7 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import { Skeleton } from '$lib/components/ui/skeleton';
   import { onMount } from 'svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import DiffView from '$lib/components/wiki/DiffView.svelte';
@@ -58,19 +61,19 @@
   }
 </script>
 
-<svelte:head><title>Wiki submissions — mq admin</title></svelte:head>
+<svelte:head><title>Wiki submissions — Artiv admin</title></svelte:head>
 
 <PageHeader
-  eyebrow="06 — Wiki"
+  eyebrow="Wiki"
   title="Community submissions"
   description="Review proposed wiki articles and edits."
 />
 
 {#if error}<p class="mb-5 text-sm text-destructive" role="alert">{error}</p>{/if}
 {#if loading}
-  <p class="text-sm text-muted-foreground">Loading submissions…</p>
+  <div class="space-y-3" role="status"><span class="sr-only">Loading submissions</span><Skeleton class="h-24 w-full" /><Skeleton class="h-24 w-full" /></div>
 {:else if submissions.length === 0}
-  <p class="text-sm text-muted-foreground">No pending wiki submissions.</p>
+  <EmptyState title="No pending submissions" description="Community-proposed articles and edits will appear here." />
 {:else}
   <div class="space-y-5">
     {#each submissions as item}
@@ -85,7 +88,7 @@
               {item.kind === 'edit' ? `Edit to ${item.article_id}` : 'New article'} · submitter {item.submitter_id}
             </p>
           </div>
-          <Badge variant="secondary">{item.status}</Badge>
+          <StatusBadge status={item.status} />
         </div>
 
         {#if item.kind === 'edit'}
@@ -94,7 +97,7 @@
           </Button>
           {#if expanded[item.id]}
             {#if diffLoading[item.id]}
-              <p class="mt-3 text-xs text-muted-foreground">Loading diff…</p>
+              <div class="mt-3 space-y-2" role="status"><span class="sr-only">Loading diff</span><Skeleton class="h-16 w-full" /></div>
             {:else if review_?.article}
               {#if stale}
                 <p class="mt-3 text-xs text-amber-600 dark:text-amber-400">

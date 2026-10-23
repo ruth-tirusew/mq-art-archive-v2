@@ -3,7 +3,7 @@ import { requireAdmin } from '$lib/utils/loadGuard';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ url }) => {
-  const status = url.searchParams.get('status') ?? 'pending';
+  const status = url.searchParams.get('status') ?? 'all';
   const events = await requireAdmin(() =>
     eventsService.list(status as 'all' | 'pending' | 'approved' | 'rejected')
   );

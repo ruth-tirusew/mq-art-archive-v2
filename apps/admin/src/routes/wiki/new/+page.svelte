@@ -46,11 +46,11 @@
 </script>
 
 <svelte:head>
-  <title>New article — mq admin</title>
+  <title>New article — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="06 — Wiki"
+  eyebrow="Wiki"
   title="New article"
   description="Draft a handbook entry. Publish when it is ready for the public wiki."
 />

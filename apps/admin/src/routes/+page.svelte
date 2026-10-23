@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { ApiError } from '$lib/adapters/api/client';
+  import { ErrorState } from '$ui';
   import { Skeleton } from '$lib/components/ui/skeleton';
   import { onMount } from 'svelte';
   import { artistsService } from '$lib/application/artists';
@@ -35,7 +38,9 @@
   let events = $state<Event[]>([]);
   let analytics = $state<AnalyticsSummary | null>(null);
 
-  onMount(async () => {
+  async function load() {
+    errorMessage = '';
+    loading = true;
     try {
       const [artistList, postList, apps, evts, viewSummary] = await Promise.all([
         artistsService.list(),
@@ -50,11 +55,18 @@
       events = evts;
       analytics = viewSummary;
     } catch (err) {
+      // This page loads on mount rather than in a guarded loader, so handle an expired session here.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        await goto('/login');
+        return;
+      }
       errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard';
     } finally {
       loading = false;
     }
-  });
+  }
+
+  onMount(load);
 
   const today = new Date();
   const todayLabel = today.toLocaleDateString('en-US', {
@@ -252,8 +264,8 @@
 </svelte:head>
 
 {#if errorMessage}
-  <p class="mb-6 text-sm text-destructive" role="alert">{errorMessage}</p>
-{/if}
+  <div class="mx-auto max-w-2xl py-10"><ErrorState message={errorMessage} onretry={load} /></div>
+{:else}
 
 <!-- Page header -->
 <header class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -573,3 +585,4 @@
     </a>
   {/each}
 </div>
+{/if}

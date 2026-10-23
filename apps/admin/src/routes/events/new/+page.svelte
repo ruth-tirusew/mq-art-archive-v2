@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { fieldClass as inputClass } from '$ui';
+  import { eventTypes } from '$lib/core/domain/eventTypes';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { eventsService } from '$lib/application/events';
@@ -9,12 +11,8 @@
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
 
-  const inputClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
-
   let title = $state('');
   let description = $state('');
-  const eventTypes = ['Opening', 'Exhibition', 'Talk', 'Workshop', 'Screening', 'Performance', 'Poetry', 'Theatre', 'Pop-up', 'Fair'];
   let eventType = $state('Opening');
   let venue = $state('');
   let city = $state('');

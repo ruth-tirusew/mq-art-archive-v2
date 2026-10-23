@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fieldClass as inputClass } from '$ui';
   import { page } from '$app/stores';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { authService } from '$lib/application/auth';
@@ -10,9 +11,6 @@
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { cn } from '$lib/utils';
-
-  const inputClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
   const sectionIds = ['profile', 'account', 'notifications', 'integrations'] as const;
   type SectionId = (typeof sectionIds)[number];
@@ -253,8 +251,8 @@
       <CardContent>
         {#if data.user && !data.user.has_password}
           <Alert>
-            This account has no password (OAuth-only). Use forgot-password on the login page to set
-            one before changing email.
+            This account has no password (OAuth-only). Use “Forgot password” on the main Artiv
+            sign-in page to set one before changing email.
           </Alert>
         {:else}
           <form class="space-y-4" onsubmit={saveEmail}>
@@ -294,8 +292,8 @@
       <CardContent>
         {#if data.user && !data.user.has_password}
           <Alert>
-            No password is set for this account. Use forgot-password on the login page to create
-            one.
+            No password is set for this account. Use “Forgot password” on the main Artiv sign-in
+            page to create one.
           </Alert>
         {:else}
           <form class="space-y-4" onsubmit={savePassword}>

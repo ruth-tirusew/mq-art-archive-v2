@@ -76,6 +76,8 @@ test.describe('@wiki admin queue', () => {
 		await expect(diff.getByText('Third line inserted.')).toBeVisible();
 
 		await submissionCard.getByRole('button', { name: 'Approve' }).click();
+		// Approving publishes to the public wiki, so it asks first.
+		await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
 		await expect(submissionCard).not.toBeVisible();
 
 		const articleRes = await request.get(`${API_URL}/admin/v1/articles/${articleId}`, {
@@ -103,6 +105,7 @@ test.describe('@wiki admin queue', () => {
 
 		await submissionCard.getByPlaceholder('Optional review notes').fill('Not a good fit yet.');
 		await submissionCard.getByRole('button', { name: 'Reject' }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Reject' }).click();
 		await expect(submissionCard).not.toBeVisible();
 	});
 });

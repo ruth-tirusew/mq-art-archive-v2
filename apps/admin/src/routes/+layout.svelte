@@ -231,7 +231,13 @@
   const breadcrumbLeaf = $derived.by(() => {
     const pathname = $page.url.pathname;
     if (pathname.endsWith('/new')) return 'New';
-    if (/\/[^/]+$/.test(pathname) && pathname.split('/').length > 2) return 'Detail';
+    if (/\/[^/]+$/.test(pathname) && pathname.split('/').length > 2) {
+      // Name the record on screen (set by each detail page's loader) rather than a literal "Detail".
+      const d = $page.data as Record<string, { display_name?: string; title?: string } | undefined>;
+      return (
+        d.artist?.display_name ?? d.application?.display_name ?? d.post?.title ?? d.event?.title ?? d.article?.title ?? 'Detail'
+      );
+    }
     const hash = $page.url.hash.replace(/^#/, '');
     if (pathname === '/settings' && hash) {
       return hash.charAt(0).toUpperCase() + hash.slice(1);
@@ -294,7 +300,10 @@
       <!-- Main content -->
       <main class="page-enter min-h-0 flex-1 overflow-y-auto px-6 py-8 md:px-8 lg:px-10">
         <ErrorBoundary>
-          {@render children()}
+          <!-- Remount per path so edit forms never keep the previous record's values. -->
+          {#key $page.url.pathname}
+            {@render children()}
+          {/key}
         </ErrorBoundary>
       </main>
     </div>

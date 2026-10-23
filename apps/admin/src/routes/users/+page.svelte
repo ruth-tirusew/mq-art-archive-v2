@@ -4,7 +4,7 @@
   import { currentUser } from '$lib/application/auth';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
-  import { ConfirmDialog } from '$ui';
+  import { Button, ConfirmDialog, toast } from '$ui';
   import { Alert } from '$lib/components/ui/alert';
   import { Badge } from '$lib/components/ui/badge';
   import { Skeleton } from '$lib/components/ui/skeleton';
@@ -41,7 +41,10 @@
   let users = $state<User[]>([]);
   let loading = $state(true);
   let error = $state('');
-  let notice = $state('');
+  let loadFailed = $state(false);
+  let loadingMore = $state(false);
+  let hasMore = $state(false);
+  const PAGE = 200;
   let query = $state('');
   let roleFilter = $state<Role | 'all'>('all');
 
@@ -49,15 +52,25 @@
   let confirmOpen = $state(false);
   let saving = $state(false);
 
-  onMount(async () => {
+  async function load(more = false) {
+    error = '';
+    loadFailed = false;
+    if (more) loadingMore = true;
+    else loading = true;
     try {
-      users = await apiFetch<User[]>('/admin/v1/users?limit=200');
+      const page = await apiFetch<User[]>(`/admin/v1/users?limit=${PAGE}&offset=${more ? users.length : 0}`);
+      users = more ? [...users, ...page] : page;
+      hasMore = page.length === PAGE;
     } catch (cause) {
+      loadFailed = true;
       error = cause instanceof Error ? cause.message : 'Could not load users';
     } finally {
       loading = false;
+      loadingMore = false;
     }
-  });
+  }
+
+  onMount(() => load());
 
   const counts = $derived.by(() => {
     const result: Record<string, number> = { all: users.length };
@@ -84,7 +97,6 @@
     if (!pending) return;
     saving = true;
     error = '';
-    notice = '';
     try {
       const updated = await apiFetch<User>(`/admin/v1/users/${pending.user.id}`, {
         method: 'PATCH',
@@ -92,7 +104,7 @@
         body: JSON.stringify({ role: pending.role })
       });
       users = users.map((item) => (item.id === updated.id ? updated : item));
-      notice = `${updated.email} is now ${updated.role}.`;
+      toast.success(`${updated.email} is now ${updated.role}.`);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Could not change role';
     } finally {
@@ -111,8 +123,14 @@
   description="Search accounts and manage who has access to what. Role changes take effect immediately."
 />
 
-{#if notice}<Alert class="mb-4">{notice}</Alert>{/if}
-{#if error}<Alert variant="destructive" class="mb-4">{error}</Alert>{/if}
+{#if error}
+  <Alert variant="destructive" class="mb-4 flex items-center justify-between gap-4">
+    <span>{error}</span>
+    {#if loadFailed}
+      <Button variant="secondary" size="sm" onclick={() => load(users.length > 0)}>Try again</Button>
+    {/if}
+  </Alert>
+{/if}
 
 <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
   <div class="flex gap-2 overflow-x-auto" role="group" aria-label="Filter by role">
@@ -150,6 +168,8 @@
     <Skeleton class="h-14 w-full" />
     <Skeleton class="h-14 w-full" />
   </div>
+{:else if filtered.length === 0 && users.length === 0 && loadFailed}
+  <!-- load failed: the error above has the retry; don't also claim there are no users -->
 {:else if filtered.length === 0}
   <EmptyState
     title="No users found"
@@ -198,8 +218,13 @@
     </TableBody>
   </Table>
   <p class="mt-3 text-xs text-muted-foreground">
-    Showing {plural(filtered.length, 'user')}{users.length >= 200 ? ' (first 200 loaded)' : ''}.
+    Showing {plural(filtered.length, 'user')}{hasMore ? ` of the first ${users.length} loaded` : ''}.
   </p>
+  {#if hasMore}
+    <div class="mt-3">
+      <Button variant="secondary" size="sm" loading={loadingMore} onclick={() => load(true)}>Load more users</Button>
+    </div>
+  {/if}
 {/if}
 
 <ConfirmDialog

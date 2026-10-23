@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { fieldClass as inputClass } from '$ui';
+  import { eventTypes } from '$lib/core/domain/eventTypes';
   import { ConfirmDialog, createConfirm, toast } from '$ui';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
@@ -11,9 +13,6 @@
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
-
-  const inputClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
   let { data } = $props();
   let event = $state(data.event);
@@ -39,7 +38,6 @@
   let imageUrl = $state(data.event.image_url ?? '');
   let startsAt = $state(toLocalInput(data.event.starts_at));
   let endsAt = $state(toLocalInput(data.event.ends_at));
-  let status = $state<EventStatus>(data.event.status);
 
   function applyEvent(e: typeof event) {
     event = e;
@@ -52,7 +50,6 @@
     imageUrl = e.image_url ?? '';
     startsAt = toLocalInput(e.starts_at);
     endsAt = toLocalInput(e.ends_at);
-    status = e.status;
   }
 
   async function saveContent(ev: Event) {
@@ -71,7 +68,7 @@
           image_url: imageUrl || null,
           starts_at: new Date(startsAt).toISOString(),
           ends_at: endsAt ? new Date(endsAt).toISOString() : null,
-          status
+          status: event.status
         })
       );
       toast.success('Event saved.');
@@ -116,7 +113,6 @@
     }
   }
 
-  const eventTypes = ['Opening', 'Exhibition', 'Talk', 'Workshop', 'Screening', 'Performance', 'Poetry', 'Theatre', 'Pop-up', 'Fair'];
   let confirmDelete = $state(false);
 
   async function remove() {
@@ -200,14 +196,6 @@
             <datalist id="event-types">
               {#each eventTypes as type}<option value={type}></option>{/each}
             </datalist>
-          </div>
-          <div class="space-y-2">
-            <Label for="status">Status</Label>
-            <select id="status" bind:value={status} class={inputClass}>
-              <option value="pending">pending</option>
-              <option value="approved">approved</option>
-              <option value="rejected">rejected</option>
-            </select>
           </div>
           <div class="space-y-2">
             <Label for="venue">Venue</Label>

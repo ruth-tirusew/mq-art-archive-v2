@@ -1,5 +1,9 @@
 node_modules/
 dist/
 .env
-*/.svelete-kit/*
+**/.svelte-kit/
+
+# Database dumps contain real data; keep only backups/README.md
+backups/*
+!backups/README.md
 backend/api/data/*.session

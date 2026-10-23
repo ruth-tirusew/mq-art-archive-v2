@@ -10,6 +10,7 @@ type UserResponse struct {
 	DisplayName   string `json:"display_name,omitempty"`
 	AvatarURL     string `json:"avatar_url,omitempty"`
 	HasPassword   bool   `json:"has_password"`
+	GoogleLinked  bool   `json:"google_linked"`
 }
 
 type CredentialsRequest struct {

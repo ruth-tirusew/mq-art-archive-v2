@@ -43,14 +43,14 @@ services:
     ports:
       - "${HTTP_PORT:-8080}:8080"
     environment:
-      APP_ENV: ${APP_ENV:-development}
+      APP_ENV: ${APP_ENV:-production}
       DATABASE_URL: postgres://${POSTGRES_USER:-mq}:${POSTGRES_PASSWORD:-mq}@postgres:5432/${POSTGRES_DB:-mq}?sslmode=disable
       HTTP_PORT: 8080
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-1h}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174}
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-mq_access_token}
-      AUTH_DEV_MODE: ${AUTH_DEV_MODE:-true}
+      AUTH_DEV_MODE: ${AUTH_DEV_MODE:-false}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}

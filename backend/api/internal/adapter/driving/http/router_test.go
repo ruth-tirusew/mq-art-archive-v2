@@ -288,6 +288,14 @@ type stubAuth struct{}
 func (stubAuth) BeginOAuth(_ context.Context, _, _ string) (string, string, error) {
 	return "https://example.com/auth", "state", nil
 }
+func (stubAuth) BeginOAuthLink(context.Context, uuid.UUID, string, string) (string, error) {
+	return "https://example.com/auth", nil
+}
+func (stubAuth) IsOAuthLinkState(string) bool { return false }
+func (stubAuth) CompleteOAuthLink(context.Context, string, string, string, uuid.UUID) (string, error) {
+	return "http://localhost:5173/account", nil
+}
+func (stubAuth) UnlinkOAuth(context.Context, uuid.UUID, string) error { return nil }
 func (stubAuth) CompleteOAuth(_ context.Context, _, _, _ string) (string, *identity.User, string, error) {
 	return "token", &identity.User{ID: uuid.New(), Email: "user@example.com", Role: identity.RolePublic}, "http://localhost:5173/auth/callback", nil
 }

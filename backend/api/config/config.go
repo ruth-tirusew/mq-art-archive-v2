@@ -91,7 +91,7 @@ func Load() Config {
 		GoogleClientSecret:  getEnv("GOOGLE_CLIENT_SECRET", ""),
 		OAuthCallbackURL:    getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/api/v1/auth/google/callback"),
 		AuthCookieName:      getEnv("AUTH_COOKIE_NAME", "mq_access_token"),
-		AuthDevMode:         getEnv("AUTH_DEV_MODE", "true") == "true",
+		AuthDevMode:         getEnv("AUTH_DEV_MODE", "false") == "true",
 		ResendAPIKey:        getEnv("RESEND_API_KEY", ""),
 		MailFrom:            getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>"),
 		WebAppURL:           webAppURL,

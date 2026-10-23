@@ -4,6 +4,7 @@ export interface AuthPort {
   me(): Promise<User>;
   login(email: string, password: string): Promise<User>;
   register(email: string, password: string): Promise<User>;
+  unlinkGoogle(): Promise<void>;
   logout(): Promise<void>;
   forgotPassword(email: string): Promise<void>;
   resetPassword(token: string, password: string): Promise<void>;

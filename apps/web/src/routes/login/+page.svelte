@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { googleLoginUrl } from '$lib/core/domain/auth';
+	import { googleLoginUrl, safeReturnPath } from '$lib/core/domain/auth';
 	import { authService, postLoginPath } from '$lib/application/auth';
 	import { ApiError } from '$lib/adapters/api/client';
 
@@ -9,7 +9,8 @@
 
 	type Audience = 'reader' | 'artist';
 
-	const requestedReturnTo = $page.url.searchParams.get('return_to') ?? '/studio';
+	const requestedReturnTo = safeReturnPath($page.url.searchParams.get('return_to'));
+	const accountExists = $page.url.searchParams.get('error') === 'account_exists';
 	// Artist entry points (?intent=artist, or heading to /apply) pre-select the artist flow.
 	let audience = $state<Audience>(
 		$page.url.searchParams.get('intent') === 'artist' || requestedReturnTo.startsWith('/apply')
@@ -85,6 +86,17 @@
 			</button>
 		{/each}
 	</div>
+
+	{#if accountExists}
+		<div class="mt-6 rounded-sm border border-accent/40 bg-accent/5 p-4 text-sm leading-relaxed" role="alert">
+			<p class="text-foreground">An Artiv account already uses that Google email.</p>
+			<p class="mt-1 text-muted-foreground">
+				Sign in with your email and password below. Then open Account settings and choose
+				<em>Connect Google</em> — after that you can use Google to sign in. Forgot your password?
+				<a href="/forgot-password" class="text-accent underline underline-offset-4">Reset it</a>.
+			</p>
+		</div>
+	{/if}
 
 	<h1 class="mt-8 font-display text-4xl text-foreground">
 		{#if audience === 'artist'}

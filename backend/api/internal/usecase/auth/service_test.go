@@ -193,6 +193,25 @@ func (r *stubOAuthAccountRepo) Create(_ context.Context, account identity.OAuthA
 	return nil
 }
 
+func (r *stubOAuthAccountRepo) GetByUserProvider(_ context.Context, userID uuid.UUID, provider string) (*identity.OAuthAccount, error) {
+	for _, a := range r.accounts {
+		if a.UserID == userID && a.Provider == provider {
+			return &a, nil
+		}
+	}
+	return nil, apperrors.ErrNotFound
+}
+
+func (r *stubOAuthAccountRepo) DeleteByUserProvider(_ context.Context, userID uuid.UUID, provider string) error {
+	for i, a := range r.accounts {
+		if a.UserID == userID && a.Provider == provider {
+			r.accounts = append(r.accounts[:i], r.accounts[i+1:]...)
+			return nil
+		}
+	}
+	return apperrors.ErrNotFound
+}
+
 type stubTokenIssuer struct{}
 
 func (stubTokenIssuer) Issue(_ context.Context, _ *identity.User) (string, error) {
@@ -353,7 +372,7 @@ func TestService_BeginOAuth_rejectsReturnTo(t *testing.T) {
 	assist.ErrorIs(t, err, apperrors.ErrForbidden)
 }
 
-func TestService_CompleteOAuth_linksExistingEmail(t *testing.T) {
+func TestService_CompleteOAuth_doesNotLinkExistingEmailAutomatically(t *testing.T) {
 	stateSvc := drivenauth.NewOAuthStateService("secret", 10*time.Minute)
 	state, _ := stateSvc.Sign("http://localhost:5173/auth/callback")
 
@@ -376,10 +395,99 @@ func TestService_CompleteOAuth_linksExistingEmail(t *testing.T) {
 		[]string{"http://localhost:5173"},
 	)
 
-	_, user, _, err := svc.CompleteOAuth(t.Context(), "google", "code", state)
+	token, user, returnTo, err := svc.CompleteOAuth(t.Context(), "google", "code", state)
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	assist.Equal(t, "", token)
+	assist.Equal(t, true, user == nil)
+	// The caller still gets the return URL so it can say "sign in, then link Google in settings".
+	assist.Equal(t, "http://localhost:5173/auth/callback", returnTo)
+	assist.Equal(t, 0, len(oauthAccounts.accounts))
+}
+
+func linkFixture(t *testing.T, googleSub string) (inbound.AuthService, *stubOAuthAccountRepo, outbound.OAuthStateSigner, uuid.UUID) {
+	t.Helper()
+	stateSvc := drivenauth.NewOAuthStateService("secret", 10*time.Minute)
+	userID := uuid.New()
+	users := &stubUserRepo{
+		byID:           map[uuid.UUID]identity.User{userID: {ID: userID, Email: "me@example.com", Role: identity.RolePublic}},
+		byEmail:        map[string]identity.User{"me@example.com": {ID: userID, Email: "me@example.com", Role: identity.RolePublic}},
+		passwordHashes: map[string]string{"me@example.com": "hash:password1"},
+	}
+	accounts := &stubOAuthAccountRepo{}
+	svc := newAuthService(users, accounts, stateSvc,
+		[]outbound.OAuthProvider{stubOAuthProvider{
+			name:     "google",
+			userInfo: &outbound.OAuthUserInfo{ProviderUserID: googleSub, Email: "me@gmail.example", EmailVerified: true},
+		}},
+		[]string{"http://localhost:5173"},
+	)
+	return svc, accounts, stateSvc, userID
+}
+
+func TestService_LinkGoogle_linksSignedInUser(t *testing.T) {
+	svc, accounts, state, userID := linkFixture(t, "sub-1")
+	st, err := state.SignLink("http://localhost:5173/account", userID)
 	assist.NoError(t, err)
-	assist.Equal(t, existingID, user.ID)
-	assist.Equal(t, 1, len(oauthAccounts.accounts))
+
+	returnTo, err := svc.CompleteOAuthLink(t.Context(), "google", "code", st, userID)
+	assist.NoError(t, err)
+	assist.Equal(t, "http://localhost:5173/account", returnTo)
+	assist.Equal(t, 1, len(accounts.accounts))
+	assist.Equal(t, userID, accounts.accounts[0].UserID)
+
+	me, err := svc.GetMe(t.Context(), userID)
+	assist.NoError(t, err)
+	assist.Equal(t, true, me.GoogleLinked)
+}
+
+func TestService_LinkGoogle_rejectsStateIssuedToSomeoneElse(t *testing.T) {
+	svc, accounts, state, userID := linkFixture(t, "sub-1")
+	attacker := uuid.New()
+	st, _ := state.SignLink("http://localhost:5173/account", attacker)
+
+	_, err := svc.CompleteOAuthLink(t.Context(), "google", "code", st, userID)
+	assist.ErrorIs(t, err, apperrors.ErrUnauthorized)
+	assist.Equal(t, 0, len(accounts.accounts))
+}
+
+func TestService_LinkGoogle_refusesAccountOwnedByAnotherUser(t *testing.T) {
+	svc, accounts, state, userID := linkFixture(t, "sub-1")
+	accounts.accounts = append(accounts.accounts, identity.OAuthAccount{UserID: uuid.New(), Provider: "google", ProviderUserID: "sub-1"})
+	st, _ := state.SignLink("http://localhost:5173/account", userID)
+
+	_, err := svc.CompleteOAuthLink(t.Context(), "google", "code", st, userID)
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	assist.Equal(t, 1, len(accounts.accounts))
+}
+
+func TestOAuthState_loginAndLinkStatesAreNotInterchangeable(t *testing.T) {
+	state := drivenauth.NewOAuthStateService("secret", 10*time.Minute)
+	login, _ := state.Sign("http://localhost:5173/auth/callback")
+	link, _ := state.SignLink("http://localhost:5173/account", uuid.New())
+
+	_, _, err := state.VerifyLink(login)
+	assist.ErrorIs(t, err, apperrors.ErrInvalidToken)
+	_, err = state.Verify(link)
+	assist.ErrorIs(t, err, apperrors.ErrInvalidToken)
+}
+
+func TestService_UnlinkGoogle_requiresAPassword(t *testing.T) {
+	stateSvc := drivenauth.NewOAuthStateService("secret", 10*time.Minute)
+	userID := uuid.New()
+	users := &stubUserRepo{
+		byID:    map[uuid.UUID]identity.User{userID: {ID: userID, Email: "g@example.com"}},
+		byEmail: map[string]identity.User{"g@example.com": {ID: userID, Email: "g@example.com"}},
+	}
+	accounts := &stubOAuthAccountRepo{accounts: []identity.OAuthAccount{{UserID: userID, Provider: "google", ProviderUserID: "s"}}}
+	svc := newAuthService(users, accounts, stateSvc, nil, nil)
+
+	err := svc.UnlinkOAuth(t.Context(), userID, "google")
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	assist.Equal(t, 1, len(accounts.accounts))
+
+	users.passwordHashes = map[string]string{"g@example.com": "hash:pw"}
+	assist.NoError(t, svc.UnlinkOAuth(t.Context(), userID, "google"))
+	assist.Equal(t, 0, len(accounts.accounts))
 }
 
 func TestService_CompleteOAuth_invalidState(t *testing.T) {
@@ -468,32 +576,10 @@ func TestService_Login_googleOnlyUser(t *testing.T) {
 	assist.ErrorIs(t, err, apperrors.ErrUnauthorized)
 }
 
-func TestService_CompleteOAuth_linksPasswordUser(t *testing.T) {
-	stateSvc := drivenauth.NewOAuthStateService("secret", 10*time.Minute)
-	state, _ := stateSvc.Sign("http://localhost:5173/auth/callback")
+func TestService_Login_unknownEmailIsUnauthorizedNotAPanic(t *testing.T) {
+	users := &stubUserRepo{}
+	svc := newAuthService(users, &stubOAuthAccountRepo{}, drivenauth.NewOAuthStateService("secret", 10*time.Minute), nil, nil)
 
-	existingID := uuid.New()
-	users := &stubUserRepo{
-		byID:           map[uuid.UUID]identity.User{existingID: {ID: existingID, Email: "user@example.com", Role: identity.RolePublic}},
-		byEmail:        map[string]identity.User{"user@example.com": {ID: existingID, Email: "user@example.com", Role: identity.RolePublic}},
-		passwordHashes: map[string]string{"user@example.com": "hash:password1"},
-	}
-	oauthAccounts := &stubOAuthAccountRepo{}
-
-	svc := newAuthService(users, oauthAccounts, stateSvc,
-		[]outbound.OAuthProvider{stubOAuthProvider{
-			name: "google",
-			userInfo: &outbound.OAuthUserInfo{
-				ProviderUserID: "google-sub",
-				Email:          "user@example.com",
-				EmailVerified:  true,
-			},
-		}},
-		[]string{"http://localhost:5173"},
-	)
-
-	_, user, _, err := svc.CompleteOAuth(t.Context(), "google", "code", state)
-	assist.NoError(t, err)
-	assist.Equal(t, existingID, user.ID)
-	assist.Equal(t, 1, len(oauthAccounts.accounts))
+	_, _, err := svc.Login(t.Context(), "nobody@example.com", "password1")
+	assist.ErrorIs(t, err, apperrors.ErrUnauthorized)
 }

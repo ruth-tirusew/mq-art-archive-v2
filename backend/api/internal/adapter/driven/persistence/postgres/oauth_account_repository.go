@@ -39,6 +39,35 @@ func (r *OAuthAccountRepository) GetByProviderSubject(ctx context.Context, provi
 	return &account, nil
 }
 
+func (r *OAuthAccountRepository) GetByUserProvider(ctx context.Context, userID uuid.UUID, provider string) (*identity.OAuthAccount, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT `+oauthAccountColumns+`
+		FROM oauth_accounts
+		WHERE user_id = $1 AND provider = $2
+		LIMIT 1
+	`, userID, provider)
+
+	account, err := scanOAuthAccount(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("get oauth account by user: %w", err)
+	}
+	return &account, nil
+}
+
+func (r *OAuthAccountRepository) DeleteByUserProvider(ctx context.Context, userID uuid.UUID, provider string) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM oauth_accounts WHERE user_id = $1 AND provider = $2`, userID, provider)
+	if err != nil {
+		return fmt.Errorf("delete oauth account: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *OAuthAccountRepository) Create(ctx context.Context, account identity.OAuthAccount) error {
 	now := time.Now().UTC()
 	if account.ID == uuid.Nil {

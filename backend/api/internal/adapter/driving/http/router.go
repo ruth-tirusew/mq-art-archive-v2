@@ -38,7 +38,7 @@ type RouterDeps struct {
 
 func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engine {
 	r := gin.New()
-	r.Use(middleware.RequestID(), middleware.Recovery(deps.Monitor), middleware.CORS(cfg.CORSOrigins))
+	r.Use(middleware.RequestID(), middleware.Recovery(deps.Monitor), middleware.CORS(cfg.CORSOrigins, cfg.AuthDevMode))
 	authLimit := middleware.NewRateLimiter(10, time.Minute).Middleware()
 	writeLimit := middleware.NewRateLimiter(30, time.Minute).Middleware()
 
@@ -118,7 +118,9 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		auth := v1.Group("/auth")
 		{
 			auth.GET("/google", handlers.Auth.GoogleLogin)
-			auth.GET("/google/callback", handlers.Auth.GoogleCallback)
+			auth.GET("/google/link", middleware.Authenticate(deps.Auth), handlers.Auth.GoogleLink)
+			auth.DELETE("/google/link", middleware.Authenticate(deps.Auth), handlers.Auth.UnlinkGoogle)
+			auth.GET("/google/callback", middleware.OptionalAuthenticate(deps.Auth), handlers.Auth.GoogleCallback)
 			auth.POST("/register", handlers.Auth.Register)
 			auth.POST("/login", authLimit, handlers.Auth.Login)
 			auth.POST("/logout", handlers.Auth.Logout)

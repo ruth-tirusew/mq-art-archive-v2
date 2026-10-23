@@ -1,6 +1,9 @@
 <script lang="ts">
 	import Skeleton from '$lib/components/Skeleton.svelte';
-	import { Alert, Button, Checkbox, Field, Input, PageHeader, toast } from '$ui';
+	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { replaceState } from '$app/navigation';
+	import { Alert, Button, Checkbox, ConfirmDialog, createConfirm, Field, Input, PageHeader, toast } from '$ui';
 	import { authService, currentUser } from '$lib/application/auth';
 	import type { NotificationPreferences } from '$lib/core/domain/auth';
 
@@ -62,6 +65,52 @@
 		} finally {
 			passwordSaving = false;
 		}
+	}
+
+	// --- Connected accounts -------------------------------------------------------------
+	const confirm = createConfirm();
+	const googleReasons: Record<string, string> = {
+		already_linked: 'That Google account is already connected to a different Artiv account, or this account already has one connected.',
+		not_verified: 'Google did not confirm that email address, so it can’t be connected.',
+		failed: 'Something went wrong connecting Google. Please try again.'
+	};
+
+	// Back from Google: the API redirects here with ?google=linked or ?google=error&reason=…
+	onMount(async () => {
+		const result = $page.url.searchParams.get('google');
+		if (!result) return;
+		const reason = $page.url.searchParams.get('reason') ?? 'failed';
+		const url = new URL($page.url);
+		url.searchParams.delete('google');
+		url.searchParams.delete('reason');
+		replaceState(url.pathname + url.search, {});
+		if (result === 'linked') {
+			await authService.load();
+			toast.success('Google connected. You can now sign in with it.');
+		} else {
+			toast.error(googleReasons[reason] ?? googleReasons.failed);
+		}
+	});
+
+	function connectGoogle() {
+		window.location.href = authService.googleLinkUrl('/account', window.location.origin);
+	}
+
+	function askDisconnect() {
+		confirm.ask({
+			title: 'Disconnect Google?',
+			description: 'You will sign in with your email and password from now on.',
+			confirmLabel: 'Disconnect',
+			destructive: true,
+			run: async () => {
+				try {
+					await authService.unlinkGoogle();
+					toast.success('Google disconnected.');
+				} catch (e) {
+					toast.error(e instanceof Error ? e.message : 'Could not disconnect Google.');
+				}
+			}
+		});
 	}
 
 	let notifications = $state<NotificationPreferences | null>(null);
@@ -154,6 +203,33 @@
 		{/if}
 	</div>
 
+	<div class="space-y-4 border-t border-border/60 pt-10">
+		<h2 class="t-h3">Connected accounts</h2>
+		<div class="flex flex-wrap items-center justify-between gap-4 rounded-sm border border-border/70 bg-card/30 p-4">
+			<div>
+				<p class="text-sm text-foreground">Google</p>
+				<p class="mt-1 text-xs text-muted-foreground">
+					{#if $currentUser?.google_linked}
+						Connected. You can sign in with Google or with your email and password.
+					{:else}
+						Connect Google to sign in with one click. You choose when; nothing is linked automatically.
+					{/if}
+				</p>
+			</div>
+			{#if $currentUser?.google_linked}
+				<Button variant="secondary" size="sm" onclick={askDisconnect} disabled={!$currentUser?.has_password}>Disconnect</Button>
+			{:else}
+				<Button variant="secondary" size="sm" onclick={connectGoogle}>Connect Google</Button>
+			{/if}
+		</div>
+		{#if $currentUser?.google_linked && !$currentUser?.has_password}
+			<p class="text-xs text-muted-foreground">
+				Google is the only way into this account, so it can’t be disconnected yet. Set a password first:
+				<a href="/forgot-password" class="text-accent underline underline-offset-4">send me a password link</a>.
+			</p>
+		{/if}
+	</div>
+
 	<div class="space-y-5 border-t border-border/60 pt-10">
 		<h2 class="t-h3">Notifications</h2>
 		{#if notificationsLoading}
@@ -181,3 +257,5 @@
 		{/if}
 	</div>
 </section>
+
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

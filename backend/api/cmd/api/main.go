@@ -47,6 +47,10 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("configuration: %v", err)
 	}
+	if cfg.AuthDevMode {
+		// Header auth lets anyone who knows a user id act as that user. Loud on purpose.
+		log.Printf("WARNING: AUTH_DEV_MODE is enabled (APP_ENV=%s): X-User-ID header authentication is active. Never run this on a reachable server.", cfg.AppEnv)
+	}
 
 	if err := postgres.Migrate(cfg.DatabaseURL); err != nil {
 		log.Fatalf("migrate: %v", err)

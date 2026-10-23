@@ -30,6 +30,15 @@ func (m *mockAuth) BeginOAuth(ctx context.Context, provider, returnTo string) (s
 	return m.beginOAuth(ctx, provider, returnTo)
 }
 
+func (m *mockAuth) BeginOAuthLink(context.Context, uuid.UUID, string, string) (string, error) {
+	return "", nil
+}
+func (m *mockAuth) IsOAuthLinkState(string) bool { return false }
+func (m *mockAuth) CompleteOAuthLink(context.Context, string, string, string, uuid.UUID) (string, error) {
+	return "", nil
+}
+func (m *mockAuth) UnlinkOAuth(context.Context, uuid.UUID, string) error { return nil }
+
 func (m *mockAuth) CompleteOAuth(ctx context.Context, provider, code, state string) (string, *identity.User, string, error) {
 	return m.completeOAuth(ctx, provider, code, state)
 }

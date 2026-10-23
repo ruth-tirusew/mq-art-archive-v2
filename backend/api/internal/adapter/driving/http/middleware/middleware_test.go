@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -54,7 +55,7 @@ func TestRequestID_preservesExisting(t *testing.T) {
 
 func TestCORS_allowsConfiguredOrigin(t *testing.T) {
 	r := gin.New()
-	r.Use(CORS([]string{"http://localhost:5173"}))
+	r.Use(CORS([]string{"http://localhost:5173"}, false))
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -67,7 +68,7 @@ func TestCORS_allowsConfiguredOrigin(t *testing.T) {
 
 func TestCORS_optionsPreflight(t *testing.T) {
 	r := gin.New()
-	r.Use(CORS([]string{"http://localhost:5173"}))
+	r.Use(CORS([]string{"http://localhost:5173"}, false))
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodOptions, "/", nil)
@@ -91,4 +92,20 @@ func TestRequireRole_setsContext(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	assist.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestCORS_devHeaderOnlyAdvertisedInDevMode(t *testing.T) {
+	for _, devMode := range []bool{false, true} {
+		r := gin.New()
+		r.Use(CORS([]string{"http://localhost:5173"}, devMode))
+		r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+		req := httptest.NewRequest(http.MethodOptions, "/", nil)
+		req.Header.Set("Origin", "http://localhost:5173")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		got := strings.Contains(w.Header().Get("Access-Control-Allow-Headers"), "X-User-ID")
+		assist.Equal(t, devMode, got)
+	}
 }

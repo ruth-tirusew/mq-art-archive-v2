@@ -4,13 +4,22 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { authService, postLoginPath } from '$lib/application/auth';
+	import { safeReturnPath } from '$lib/core/domain/auth';
 
 	onMount(async () => {
-		const user = await authService.load();
-		const returnTo = $page.url.searchParams.get('return_to') ?? '/studio';
+		const returnTo = safeReturnPath($page.url.searchParams.get('return_to'));
+		const oauthError = $page.url.searchParams.get('error');
 
+		// The API sends us back here with ?error=account_exists when that Google email already
+		// has an Artiv account: explain it on the sign-in page rather than failing silently.
+		if (oauthError) {
+			await goto(`/login?error=${encodeURIComponent(oauthError)}&return_to=${encodeURIComponent(returnTo)}`);
+			return;
+		}
+
+		const user = await authService.load();
 		if (!user) {
-			await goto('/login');
+			await goto(`/login?return_to=${encodeURIComponent(returnTo)}`);
 			return;
 		}
 

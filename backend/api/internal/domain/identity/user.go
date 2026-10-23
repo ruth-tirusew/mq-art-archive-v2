@@ -23,6 +23,7 @@ type User struct {
 	DisplayName     string
 	AvatarURL       string
 	HasPassword     bool // set when loaded with auth metadata; not persisted as a column
+	GoogleLinked    bool // set by GetMe; not persisted as a column
 	EmailVerifiedAt *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time

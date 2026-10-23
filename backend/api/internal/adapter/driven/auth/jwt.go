@@ -81,8 +81,14 @@ type OAuthStateService struct {
 	ttl    time.Duration
 }
 
+const statePurposeLink = "link"
+
 type oauthStateClaims struct {
 	ReturnTo string `json:"return_to"`
+	// Purpose is empty for a normal sign-in and "link" when a signed-in user is connecting a
+	// provider to their own account. UserID binds a link state to that user.
+	Purpose string `json:"purpose,omitempty"`
+	UserID  string `json:"uid,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -106,7 +112,7 @@ func (s *OAuthStateService) Sign(returnTo string) (string, error) {
 	return token.SignedString(s.secret)
 }
 
-func (s *OAuthStateService) Verify(state string) (string, error) {
+func (s *OAuthStateService) parse(state string) (*oauthStateClaims, error) {
 	token, err := jwt.ParseWithClaims(state, &oauthStateClaims{}, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, apperrors.ErrInvalidToken
@@ -114,12 +120,48 @@ func (s *OAuthStateService) Verify(state string) (string, error) {
 		return s.secret, nil
 	})
 	if err != nil || !token.Valid {
-		return "", apperrors.ErrInvalidToken
+		return nil, apperrors.ErrInvalidToken
 	}
-
 	claims, ok := token.Claims.(*oauthStateClaims)
 	if !ok || claims.ReturnTo == "" {
+		return nil, apperrors.ErrInvalidToken
+	}
+	return claims, nil
+}
+
+// Verify accepts only sign-in states. A link state must not be able to start a session.
+func (s *OAuthStateService) Verify(state string) (string, error) {
+	claims, err := s.parse(state)
+	if err != nil || claims.Purpose != "" {
 		return "", apperrors.ErrInvalidToken
 	}
 	return claims.ReturnTo, nil
+}
+
+// SignLink creates a state that is only valid for linking a provider to userID.
+func (s *OAuthStateService) SignLink(returnTo string, userID uuid.UUID) (string, error) {
+	now := time.Now().UTC()
+	claims := oauthStateClaims{
+		ReturnTo: returnTo,
+		Purpose:  statePurposeLink,
+		UserID:   userID.String(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(s.ttl)),
+		},
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
+}
+
+// VerifyLink accepts only link states and returns the user they were issued for.
+func (s *OAuthStateService) VerifyLink(state string) (string, uuid.UUID, error) {
+	claims, err := s.parse(state)
+	if err != nil || claims.Purpose != statePurposeLink {
+		return "", uuid.Nil, apperrors.ErrInvalidToken
+	}
+	id, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		return "", uuid.Nil, apperrors.ErrInvalidToken
+	}
+	return claims.ReturnTo, id, nil
 }

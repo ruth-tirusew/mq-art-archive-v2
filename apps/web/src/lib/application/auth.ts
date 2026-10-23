@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { AuthApi } from '$lib/adapters/api/authApi';
 import type { NotificationPreferences, User } from '$lib/core/domain/auth';
-import { googleLoginUrl } from '$lib/core/domain/auth';
+import { googleLinkUrl, googleLoginUrl } from '$lib/core/domain/auth';
 
 const api = new AuthApi();
 
@@ -10,6 +10,7 @@ export const authLoading = writable(true);
 
 export const authService = {
 	googleLoginUrl,
+	googleLinkUrl,
 
 	async load(): Promise<User | null> {
 		authLoading.set(true);
@@ -35,6 +36,11 @@ export const authService = {
 		const user = await api.register(email, password);
 		currentUser.set(user);
 		return user;
+	},
+
+	async unlinkGoogle(): Promise<void> {
+		await api.unlinkGoogle();
+		await this.load();
 	},
 
 	async logout(): Promise<void> {

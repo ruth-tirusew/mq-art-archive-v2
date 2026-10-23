@@ -10,6 +10,12 @@ import (
 type AuthService interface {
 	BeginOAuth(ctx context.Context, provider, returnTo string) (authURL string, state string, err error)
 	CompleteOAuth(ctx context.Context, provider, code, state string) (accessToken string, user *identity.User, returnTo string, err error)
+	// Linking connects a provider to the signed-in user's own account. It is always explicit:
+	// signing in with a provider never attaches to an existing account by email.
+	BeginOAuthLink(ctx context.Context, userID uuid.UUID, provider, returnTo string) (authURL string, err error)
+	IsOAuthLinkState(state string) bool
+	CompleteOAuthLink(ctx context.Context, provider, code, state string, actorID uuid.UUID) (returnTo string, err error)
+	UnlinkOAuth(ctx context.Context, userID uuid.UUID, provider string) error
 	Register(ctx context.Context, email, password string) (accessToken string, user *identity.User, err error)
 	Login(ctx context.Context, email, password string) (accessToken string, user *identity.User, err error)
 	ForgotPassword(ctx context.Context, email string) error

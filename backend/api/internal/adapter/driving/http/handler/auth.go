@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -38,6 +39,60 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, authURL)
 }
 
+// GoogleLink starts connecting Google to the signed-in user's account.
+func (h *AuthHandler) GoogleLink(c *gin.Context) {
+	userID, err := requestauth.UserIDFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	returnTo := c.Query("return_to")
+	if returnTo == "" {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "return_to is required"})
+		return
+	}
+	authURL, err := h.auth.BeginOAuthLink(c.Request.Context(), userID, "google", returnTo)
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	c.Redirect(http.StatusFound, authURL)
+}
+
+func (h *AuthHandler) UnlinkGoogle(c *gin.Context) {
+	userID, err := requestauth.UserIDFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	err = h.auth.UnlinkOAuth(c.Request.Context(), userID, "google")
+	switch {
+	case err == nil:
+		c.Status(http.StatusNoContent)
+	case errors.Is(err, apperrors.ErrConflict):
+		c.JSON(http.StatusConflict, dto.ErrorResponse{Error: "set a password before disconnecting Google, or you would lose access"})
+	case errors.Is(err, apperrors.ErrNotFound):
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "google is not linked"})
+	default:
+		writeAuthError(c, err)
+	}
+}
+
+// redirectWithParams sends the browser back to a (validated) return URL with result flags.
+func redirectWithParams(c *gin.Context, returnTo string, params map[string]string) {
+	u, err := url.Parse(returnTo)
+	if err != nil {
+		c.Redirect(http.StatusFound, returnTo)
+		return
+	}
+	q := u.Query()
+	for k, v := range params {
+		q.Set(k, v)
+	}
+	u.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, u.String())
+}
+
 func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
@@ -46,14 +101,47 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
+	if h.auth.IsOAuthLinkState(state) {
+		h.completeGoogleLink(c, code, state)
+		return
+	}
+
 	token, _, returnTo, err := h.auth.CompleteOAuth(c.Request.Context(), "google", code, state)
 	if err != nil {
+		if errors.Is(err, apperrors.ErrConflict) && returnTo != "" {
+			// An account with this email exists: send them back to sign in the normal way.
+			redirectWithParams(c, returnTo, map[string]string{"error": "account_exists"})
+			return
+		}
 		writeAuthError(c, err)
 		return
 	}
 
 	h.setAuthCookie(c, token)
 	c.Redirect(http.StatusFound, returnTo)
+}
+
+func (h *AuthHandler) completeGoogleLink(c *gin.Context, code, state string) {
+	userID, err := requestauth.UserIDFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "sign in before linking an account"})
+		return
+	}
+	returnTo, err := h.auth.CompleteOAuthLink(c.Request.Context(), "google", code, state, userID)
+	if returnTo == "" {
+		writeAuthError(c, err)
+		return
+	}
+	switch {
+	case err == nil:
+		redirectWithParams(c, returnTo, map[string]string{"google": "linked"})
+	case errors.Is(err, apperrors.ErrConflict):
+		redirectWithParams(c, returnTo, map[string]string{"google": "error", "reason": "already_linked"})
+	case errors.Is(err, apperrors.ErrUnauthorized):
+		redirectWithParams(c, returnTo, map[string]string{"google": "error", "reason": "not_verified"})
+	default:
+		redirectWithParams(c, returnTo, map[string]string{"google": "error", "reason": "failed"})
+	}
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -269,6 +357,7 @@ func toUserResponse(user *identity.User) dto.UserResponse {
 		DisplayName:   user.DisplayName,
 		AvatarURL:     user.AvatarURL,
 		HasPassword:   user.HasPassword,
+		GoogleLinked:  user.GoogleLinked,
 		EmailVerified: user.EmailVerifiedAt != nil,
 	}
 }

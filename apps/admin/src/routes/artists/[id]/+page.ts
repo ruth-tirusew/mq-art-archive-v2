@@ -1,12 +1,6 @@
 import { artistsService } from '$lib/application/artists';
+import { requireAdmin } from '$lib/utils/loadGuard';
 import type { PageLoad } from './$types';
-import { error } from '@sveltejs/kit';
 
-export const load: PageLoad = async ({ params }) => {
-  try {
-    const artist = await artistsService.getById(params.id);
-    return { artist };
-  } catch {
-    error(404, 'Artist not found');
-  }
-};
+export const load: PageLoad = ({ params }) =>
+  requireAdmin(async () => ({ artist: await artistsService.getById(params.id) }));

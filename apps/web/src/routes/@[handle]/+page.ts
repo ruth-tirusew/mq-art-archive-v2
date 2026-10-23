@@ -1,16 +1,12 @@
 import { artPostService } from '$lib/application/artPosts';
 import { artistsService } from '$lib/application/artists';
-import { error } from '@sveltejs/kit';
+import { guardLoad } from '$lib/utils/loadGuard';
 import type { PageLoad } from './$types';
 
-export const load: PageLoad = async ({ params }) => {
-	const handle = params.handle;
-
-	try {
+export const load: PageLoad = ({ params }) =>
+	guardLoad(async () => {
+		const handle = params.handle;
 		const profile = await artistsService.getByHandle(handle);
 		const posts = await artPostService.listByArtistSlug(profile.slug);
 		return { source: 'api' as const, handle, artist: profile, posts };
-	} catch {
-		error(404, 'Profile not found');
-	}
-};
+	}, 'We could not find that profile.');

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import { ConfirmDialog, createConfirm, toast } from '$ui';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -21,9 +21,9 @@
   let { data } = $props();
   let post = $state(data.post);
   let artist = $state(data.artist);
+  const confirm = createConfirm();
   let saving = $state(false);
   let errorMessage = $state('');
-  let message = $state('');
 
   let title = $state(data.post.title);
   let description = $state(data.post.description ?? '');
@@ -54,7 +54,6 @@
     event.preventDefault();
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       const yearNum = year.trim() ? Number(year) : null;
       applyPost(
@@ -73,7 +72,7 @@
           media_urls: mediaUrls
         })
       );
-      message = 'Post saved.';
+      toast.success('Post saved.');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Save failed';
     } finally {
@@ -81,13 +80,21 @@
     }
   }
 
+  function askStatus(status: ArtStatus) {
+    const copy: Record<string, { title: string; description: string; confirmLabel: string; destructive: boolean }> = {
+      published: { title: 'Publish this post?', description: 'It appears on the public archive immediately.', confirmLabel: 'Publish', destructive: false },
+      draft: { title: 'Unpublish this post?', description: 'It is removed from the public archive until you publish it again.', confirmLabel: 'Unpublish', destructive: true },
+      archived: { title: 'Archive this post?', description: 'It is removed from the public archive and hidden from lists.', confirmLabel: 'Archive', destructive: true }
+    };
+    confirm.ask({ ...copy[status], run: () => setStatus(status) });
+  }
+
   async function setStatus(status: ArtStatus) {
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyPost(await postsService.patch(post.id, { status }));
-      message = `Status set to ${status}.`;
+      toast.success(status === 'published' ? 'Published.' : `Status set to ${status}.`);
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Update failed';
     } finally {
@@ -98,14 +105,13 @@
   async function toggleFeatured() {
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyPost(
         await postsService.patch(post.id, {
           featured_acquisition: !post.featured_acquisition
         })
       );
-      message = post.featured_acquisition ? 'Marked featured acquisition.' : 'Unfeatured.';
+      toast.success(post.featured_acquisition ? 'Marked featured acquisition.' : 'Unfeatured.');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Update failed';
     } finally {
@@ -169,7 +175,7 @@
               variant={post.status === value ? 'default' : 'secondary'}
               class="disabled:opacity-100"
               disabled={saving || post.status === value}
-              onclick={() => setStatus(value as 'draft' | 'published' | 'archived')}>{label}</Button
+              onclick={() => askStatus(value as 'draft' | 'published' | 'archived')}>{label}</Button
             >
           {/each}
           <span class="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true"></span>
@@ -177,8 +183,6 @@
             {post.featured_acquisition ? 'Unfeature' : 'Feature acquisition'}
           </Button>
         </div>
-
-        {#if message}<Alert>{message}</Alert>{/if}
         {#if errorMessage}<Alert variant="destructive">{errorMessage}</Alert>{/if}
 
         <div class="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
@@ -332,3 +336,4 @@
   busy={saving}
   onconfirm={remove}
 />
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

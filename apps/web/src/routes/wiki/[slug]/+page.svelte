@@ -19,7 +19,7 @@
 	let { data }: { data: PageData } = $props();
 
 	const article = $derived(data.article);
-	const title = $derived(article?.title ?? 'Wiki unavailable');
+	const title = $derived(article.title);
 	// Foundation for comments/highlights (both anchor to a span of this body — see
 	// $lib/utils/textAnchor): each rendered paragraph carries the index a selection
 	// inside it needs to resolve back to a global offset in article.body.
@@ -303,18 +303,6 @@
 		</div>
 	</section>
 </article>
-{:else}
-	<section class="mx-auto max-w-[900px] px-6 py-24 text-center md:px-10">
-		<h1 class="font-display text-4xl text-foreground">Wiki entry unavailable</h1>
-		<p class="mt-4 text-muted-foreground">We couldn't load this entry from the API.</p>
-		<button
-			type="button"
-			onclick={() => location.reload()}
-			class="mt-6 rounded-full bg-foreground px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.2em] text-background"
-		>
-			Retry
-		</button>
-	</section>
 {/if}
 
 <style>

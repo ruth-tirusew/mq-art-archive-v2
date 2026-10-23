@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import { ConfirmDialog, createConfirm, toast } from '$ui';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -18,9 +18,9 @@
   let { data } = $props();
   let event = $state(data.event);
   let notes = $state('');
+  const confirm = createConfirm();
   let saving = $state(false);
   let errorMessage = $state('');
-  let message = $state('');
 
   function toLocalInput(iso?: string | null) {
     if (!iso) return '';
@@ -59,7 +59,6 @@
     ev.preventDefault();
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyEvent(
         await eventsService.update(event.id, {
@@ -75,7 +74,7 @@
           status
         })
       );
-      message = 'Event saved.';
+      toast.success('Event saved.');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Save failed';
     } finally {
@@ -83,13 +82,33 @@
     }
   }
 
+  function askReview(reviewStatus: 'approved' | 'rejected') {
+    if (reviewStatus === 'approved') {
+      confirm.ask({
+        title: 'Approve this event?',
+        description: 'It appears on the public events calendar.',
+        confirmLabel: 'Approve',
+        run: () => review(reviewStatus)
+      });
+    } else {
+      confirm.ask({
+        title: 'Reject this event?',
+        description: notes.trim()
+          ? 'It stays off the public calendar. Your review note is saved with it.'
+          : 'It stays off the public calendar. You have not added a review note.',
+        confirmLabel: 'Reject',
+        destructive: true,
+        run: () => review(reviewStatus)
+      });
+    }
+  }
+
   async function review(reviewStatus: 'approved' | 'rejected') {
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyEvent(await eventsService.review(event.id, reviewStatus, notes));
-      message = `Marked ${reviewStatus}.`;
+      toast.success(`Event ${reviewStatus}.`);
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Review failed';
     } finally {
@@ -139,18 +158,17 @@
         <Textarea id="notes" bind:value={notes} placeholder="Optional review notes" />
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button class="disabled:opacity-100" disabled={saving || event.status === 'approved'} onclick={() => review('approved')}>
+        <Button class="disabled:opacity-100" disabled={saving || event.status === 'approved'} onclick={() => askReview('approved')}>
           {event.status === 'approved' ? 'Approved' : 'Approve'}
         </Button>
         <Button
           variant="secondary"
           disabled={saving || event.status === 'rejected'}
-          onclick={() => review('rejected')}
+          onclick={() => askReview('rejected')}
         >
           {event.status === 'rejected' ? 'Rejected' : 'Reject'}
         </Button>
       </div>
-      {#if message}<Alert>{message}</Alert>{/if}
       {#if errorMessage}<Alert variant="destructive">{errorMessage}</Alert>{/if}
       <div class="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
         <p class="text-xs text-muted-foreground">Deleting an event cannot be undone.</p>
@@ -230,3 +248,4 @@
   busy={saving}
   onconfirm={remove}
 />
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

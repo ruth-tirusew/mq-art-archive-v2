@@ -1,6 +1,18 @@
 {
 	"compilerOptions": {
 		"paths": {
+			"$ui": [
+				"../../../packages/ui/src"
+			],
+			"$ui/*": [
+				"../../../packages/ui/src/*"
+			],
+			"svelte/elements": [
+				"../node_modules/svelte/elements"
+			],
+			"svelte/elements/*": [
+				"../node_modules/svelte/elements/*"
+			],
 			"$lib": [
 				"../src/lib"
 			],

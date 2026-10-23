@@ -4,7 +4,7 @@
   import { currentUser } from '$lib/application/auth';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
-  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import { ConfirmDialog } from '$ui';
   import { Alert } from '$lib/components/ui/alert';
   import { Badge } from '$lib/components/ui/badge';
   import { Skeleton } from '$lib/components/ui/skeleton';

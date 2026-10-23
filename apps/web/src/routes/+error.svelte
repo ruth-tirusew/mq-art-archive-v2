@@ -1,15 +1,18 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
+	import { Button, ErrorState } from '$ui';
+
+	// Only surface the server's message for client errors; 5xx text is not user-facing.
+	const message = $derived(page.status < 500 ? page.error?.message : undefined);
 </script>
 
-<div class="mx-auto max-w-2xl px-6 py-32 text-center">
-	<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">Not found</p>
-	<h1 class="mt-4 font-display text-5xl text-foreground">{$page.status}</h1>
-	<p class="mt-4 text-muted-foreground">{$page.error?.message}</p>
-	<a
-		href="/"
-		class="mt-8 inline-block font-mono text-[11px] uppercase tracking-[0.2em] text-foreground underline decoration-accent underline-offset-8"
-	>
-		Back home
-	</a>
+<svelte:head>
+	<title>{page.status === 404 ? 'Not found' : 'Something went wrong'} — Artiv</title>
+</svelte:head>
+
+<div class="container-page py-24 md:py-32">
+	<div class="mx-auto flex max-w-2xl flex-col gap-6">
+		<ErrorState status={page.status} {message} />
+		<div><Button variant="link" href="/">Back home →</Button></div>
+	</div>
 </div>

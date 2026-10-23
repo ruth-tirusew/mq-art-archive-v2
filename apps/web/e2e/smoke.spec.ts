@@ -28,7 +28,7 @@ test.describe('@smoke wiki', () => {
 		await expect(
 			page
 				.getByRole('heading', { name: /handbook for working as an artist/i })
-				.or(page.getByRole('heading', { name: /wiki temporarily unavailable/i }))
+				.or(page.getByRole('heading', { name: /can.t reach the archive/i }))
 		).toBeVisible();
 	});
 });

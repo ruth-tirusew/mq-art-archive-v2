@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import EmptySectionPrompt from '$lib/components/home/EmptySectionPrompt.svelte';
 	import type { Article } from '$lib/core/domain/content';
+	import { ErrorState } from '$ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -98,17 +99,7 @@
 
 <section class="mx-auto max-w-[1600px] px-6 py-14 md:px-10 md:py-16">
 	{#if data.error}
-		<div class="rounded-sm border border-border bg-card/40 px-6 py-12 text-center">
-			<h2 class="font-display text-2xl text-foreground">Wiki temporarily unavailable</h2>
-			<p class="mt-3 text-sm text-muted-foreground">We couldn't load the handbook from the API.</p>
-			<button
-				type="button"
-				onclick={() => location.reload()}
-				class="mt-6 rounded-full bg-foreground px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.2em] text-background"
-			>
-				Retry
-			</button>
-		</div>
+		<ErrorState status={503} message="We couldn't load the handbook. Your connection is fine; the archive isn't answering." />
 	{:else if data.articles.length > 0}
 		<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{#each data.articles as a}

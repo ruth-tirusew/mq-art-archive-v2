@@ -2,7 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { ApiError } from '$lib/adapters/api/client';
 
 /**
- * Run an admin loader, sending unauthenticated/forbidden responses to the login page.
+ * Run an admin loader: 401/403 redirect to login, 404 is a real 404, anything else is a retryable 503. Sending unauthenticated/forbidden responses to the login page.
  * Any other failure (the API being unreachable, a 500 from the server, etc.) is turned
  * into a clean SvelteKit error() instead of an uncaught exception — a raw network
  * failure isn't an ApiError instance, so it used to bypass this guard entirely and
@@ -16,7 +16,9 @@ export async function requireAdmin<T>(load: () => Promise<T>): Promise<T> {
       if (err.status === 401 || err.status === 403) {
         redirect(302, '/login');
       }
-      error(err.status, err.message);
+      // 404 and other 4xx carry a useful message; 5xx text is not user-facing.
+      if (err.status >= 500) error(503, 'The API is having trouble. Try again in a moment.');
+      error(err.status, err.status === 404 ? 'We could not find that record.' : err.message);
     }
     error(503, 'Could not reach the API. Make sure the backend is running.');
   }

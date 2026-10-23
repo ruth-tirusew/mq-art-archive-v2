@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ConfirmDialog, createConfirm, toast } from '$ui';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { Skeleton } from '$lib/components/ui/skeleton';
   import { goto } from '$app/navigation';
@@ -25,9 +26,9 @@
   let excerpt = $state(data.article.excerpt ?? '');
   let difficulty = $state(data.article.difficulty ?? 'Beginner');
   let verified = $state(!!data.article.verified);
+  const confirm = createConfirm();
   let saving = $state(false);
   let errorMessage = $state('');
-  let message = $state('');
 
   let revisions = $state<ArticleRevision[]>([]);
   let revisionsLoading = $state(false);
@@ -74,25 +75,27 @@
     }
   }
 
+  function askRestore() {
+    if (selectedVersion == null) return;
+    confirm.ask({
+      title: `Restore version ${selectedVersion}?`,
+      description: 'Current content is saved as a new revision first, so nothing is lost.',
+      confirmLabel: 'Restore',
+      run: restoreSelected
+    });
+  }
+
   async function restoreSelected() {
     if (selectedVersion == null) return;
-    if (
-      !confirm(
-        `Restore version ${selectedVersion}? Current content will be saved as a new revision first.`
-      )
-    ) {
-      return;
-    }
     restoring = true;
     errorMessage = '';
-    message = '';
     try {
       const restoredFrom = selectedVersion;
       applyArticle(await articlesService.restoreRevision(article.id, selectedVersion));
       selectedVersion = null;
       preview = null;
       await loadRevisions();
-      message = `Restored from v${restoredFrom}. Now at version ${article.version}.`;
+      toast.success(`Restored from v${restoredFrom}. Now at version ${article.version}.`);
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Restore failed';
     } finally {
@@ -116,7 +119,6 @@
     event.preventDefault();
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyArticle(
         await articlesService.update(article.id, {
@@ -129,7 +131,7 @@
         })
       );
       await loadRevisions();
-      message = 'Article saved.';
+      toast.success('Article saved.');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Save failed';
     } finally {
@@ -137,13 +139,21 @@
     }
   }
 
+  function askStatus(status: ArticleStatus) {
+    const copy = {
+      published: { title: 'Publish this article?', description: 'It goes live on the public wiki immediately.', confirmLabel: 'Publish', destructive: false },
+      draft: { title: 'Unpublish this article?', description: 'It disappears from the public wiki until you publish it again.', confirmLabel: 'Unpublish', destructive: true },
+      archived: { title: 'Archive this article?', description: 'It is removed from the public wiki and hidden from lists.', confirmLabel: 'Archive', destructive: true }
+    } as Record<string, { title: string; description: string; confirmLabel: string; destructive: boolean }>;
+    confirm.ask({ ...copy[status], run: () => setStatus(status) });
+  }
+
   async function setStatus(status: ArticleStatus) {
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyArticle(await articlesService.patch(article.id, { status }));
-      message = `Status set to ${status}.`;
+      toast.success(status === 'published' ? 'Published to the public wiki.' : `Status set to ${status}.`);
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Update failed';
     } finally {
@@ -154,12 +164,11 @@
   async function toggleVerified() {
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       const next = !article.verified;
       applyArticle(await articlesService.patch(article.id, { verified: next }));
       verified = article.verified ?? next;
-      message = verified ? 'Marked verified.' : 'Unverified.';
+      toast.success(verified ? 'Marked verified.' : 'Unverified.');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Update failed';
     } finally {
@@ -229,17 +238,17 @@
 
         <div class="flex flex-wrap gap-2">
           <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</Button>
-          <Button type="button" disabled={saving} onclick={() => setStatus('published')}>
+          <Button type="button" disabled={saving} onclick={() => askStatus('published')}>
             Publish
           </Button>
-          <Button type="button" variant="secondary" disabled={saving} onclick={() => setStatus('draft')}>
+          <Button type="button" variant="secondary" disabled={saving} onclick={() => askStatus('draft')}>
             Draft
           </Button>
           <Button
             type="button"
             variant="secondary"
             disabled={saving}
-            onclick={() => setStatus('archived')}
+            onclick={() => askStatus('archived')}
           >
             Archive
           </Button>
@@ -249,7 +258,6 @@
         </div>
       </form>
 
-      {#if message}<Alert>{message}</Alert>{/if}
       {#if errorMessage}<Alert variant="destructive">{errorMessage}</Alert>{/if}
 
       <Button variant="ghost" onclick={() => goto('/wiki')}>Back to list</Button>
@@ -306,7 +314,7 @@
             variant="secondary"
             size="sm"
             disabled={restoring || saving}
-            onclick={restoreSelected}
+            onclick={askRestore}
           >
             {restoring ? 'Restoring…' : `Restore v${preview.version}`}
           </Button>
@@ -315,3 +323,5 @@
     </CardContent>
   </Card>
 </div>
+
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

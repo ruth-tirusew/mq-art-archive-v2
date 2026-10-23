@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ConfirmDialog, createConfirm, toast } from '$ui';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -12,6 +13,7 @@
 
   let { data } = $props();
 
+  const confirm = createConfirm();
   let notes = $state('');
   let submitting = $state(false);
   let errorMessage = $state('');
@@ -27,15 +29,36 @@
     });
   }
 
-  async function review(status: 'approved' | 'rejected') {
+  function askReview(status: 'approved' | 'rejected') {
     errorMessage = '';
     if (status === 'rejected' && !notes.trim()) {
       errorMessage = 'Add a reason before rejecting. The applicant will see it.';
       return;
     }
+    confirm.ask(
+      status === 'approved'
+        ? {
+            title: 'Approve this application?',
+            description: 'The applicant is notified of the decision and gets access to the studio.',
+            confirmLabel: 'Approve',
+            run: () => review(status)
+          }
+        : {
+            title: 'Reject this application?',
+            description: 'The applicant is notified and sees your note.',
+            confirmLabel: 'Reject',
+            destructive: true,
+            run: () => review(status)
+          }
+    );
+  }
+
+  async function review(status: 'approved' | 'rejected') {
+    errorMessage = '';
     submitting = true;
     try {
       await onboardingService.review(data.application.id, status, notes);
+      toast.success(status === 'approved' ? 'Application approved.' : 'Application rejected.');
       await goto('/applications');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Review failed';
@@ -118,8 +141,8 @@
       </div>
 
       <div class="flex flex-wrap gap-3">
-        <Button disabled={submitting} onclick={() => review('approved')}>Approve</Button>
-        <Button variant="destructive" disabled={submitting} onclick={() => review('rejected')}>Reject</Button>
+        <Button disabled={submitting} onclick={() => askReview('approved')}>Approve</Button>
+        <Button variant="destructive" disabled={submitting} onclick={() => askReview('rejected')}>Reject</Button>
       </div>
     {/if}
 
@@ -128,3 +151,4 @@
     {/if}
   </CardContent>
 </Card>
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

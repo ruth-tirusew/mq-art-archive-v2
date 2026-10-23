@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import { ConfirmDialog, createConfirm, toast } from '$ui';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -20,9 +20,9 @@
 
   let { data } = $props();
   let artist = $state(data.artist);
+  const confirm = createConfirm();
   let saving = $state(false);
   let errorMessage = $state('');
-  let message = $state('');
 
   let displayName = $state(data.artist.display_name);
   let handle = $state(data.artist.handle ?? '');
@@ -53,7 +53,6 @@
     event.preventDefault();
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyArtist(
         await artistsService.update(artist.id, {
@@ -68,7 +67,7 @@
           social: { instagram }
         })
       );
-      message = 'Profile saved.';
+      toast.success('Profile saved.');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Save failed';
     } finally {
@@ -76,13 +75,31 @@
     }
   }
 
+  function askStatus(status: ProfileStatus) {
+    if (status === 'approved') {
+      confirm.ask({
+        title: 'Publish this profile?',
+        description: 'The artist page goes live on the public site.',
+        confirmLabel: 'Publish',
+        run: () => setStatus(status)
+      });
+    } else {
+      confirm.ask({
+        title: 'Unpublish this profile?',
+        description: 'The public artist page is hidden until you publish it again.',
+        confirmLabel: 'Unpublish',
+        destructive: true,
+        run: () => setStatus(status)
+      });
+    }
+  }
+
   async function setStatus(status: ProfileStatus) {
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyArtist(await artistsService.patch(artist.id, { status }));
-      message = `Status set to ${status}.`;
+      toast.success(status === 'approved' ? 'Profile published.' : `Status set to ${status}.`);
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Update failed';
     } finally {
@@ -93,10 +110,9 @@
   async function toggleFeatured() {
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyArtist(await artistsService.patch(artist.id, { featured: !artist.featured }));
-      message = artist.featured ? 'Featured.' : 'Unfeatured.';
+      toast.success(artist.featured ? 'Featured on the home page.' : 'Removed from the home page.');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Update failed';
     } finally {
@@ -173,7 +189,7 @@
           variant={artist.status === 'draft' ? 'default' : 'secondary'}
           class="disabled:opacity-100"
           disabled={saving || artist.status === 'draft'}
-          onclick={() => setStatus('draft')}>Draft</Button
+          onclick={() => askStatus('draft')}>Draft</Button
         >
         {#if artist.status === 'pending'}
           <Button variant="default" class="disabled:opacity-100" disabled>Pending</Button>
@@ -182,7 +198,7 @@
           variant={artist.status === 'approved' ? 'default' : 'secondary'}
           class="disabled:opacity-100"
           disabled={saving || artist.status === 'approved'}
-          onclick={() => setStatus('approved')}>Published</Button
+          onclick={() => askStatus('approved')}>Published</Button
         >
         <span class="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true"></span>
         <Button variant="outline" disabled={saving} onclick={() => toggleFeatured()}>
@@ -190,7 +206,6 @@
         </Button>
       </div>
 
-      {#if message}<Alert>{message}</Alert>{/if}
       {#if errorMessage}<Alert variant="destructive">{errorMessage}</Alert>{/if}
 
       <div class="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
@@ -269,3 +284,4 @@
   busy={saving}
   onconfirm={remove}
 />
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

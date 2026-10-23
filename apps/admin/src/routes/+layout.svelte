@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authService, currentUser } from '$lib/application/auth';
+  import { ErrorBoundary, NavProgress, Toaster } from '$ui';
   import AdminSidebar from '$lib/components/AdminSidebar.svelte';
   import { SidebarProvider, SidebarTrigger } from '$lib/components/ui/sidebar';
   import LayoutDashboard from 'lucide-svelte/icons/layout-dashboard';
@@ -252,6 +253,9 @@
   />
 </svelte:head>
 
+<NavProgress />
+<Toaster />
+
 {#if isAuthRoute}
   <div class="min-h-screen bg-background">
     {@render children()}
@@ -289,7 +293,9 @@
 
       <!-- Main content -->
       <main class="page-enter min-h-0 flex-1 overflow-y-auto px-6 py-8 md:px-8 lg:px-10">
-        {@render children()}
+        <ErrorBoundary>
+          {@render children()}
+        </ErrorBoundary>
       </main>
     </div>
   </SidebarProvider>

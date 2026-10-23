@@ -1,4 +1,5 @@
 import { artPostService } from '$lib/application/artPosts';
+import { guardLoad } from '$lib/utils/loadGuard';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ url }) => {
@@ -8,15 +9,16 @@ export const load: PageLoad = async ({ url }) => {
 	const yearRaw = url.searchParams.get('year');
 	const year = yearRaw ? Number(yearRaw) : undefined;
 
-	const posts = await artPostService
-		.list({
+	// A failed load must not read as "no works match": let it reach the error page with a retry.
+	const posts = await guardLoad(() =>
+		artPostService.list({
 			city,
 			medium,
 			style,
 			year: Number.isFinite(year) ? year : undefined,
 			limit: 48
 		})
-		.catch(() => []);
+	);
 
 	const cities = [...new Set(posts.map((p) => p.city).filter(Boolean))].sort() as string[];
 	const mediums = [...new Set(posts.map((p) => p.medium).filter(Boolean))].sort() as string[];

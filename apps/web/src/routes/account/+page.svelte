@@ -1,22 +1,21 @@
 <script lang="ts">
 	import Skeleton from '$lib/components/Skeleton.svelte';
+	import { Alert, Button, Checkbox, Field, Input, PageHeader, toast } from '$ui';
 	import { authService, currentUser } from '$lib/application/auth';
 	import type { NotificationPreferences } from '$lib/core/domain/auth';
 
 	let displayName = $state($currentUser?.display_name ?? '');
 	let avatarUrl = $state($currentUser?.avatar_url ?? '');
 	let profileSaving = $state(false);
-	let profileMessage = $state('');
 	let profileError = $state('');
 
 	async function saveProfile(event: Event) {
 		event.preventDefault();
 		profileSaving = true;
-		profileMessage = '';
 		profileError = '';
 		try {
 			await authService.updateProfile(displayName.trim(), avatarUrl.trim());
-			profileMessage = 'Profile updated.';
+			toast.success('Profile updated.');
 		} catch (e) {
 			profileError = e instanceof Error ? e.message : 'Could not update profile';
 		} finally {
@@ -27,18 +26,16 @@
 	let email = $state($currentUser?.email ?? '');
 	let emailCurrentPassword = $state('');
 	let emailSaving = $state(false);
-	let emailMessage = $state('');
 	let emailError = $state('');
 
 	async function saveEmail(event: Event) {
 		event.preventDefault();
 		emailSaving = true;
-		emailMessage = '';
 		emailError = '';
 		try {
 			await authService.changeEmail(email.trim(), emailCurrentPassword);
 			emailCurrentPassword = '';
-			emailMessage = 'Email updated.';
+			toast.success('Email updated.');
 		} catch (e) {
 			emailError = e instanceof Error ? e.message : 'Could not update email';
 		} finally {
@@ -49,19 +46,17 @@
 	let currentPassword = $state('');
 	let newPassword = $state('');
 	let passwordSaving = $state(false);
-	let passwordMessage = $state('');
 	let passwordError = $state('');
 
 	async function savePassword(event: Event) {
 		event.preventDefault();
 		passwordSaving = true;
-		passwordMessage = '';
 		passwordError = '';
 		try {
 			await authService.changePassword(currentPassword, newPassword);
 			currentPassword = '';
 			newPassword = '';
-			passwordMessage = 'Password updated.';
+			toast.success('Password updated.');
 		} catch (e) {
 			passwordError = e instanceof Error ? e.message : 'Could not update password';
 		} finally {
@@ -71,26 +66,29 @@
 
 	let notifications = $state<NotificationPreferences | null>(null);
 	let notificationsLoading = $state(true);
+	let notificationsLoadError = $state(false);
 	let notificationsSaving = $state(false);
-	let notificationsMessage = $state('');
 	let notificationsError = $state('');
 
-	$effect(() => {
+	function loadNotifications() {
+		notificationsLoading = true;
+		notificationsLoadError = false;
 		authService
 			.getNotifications()
 			.then((prefs) => (notifications = prefs))
-			.catch(() => {})
+			.catch(() => (notificationsLoadError = true))
 			.finally(() => (notificationsLoading = false));
-	});
+	}
+
+	$effect(loadNotifications);
 
 	async function saveNotifications() {
 		if (!notifications) return;
 		notificationsSaving = true;
-		notificationsMessage = '';
 		notificationsError = '';
 		try {
 			notifications = await authService.updateNotifications(notifications);
-			notificationsMessage = 'Preferences saved.';
+			toast.success('Preferences saved.');
 		} catch (e) {
 			notificationsError = e instanceof Error ? e.message : 'Could not save preferences';
 		} finally {
@@ -102,142 +100,84 @@
 <svelte:head><title>Profile settings — Artiv</title></svelte:head>
 
 <section class="mx-auto max-w-3xl space-y-14 px-6 py-14 md:px-10 md:py-20">
-	<div>
-		<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">Account</p>
-		<h1 class="mt-4 font-display text-4xl text-foreground">Profile settings</h1>
+	<PageHeader eyebrow="Account">Profile <em class="italic">settings</em></PageHeader>
+
+	<form class="space-y-5" onsubmit={saveProfile}>
+		<h2 class="t-h3">Public profile</h2>
+		<Field label="Display name">
+			{#snippet children({ id })}<Input {id} bind:value={displayName} placeholder="Your name" autocomplete="name" />{/snippet}
+		</Field>
+		<Field label="Avatar URL" hint="A link to an image. Square images work best.">
+			{#snippet children({ id, describedby })}
+				<Input {id} aria-describedby={describedby} type="url" bind:value={avatarUrl} placeholder="https://…" />
+			{/snippet}
+		</Field>
+		{#if profileError}<Alert tone="error">{profileError}</Alert>{/if}
+		<Button type="submit" loading={profileSaving}>{profileSaving ? 'Saving…' : 'Save profile'}</Button>
+	</form>
+
+	<form class="space-y-5 border-t border-border/60 pt-10" onsubmit={saveEmail}>
+		<h2 class="t-h3">Email address</h2>
+		<Field label="Email" required>
+			{#snippet children({ id, required })}<Input {id} {required} type="email" autocomplete="email" bind:value={email} />{/snippet}
+		</Field>
+		<Field label="Confirm with your password" required>
+			{#snippet children({ id, required })}
+				<Input {id} {required} type="password" autocomplete="current-password" bind:value={emailCurrentPassword} />
+			{/snippet}
+		</Field>
+		{#if emailError}<Alert tone="error">{emailError}</Alert>{/if}
+		<Button type="submit" loading={emailSaving}>{emailSaving ? 'Saving…' : 'Update email'}</Button>
+	</form>
+
+	<div class="space-y-5 border-t border-border/60 pt-10">
+		<h2 class="t-h3">Password</h2>
+		{#if $currentUser?.has_password}
+			<form class="space-y-5" onsubmit={savePassword}>
+				<Field label="Current password" required>
+					{#snippet children({ id, required })}
+						<Input {id} {required} type="password" autocomplete="current-password" bind:value={currentPassword} />
+					{/snippet}
+				</Field>
+				<Field label="New password" required hint="At least 8 characters.">
+					{#snippet children({ id, describedby, required })}
+						<Input {id} {required} aria-describedby={describedby} type="password" minlength={8} autocomplete="new-password" bind:value={newPassword} />
+					{/snippet}
+				</Field>
+				{#if passwordError}<Alert tone="error">{passwordError}</Alert>{/if}
+				<Button type="submit" loading={passwordSaving}>{passwordSaving ? 'Saving…' : 'Update password'}</Button>
+			</form>
+		{:else}
+			<p class="t-body text-muted-foreground">
+				You sign in with Google, so there is no password on this account to change.
+			</p>
+		{/if}
 	</div>
 
-	<form class="space-y-4" onsubmit={saveProfile}>
-		<h2 class="font-display text-xl text-foreground">Public profile</h2>
-		<div>
-			<label for="display-name" class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-				Display name
-			</label>
-			<input id="display-name" class="field" bind:value={displayName} placeholder="Your name" />
-		</div>
-		<div>
-			<label for="avatar-url" class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-				Avatar URL
-			</label>
-			<input id="avatar-url" class="field" bind:value={avatarUrl} placeholder="https://…" />
-		</div>
-		{#if profileMessage}<p class="text-sm text-accent">{profileMessage}</p>{/if}
-		{#if profileError}<p class="text-sm text-destructive" role="alert">{profileError}</p>{/if}
-		<button
-			type="submit"
-			disabled={profileSaving}
-			class="rounded-sm bg-foreground px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-background disabled:opacity-50"
-		>
-			{profileSaving ? 'Saving…' : 'Save profile'}
-		</button>
-	</form>
-
-	<form class="space-y-4 border-t border-border/60 pt-10" onsubmit={saveEmail}>
-		<h2 class="font-display text-xl text-foreground">Email address</h2>
-		<div>
-			<label for="email" class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-				Email
-			</label>
-			<input id="email" type="email" class="field" bind:value={email} required />
-		</div>
-		<div>
-			<label
-				for="email-current-password"
-				class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground"
-			>
-				Confirm with your password
-			</label>
-			<input
-				id="email-current-password"
-				type="password"
-				class="field"
-				bind:value={emailCurrentPassword}
-				required
-			/>
-		</div>
-		{#if emailMessage}<p class="text-sm text-accent">{emailMessage}</p>{/if}
-		{#if emailError}<p class="text-sm text-destructive" role="alert">{emailError}</p>{/if}
-		<button
-			type="submit"
-			disabled={emailSaving}
-			class="rounded-sm bg-foreground px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-background disabled:opacity-50"
-		>
-			{emailSaving ? 'Saving…' : 'Update email'}
-		</button>
-	</form>
-
-	{#if $currentUser?.has_password}
-		<form class="space-y-4 border-t border-border/60 pt-10" onsubmit={savePassword}>
-			<h2 class="font-display text-xl text-foreground">Password</h2>
-			<div>
-				<label
-					for="current-password"
-					class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground"
-				>
-					Current password
-				</label>
-				<input id="current-password" type="password" class="field" bind:value={currentPassword} required />
-			</div>
-			<div>
-				<label for="new-password" class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-					New password
-				</label>
-				<input id="new-password" type="password" minlength="8" class="field" bind:value={newPassword} required />
-			</div>
-			{#if passwordMessage}<p class="text-sm text-accent">{passwordMessage}</p>{/if}
-			{#if passwordError}<p class="text-sm text-destructive" role="alert">{passwordError}</p>{/if}
-			<button
-				type="submit"
-				disabled={passwordSaving}
-				class="rounded-sm bg-foreground px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-background disabled:opacity-50"
-			>
-				{passwordSaving ? 'Saving…' : 'Update password'}
-			</button>
-		</form>
-	{/if}
-
-	<div class="space-y-4 border-t border-border/60 pt-10">
-		<h2 class="font-display text-xl text-foreground">Notifications</h2>
+	<div class="space-y-5 border-t border-border/60 pt-10">
+		<h2 class="t-h3">Notifications</h2>
 		{#if notificationsLoading}
 			<div class="space-y-3" role="status" aria-live="polite">
 				<span class="sr-only">Loading notification settings</span>
 				<Skeleton class="h-5 w-3/4" />
 				<Skeleton class="h-5 w-2/3" />
 			</div>
+		{:else if notificationsLoadError}
+			<Alert tone="error" title="Couldn’t load your preferences">
+				<div class="flex flex-wrap items-center gap-4">
+					<span>Your saved settings are unchanged.</span>
+					<Button variant="secondary" size="sm" onclick={loadNotifications}>Try again</Button>
+				</div>
+			</Alert>
 		{:else if notifications}
-			<label class="flex items-center gap-3 text-sm text-foreground">
-				<input type="checkbox" bind:checked={notifications.newsletter_enabled} />
+			<Checkbox bind:checked={notifications.newsletter_enabled}>
 				Weekly digest — events, art, and articles by email and Telegram
-			</label>
-			<label class="flex items-center gap-3 text-sm text-foreground">
-				<input type="checkbox" bind:checked={notifications.email_on_new_application} />
-				Email me about my application status
-			</label>
-			{#if notificationsMessage}<p class="text-sm text-accent">{notificationsMessage}</p>{/if}
-			{#if notificationsError}<p class="text-sm text-destructive" role="alert">{notificationsError}</p>{/if}
-			<button
-				type="button"
-				disabled={notificationsSaving}
-				onclick={saveNotifications}
-				class="rounded-sm bg-foreground px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-background disabled:opacity-50"
-			>
+			</Checkbox>
+			<Checkbox bind:checked={notifications.email_on_new_application}>Email me about my application status</Checkbox>
+			{#if notificationsError}<Alert tone="error">{notificationsError}</Alert>{/if}
+			<Button loading={notificationsSaving} onclick={saveNotifications}>
 				{notificationsSaving ? 'Saving…' : 'Save preferences'}
-			</button>
+			</Button>
 		{/if}
 	</div>
 </section>
-
-<style>
-	.field {
-		width: 100%;
-		border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-		background: color-mix(in oklab, var(--card) 30%, transparent);
-		padding: 0.75rem 1rem;
-		font-size: 0.875rem;
-		color: var(--foreground);
-	}
-	.field:focus {
-		outline: 2px solid color-mix(in oklab, var(--accent) 50%, transparent);
-		outline-offset: 2px;
-	}
-</style>

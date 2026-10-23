@@ -5,6 +5,7 @@ export { toast } from './components/toast.svelte';
 export { default as Alert } from './components/Alert.svelte';
 export { default as Badge } from './components/Badge.svelte';
 export { default as Button } from './components/Button.svelte';
+export { default as Checkbox } from './components/Checkbox.svelte';
 export { default as Card } from './components/Card.svelte';
 export { default as ConfirmDialog } from './components/ConfirmDialog.svelte';
 export { default as ErrorBoundary } from './components/ErrorBoundary.svelte';

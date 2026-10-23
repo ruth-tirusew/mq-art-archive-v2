@@ -3,6 +3,7 @@
   import { goto } from "$app/navigation";
   import { onboardingService } from "$lib/application/onboarding";
   import { ApiError } from "$lib/adapters/api/client";
+  import { Alert, Button, Field, Input, PageHeader, Textarea } from "$ui";
 
   // Institutions are not onboarded through this form for now.
   const applicantType = "artist" as const;
@@ -20,6 +21,8 @@
   let submitting = $state(false);
   let error = $state("");
   let reapplying = $state(false);
+  let priorCheckFailed = $state(false);
+  let attempted = $state(false);
   let handleTimer: ReturnType<typeof setTimeout> | undefined;
 
   const normalizedHandle = $derived(requestedHandle.trim().toLowerCase());
@@ -84,10 +87,35 @@
         about = previous.notes ?? "";
         reapplying = true;
       }
-    } catch {
-      // No earlier application — start fresh.
+    } catch (e) {
+      // 404 means no earlier application: start fresh. Anything else we can still recover from,
+      // but say so instead of silently pretending there is no history.
+      if (!(e instanceof ApiError && e.status === 404)) priorCheckFailed = true;
     }
   });
+
+  const nameError = $derived(attempted && !displayName.trim() ? "Tell us the name to show on your profile." : undefined);
+  const handleError = $derived.by(() => {
+    if (normalizedHandle && !validHandle) return "Use 3–30 lowercase letters, numbers, or underscores.";
+    if (handleAvailable === false) return `@${normalizedHandle} is already taken. Try adding your surname or a number.`;
+    if (attempted && !normalizedHandle) return "Choose a profile address.";
+    return undefined;
+  });
+  const handleHint = $derived.by(() => {
+    if (checkingHandle) return "Checking availability…";
+    if (handleAvailable === true) return `artiv/@${normalizedHandle} is available.`;
+    if (handleCheckFailed) return "We couldn't check availability right now. You can continue; we'll confirm it on submit.";
+    return `Your shareable link will look like artiv/@${normalizedHandle || "yourname"}. You can change it later in your studio.`;
+  });
+  const workError = $derived(attempted && !hasWork ? "Add at least one link, or a few lines about your work." : undefined);
+
+  function next() {
+    attempted = true;
+    if (step === 1 && !step1Ok) return;
+    if (step === 2 && !hasWork) return;
+    attempted = false;
+    step += 1;
+  }
 
   async function submit() {
     submitting = true;
@@ -118,20 +146,20 @@
 </svelte:head>
 
 <section class="mx-auto max-w-2xl px-6 py-16 md:px-10 md:py-24">
-  <p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">
-    Artist application
-  </p>
-  <h1 class="mt-4 font-display text-4xl text-foreground">
-    {reapplying ? "Apply again" : "Join Artiv as an artist"}
-  </h1>
-  <p class="mt-4 text-sm leading-relaxed text-muted-foreground">
-    Artiv is a home for Ethiopian artists to share their work. Tell us a little
-    about you, and our team will take a look — usually within a few days.
-    You'll get an email when there's a decision, and once approved you can set
-    up your public profile and publish right away.
-  </p>
+  <PageHeader
+    eyebrow="Artist application"
+    lead="Artiv is a home for Ethiopian artists to share their work. Tell us a little about you, and our team will take a look — usually within a few days. You'll get an email when there's a decision, and once approved you can set up your public profile and publish right away."
+  >
+    {#if reapplying}Apply <em class="italic">again</em>{:else}Join Artiv as an <em class="italic">artist</em>{/if}
+  </PageHeader>
 
-  <ol class="mt-8 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em]">
+  {#if priorCheckFailed}
+    <Alert tone="warning" class="mt-6">
+      We couldn't check for an earlier application. You can still apply; if you already have one, we'll tell you on submit.
+    </Alert>
+  {/if}
+
+  <ol class="t-eyebrow mt-8 flex items-center gap-3 !text-[10px]" aria-label="Progress">
     {#each ["About you", "Your work", "Review"] as label, i}
       <li class="flex items-center gap-3">
         <span
@@ -151,175 +179,83 @@
   </ol>
 
   <form
-    class="mt-10 space-y-5"
+    class="mt-10 space-y-6"
+    novalidate
     onsubmit={(e) => {
       e.preventDefault();
-      if (step < 3) step += 1;
+      if (step < 3) next();
       else void submit();
     }}
   >
     {#if step === 1}
-      <div>
-        <label class="label" for="display_name">Your artist name</label>
-        <input
-          id="display_name"
-          class="field"
-          bind:value={displayName}
-          autocomplete="name"
-          required
-        />
-        <p class="hint">The name shown on your profile. It can be a studio or stage name.</p>
-      </div>
-      <div>
-        <label class="label" for="requested_handle">Choose your profile address</label>
-        <div class="relative">
-          <span
-            class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
-          >
-            @
-          </span>
-          <input
-            id="requested_handle"
-            class="field handle-field {handleAvailable === false ||
-            (normalizedHandle && !validHandle)
-              ? 'border-destructive'
-              : ''}"
-            bind:value={requestedHandle}
-            pattern={"[a-z0-9_]{3,30}"}
-            minlength="3"
-            maxlength="30"
-            required
-            autocomplete="off"
-            aria-describedby="handle-status"
-          />
-        </div>
-        <p
-          id="handle-status"
-          class="hint"
-          class:text-destructive={handleAvailable === false ||
-            (normalizedHandle && !validHandle)}
-        >
-          {#if normalizedHandle && !validHandle}
-            Use 3–30 lowercase letters, numbers, or underscores.
-          {:else if checkingHandle}
-            Checking availability…
-          {:else if handleAvailable === true}
-            artiv/@{normalizedHandle} is available.
-          {:else if handleAvailable === false}
-            @{normalizedHandle} is already taken. Try adding your surname or a number.
-          {:else if handleCheckFailed}
-            We couldn't check availability right now. You can continue; we'll confirm it on submit.
-          {:else}
-            Your shareable link will look like artiv/@{normalizedHandle || "yourname"}. You can change it later in your studio.
-          {/if}
-        </p>
-      </div>
+      <Field label="Your artist name" required error={nameError} hint="The name shown on your profile. It can be a studio or stage name.">
+        {#snippet children({ id, describedby, invalid, required })}
+          <Input {id} {required} {invalid} aria-describedby={describedby} bind:value={displayName} autocomplete="name" />
+        {/snippet}
+      </Field>
+      <Field label="Choose your profile address" required error={handleError} hint={handleHint}>
+        {#snippet children({ id, describedby, invalid, required })}
+          <div class="relative">
+            <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground" aria-hidden="true">@</span>
+            <Input
+              {id}
+              {required}
+              {invalid}
+              aria-describedby={describedby}
+              class="pl-8"
+              bind:value={requestedHandle}
+              maxlength={30}
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck={false}
+            />
+          </div>
+        {/snippet}
+      </Field>
     {:else if step === 2}
-      <p class="text-sm text-muted-foreground">
-        Help us see your work. Add at least one of the options below — a link to
-        where your art lives is the quickest way to get approved.
+      <p class="t-body text-muted-foreground">
+        Help us see your work. Add at least one of the options below — a link to where your art lives is the quickest way to get approved.
       </p>
-      <div>
-        <label class="label" for="instagram">Instagram</label>
-        <input id="instagram" class="field" placeholder="@yourhandle or link" bind:value={instagram} />
-      </div>
-      <div>
-        <label class="label" for="website">Website or portfolio</label>
-        <input id="website" class="field" placeholder="https://" bind:value={website} />
-      </div>
-      <div>
-        <label class="label" for="telegram">Telegram</label>
-        <input id="telegram" class="field" placeholder="@channel or link" bind:value={telegram} />
-      </div>
-      <div>
-        <label class="label" for="about">Tell us about your practice</label>
-        <textarea
-          id="about"
-          class="field min-h-28"
-          placeholder="What do you make? How long have you been at it?"
-          bind:value={about}
-        ></textarea>
-        <p class="hint">Only our review team sees this — it isn't published on your profile.</p>
-      </div>
+      <Field label="Instagram">
+        {#snippet children({ id })}<Input {id} placeholder="@yourhandle or link" bind:value={instagram} />{/snippet}
+      </Field>
+      <Field label="Website or portfolio">
+        {#snippet children({ id })}<Input {id} type="url" placeholder="https://" bind:value={website} />{/snippet}
+      </Field>
+      <Field label="Telegram">
+        {#snippet children({ id })}<Input {id} placeholder="@channel or link" bind:value={telegram} />{/snippet}
+      </Field>
+      <Field label="Tell us about your practice" error={workError} hint="Only our review team sees this — it isn't published on your profile.">
+        {#snippet children({ id, describedby, invalid })}
+          <Textarea {id} {invalid} aria-describedby={describedby} rows={5} placeholder="What do you make? How long have you been at it?" bind:value={about} />
+        {/snippet}
+      </Field>
     {:else}
       <div class="rounded-sm border border-border/70 bg-card/30 p-6 text-sm">
-        <p class="label">Review your application</p>
+        <p class="t-eyebrow text-muted-foreground">Review your application</p>
         <p class="mt-3 text-foreground">{displayName}</p>
-        <p class="mt-1 font-mono text-xs text-accent">@{normalizedHandle}</p>
+        <p class="t-meta mt-1 text-accent">@{normalizedHandle}</p>
         <p class="mt-4 whitespace-pre-wrap text-muted-foreground">{notes}</p>
       </div>
-      <p class="hint">
-        By submitting you confirm this information is accurate. After review you'll
-        get an email, and you can check progress any time on your application status page.
+      <p class="text-xs text-muted-foreground">
+        By submitting you confirm this information is accurate. After review you'll get an email, and you can check progress any time on your application status page.
       </p>
     {/if}
 
-    {#if error}
-      <p class="text-sm text-destructive" role="alert">{error}</p>
-    {/if}
+    {#if error}<Alert tone="error">{error}</Alert>{/if}
 
     <div class="flex items-center gap-3">
       {#if step > 1}
-        <button
-          type="button"
-          class="rounded-sm border border-border px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground transition hover:text-foreground"
-          onclick={() => (step -= 1)}
-        >
-          Back
-        </button>
+        <Button variant="ghost" onclick={() => (step -= 1)}>Back</Button>
       {/if}
-      <button
-        type="submit"
-        class="rounded-sm border border-border bg-foreground px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-background transition hover:opacity-90 disabled:opacity-50"
-        disabled={submitting ||
-          (step === 1 && !step1Ok) ||
-          (step === 2 && !hasWork)}
-      >
+      <Button type="submit" loading={submitting}>
         {step < 3 ? "Continue" : submitting ? "Submitting…" : "Submit application"}
-      </button>
+      </Button>
     </div>
   </form>
 
   <p class="mt-8 text-sm text-muted-foreground">
     Already applied?
-    <a href="/apply/status" class="text-accent underline underline-offset-4"
-      >Check status</a
-    >
+    <a href="/apply/status" class="text-accent underline underline-offset-4">Check status</a>
   </p>
 </section>
-
-<style>
-  .label {
-    margin-bottom: 0.5rem;
-    display: block;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-    color: var(--muted-foreground);
-  }
-
-  .hint {
-    margin-top: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--muted-foreground);
-  }
-
-  .field {
-    width: 100%;
-    border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-    background: color-mix(in oklab, var(--card) 30%, transparent);
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
-    color: var(--foreground);
-  }
-
-  .handle-field {
-    padding-left: 2.5rem;
-  }
-
-  .field:focus {
-    outline: 2px solid color-mix(in oklab, var(--accent) 50%, transparent);
-    outline-offset: 2px;
-  }
-</style>

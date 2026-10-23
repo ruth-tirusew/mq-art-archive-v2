@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import EmptySectionPrompt from '$lib/components/home/EmptySectionPrompt.svelte';
 	import type { Article } from '$lib/core/domain/content';
-	import { ErrorState } from '$ui';
+	import { Button, EmptyState, ErrorState, PageHeader } from '$ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -49,27 +48,18 @@
 </svelte:head>
 
 <section class="border-b border-border/60">
-	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-20">
-		<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">
-			⁂ &nbsp; Pillar 01 · Collective knowledge
-		</p>
-		<div class="flex flex-wrap items-start justify-between gap-4">
-			<h1 class="mt-4 max-w-3xl font-display text-4xl leading-[1.05] text-foreground md:text-6xl">
-				The handbook for working as an artist in <em class="italic">Ethiopia</em>.
-			</h1>
-			<a
-				href="/wiki/saved"
-				class="mt-4 shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground underline underline-offset-4 hover:text-foreground"
-			>
-				Your saved articles →
-			</a>
-		</div>
-		<p class="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
-			A crowdsourced wiki — written by the people who actually file the paperwork, walk to Mercato
-			for the linen, and negotiate the contracts.
-		</p>
+	<div class="container-page py-16 md:py-20">
+		<PageHeader
+			eyebrow="Collective knowledge"
+			lead="A crowdsourced wiki — written by the people who actually file the paperwork, walk to Mercato for the linen, and negotiate the contracts."
+		>
+			The handbook for working as an artist in <em class="italic">Ethiopia</em>.
+			{#snippet actions()}
+				<Button variant="link" href="/wiki/saved">Your saved articles →</Button>
+			{/snippet}
+		</PageHeader>
 
-		<div class="mt-10 flex flex-wrap items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em]">
+		<div class="t-eyebrow mt-10 flex flex-wrap items-center gap-3 !text-[10px]">
 			<button
 				type="button"
 				onclick={() => filterCategory('')}
@@ -91,13 +81,13 @@
 				</button>
 			{/each}
 			<span class="ml-auto text-muted-foreground">
-				{data.articles.length} entries · {contributorTotal} contributors
+				{data.articles.length} {data.articles.length === 1 ? 'entry' : 'entries'}{#if contributorTotal > 0} · {contributorTotal} contributors{/if}
 			</span>
 		</div>
 	</div>
 </section>
 
-<section class="mx-auto max-w-[1600px] px-6 py-14 md:px-10 md:py-16">
+<section class="container-page py-14 md:py-16">
 	{#if data.error}
 		<ErrorState status={503} message="We couldn't load the handbook. Your connection is fine; the archive isn't answering." />
 	{:else if data.articles.length > 0}
@@ -149,30 +139,34 @@
 					<div
 						class="mt-6 flex items-center justify-between border-t border-border/60 pt-4 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground"
 					>
-						<span>{articleContributors(a)} contributors</span>
+						<span>{articleContributors(a) > 0 ? `${articleContributors(a)} contributors` : 'Community entry'}</span>
 						<span class="transition group-hover:translate-x-1 group-hover:text-accent">Read →</span>
 					</div>
 				</a>
 			{/each}
 		</div>
 	{:else}
-		<EmptySectionPrompt
-			eyebrow="Collective knowledge"
-			title="No entries yet"
-			body="The handbook is just starting. Anyone can propose entries on legal, material, and practical topics — written by artists who file the paperwork themselves."
-			ctaLabel="Learn how to contribute"
-			ctaHref="/wiki#contribute"
-		/>
+		{#if data.filterCategory}
+			<EmptyState eyebrow="No matches" title="No entries in “{data.filterCategory}” yet." body="Try another category, or see every entry.">
+				{#snippet action()}<Button variant="secondary" size="sm" onclick={() => filterCategory('')}>Show all entries</Button>{/snippet}
+			</EmptyState>
+		{:else}
+			<EmptyState
+				eyebrow="Collective knowledge"
+				title="The handbook is just starting."
+				body="Anyone can propose entries on legal, material and practical topics — written by artists who file the paperwork themselves."
+			>
+				{#snippet action()}<Button variant="secondary" size="sm" href="/studio/wiki/new">Propose an entry →</Button>{/snippet}
+			</EmptyState>
+		{/if}
 	{/if}
 </section>
 
 <section id="contribute" class="border-y border-border/60 bg-card/30">
-	<div class="mx-auto max-w-[1600px] px-6 py-20 md:px-10 md:py-24">
-		<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">
-			✕ &nbsp; Gatekeeping, without bottlenecks
-		</p>
-		<h2 class="mt-3 max-w-2xl font-display text-3xl text-foreground md:text-4xl">
-			Open access, reviewed before it goes live.
+	<div class="container-page py-20 md:py-24">
+		<p class="t-eyebrow text-accent">Gatekeeping, without bottlenecks</p>
+		<h2 class="t-h2 mt-3 max-w-2xl text-foreground">
+			Open access, <em class="italic">reviewed</em> before it goes live.
 		</h2>
 
 		<div class="mt-12 max-w-xl">
@@ -182,6 +176,9 @@
 					Anyone can read, propose edits, or draft new entries. Submissions enter a review queue
 					before going live.
 				</p>
+				<div class="mt-6">
+					<Button variant="secondary" href="/studio/wiki/new">Propose an entry →</Button>
+				</div>
 			</div>
 		</div>
 	</div>

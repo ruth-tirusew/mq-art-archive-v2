@@ -89,3 +89,26 @@ make ci       # verify + Go integration + migrate-check
 - `GET /unsubscribe?token=...` with a valid token turns off `newsletter_enabled`, and with a garbage token still returns the confirmation page rather than an error.
 - `cmd/digest` logs its next scheduled send time on startup at the configured `DIGEST_WEEKDAY`/`DIGEST_HOUR`; a manual `SendWeekly` run (or waiting for the schedule) produces a completed row in `digest_runs` with matching `digest_deliveries`.
 - Database backup completed and restore procedure was last tested within the required recovery window.
+
+## Security configuration
+
+Set these on the API service (Render):
+
+| Variable | Production value | Why |
+|---|---|---|
+| `APP_ENV` | `production` | Turns on strict startup validation (secure cookies, no localhost CORS, no default secret). |
+| `AUTH_DEV_MODE` | `false` (or unset; it now defaults to `false`) | When `true`, anyone sending `X-User-ID: <uuid>` is logged in as that user. Local and test only. The API logs a warning at startup if it is on. |
+| `JWT_SECRET` | long random value | Signs sessions. Changing it signs everyone out. OAuth state uses a key derived from it. |
+| `CORS_ORIGINS` | exact web and admin origins | Also the allow-list for the CSRF check: browser writes from any other `Origin` get 403. |
+| `TRUSTED_PROXIES` | unset (private ranges), or `none`, or a CIDR list | Which proxies' `X-Forwarded-For` is believed. Drives per-client rate limits. Behind Render the default is right. |
+
+Other behaviour worth knowing:
+
+- **CSRF:** write requests (POST/PUT/PATCH/DELETE) carrying an `Origin` not in `CORS_ORIGINS` are rejected, and request bodies must be `application/json`.
+- **Sessions:** changing or resetting a password revokes every older session (`users.sessions_valid_after`); the device that changed it is re-issued a fresh one.
+- **Rate limits:** per client IP, plus per account email on login, register and forgot-password.
+- **Account linking:** signing in with Google never attaches to an existing account by email. Users link Google explicitly from Account settings while signed in.
+- **Profile takedown:** an editor taking a live artist profile down sets `moderation_hold`; the artist cannot re-publish it until an editor approves it again.
+- **Scraper:** sources must be http(s) URLs and the fetcher refuses private, loopback and link-local addresses.
+- **Mail without a provider:** with no `RESEND_API_KEY`, one-time links are only logged when `APP_ENV=development`.
+- **Frontends:** both apps send a Content-Security-Policy (production builds), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` and HSTS.

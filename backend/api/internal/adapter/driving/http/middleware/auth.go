@@ -57,6 +57,10 @@ func authenticate(cfg AuthConfig, c *gin.Context) (*identity.User, bool) {
 	if err != nil {
 		return nil, false
 	}
+	// A password change or reset revokes every session issued before it.
+	if user.SessionsValidAfter != nil && claims.IssuedAt.Before(*user.SessionsValidAfter) {
+		return nil, false
+	}
 	return user, true
 }
 

@@ -42,6 +42,9 @@ func (m *mockProfileRepo) ListAll(ctx context.Context, status *domain.ProfileSta
 }
 
 func (m *mockProfileRepo) GetArtistByID(ctx context.Context, id uuid.UUID) (*domain.ArtistProfile, error) {
+	if m.getByID == nil {
+		return nil, apperrors.ErrNotFound
+	}
 	return m.getByID(ctx, id)
 }
 
@@ -195,4 +198,47 @@ func TestService_UpdateOwnProfile_savesUpdates(t *testing.T) {
 	})
 	assist.NoError(t, err)
 	assist.Equal(t, "New Bio", got.Bio)
+}
+
+func TestService_UpdateOwnProfile_cannotRepublishAProfileAnEditorTookDown(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockProfileRepo{
+		getByUserID: func(ctx context.Context, uid uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist",
+				Status: domain.ProfileStatusDraft, ModerationHold: true}, nil
+		},
+		save: func(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
+			t.Fatal("a held profile must not be saved as published")
+			return &p, nil
+		},
+	}
+	svc := NewService(repo, nil, nil)
+
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{
+		Bio: "Painter", PortraitURL: "https://example.com/p.jpg", Status: domain.ProfileStatusApproved,
+	})
+	assist.ErrorIs(t, err, apperrors.ErrForbidden)
+}
+
+func TestService_UpdateArtist_takedownSetsHoldAndApprovalReleasesIt(t *testing.T) {
+	id := uuid.New()
+	current := domain.ArtistProfile{ID: id, Status: domain.ProfileStatusApproved}
+	var saved domain.ArtistProfile
+	repo := &mockProfileRepo{
+		getByID: func(ctx context.Context, _ uuid.UUID) (*domain.ArtistProfile, error) { c := current; return &c, nil },
+		save: func(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
+			saved = p
+			return &p, nil
+		},
+	}
+	svc := NewService(repo, nil, nil)
+
+	_, err := svc.UpdateArtist(context.Background(), domain.ArtistProfile{ID: id, Status: domain.ProfileStatusDraft})
+	assist.NoError(t, err)
+	assist.Equal(t, true, saved.ModerationHold)
+
+	current = saved // now taken down and held
+	_, err = svc.UpdateArtist(context.Background(), domain.ArtistProfile{ID: id, Status: domain.ProfileStatusApproved})
+	assist.NoError(t, err)
+	assist.Equal(t, false, saved.ModerationHold)
 }

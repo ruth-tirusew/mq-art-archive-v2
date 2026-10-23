@@ -20,7 +20,7 @@ func NewUserRepository(pool *Pool) outbound.UserRepository {
 	return &UserRepository{pool: pool}
 }
 
-const userColumns = `id, email, role, COALESCE(display_name, ''), COALESCE(avatar_url, ''), email_verified_at, created_at, updated_at`
+const userColumns = `id, email, role, COALESCE(display_name, ''), COALESCE(avatar_url, ''), email_verified_at, created_at, updated_at, sessions_valid_after`
 
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*identity.User, error) {
 	row := r.pool.QueryRow(ctx, `
@@ -121,7 +121,7 @@ func scanAuthUser(row scannable) (*identity.User, *string, error) {
 	var passwordHash *string
 	err := row.Scan(
 		&user.ID, &user.Email, &role, &user.DisplayName, &user.AvatarURL, &user.EmailVerifiedAt,
-		&user.CreatedAt, &user.UpdatedAt, &passwordHash,
+		&user.CreatedAt, &user.UpdatedAt, &user.SessionsValidAfter, &passwordHash,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -168,7 +168,8 @@ func (r *UserRepository) insertUser(ctx context.Context, user identity.User, pas
 func (r *UserRepository) UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE users
-		SET password_hash = $2, updated_at = NOW()
+		SET password_hash = $2, updated_at = NOW(),
+		    sessions_valid_after = date_trunc('second', NOW())
 		WHERE id = $1
 	`, id, passwordHash)
 	if err != nil {
@@ -183,7 +184,7 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, id uuid.UUID, passw
 func (r *UserRepository) UpdateEmail(ctx context.Context, id uuid.UUID, email string) error {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE users
-		SET email = $2, updated_at = NOW()
+		SET email = $2, email_verified_at = NULL, updated_at = NOW()
 		WHERE id = $1
 	`, id, email)
 	if err != nil {
@@ -247,7 +248,7 @@ func (r *UserRepository) PromoteToInstitution(ctx context.Context, id uuid.UUID)
 func scanUser(row scannable) (identity.User, error) {
 	var user identity.User
 	var role string
-	err := row.Scan(&user.ID, &user.Email, &role, &user.DisplayName, &user.AvatarURL, &user.EmailVerifiedAt, &user.CreatedAt, &user.UpdatedAt)
+	err := row.Scan(&user.ID, &user.Email, &role, &user.DisplayName, &user.AvatarURL, &user.EmailVerifiedAt, &user.CreatedAt, &user.UpdatedAt, &user.SessionsValidAfter)
 	if err != nil {
 		return identity.User{}, err
 	}

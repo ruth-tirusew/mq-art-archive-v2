@@ -14,5 +14,6 @@ type Log struct {
 func NewLog(dsn string) *Log { return &Log{dsn: dsn} }
 
 func (m *Log) Capture(err error, fields map[string]string) {
-	log.Printf("error_monitor dsn=%q error=%q request_id=%q", m.dsn, err.Error(), fields["request_id"])
+	// The DSN is a credential for the monitoring service; never write it to logs.
+	log.Printf("error_monitor error=%q request_id=%q", err.Error(), fields["request_id"])
 }

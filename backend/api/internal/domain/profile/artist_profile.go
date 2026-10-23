@@ -48,6 +48,8 @@ type ArtistProfile struct {
 	Social            SocialLinks
 	Status            ProfileStatus
 	ApprovedAt        *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	// ModerationHold: an editor took this profile down, so the artist may not re-publish it.
+	ModerationHold bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }

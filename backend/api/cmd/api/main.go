@@ -103,7 +103,7 @@ func main() {
 
 	// Auth adapters
 	tokenSvc := auth.NewTokenService(cfg.JWTSecret, cfg.JWTAccessTTL)
-	stateSvc := auth.NewOAuthStateService(cfg.JWTSecret, 10*time.Minute)
+	stateSvc := auth.NewOAuthStateService(config.DeriveKey(cfg.JWTSecret, "oauth-state"), 10*time.Minute)
 
 	var oauthProviders []outbound.OAuthProvider
 	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
@@ -128,7 +128,7 @@ func main() {
 	engagementSvc := engagementuc.NewService(favoriteRepo, highlightRepo, commentRepo, contentSvc, identitySvc)
 	analyticsSvc := analyticsuc.NewService(analyticsRepo)
 	passwordHasher := auth.NewBcryptPasswordHasher()
-	var mailer outbound.Mailer = maileradapter.NewLogMailer()
+	var mailer outbound.Mailer = maileradapter.NewLogMailer(strings.EqualFold(cfg.AppEnv, "development"))
 	if cfg.ResendAPIKey != "" {
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}
@@ -205,6 +205,13 @@ func main() {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.HTTPPort),
 		Handler: router,
+		// Without these a client can hold connections open indefinitely by sending headers or a
+		// body one byte at a time (Slowloris) and exhaust the server.
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 16,
 	}
 
 	go func() {

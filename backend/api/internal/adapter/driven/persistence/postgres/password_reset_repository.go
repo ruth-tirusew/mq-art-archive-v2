@@ -48,6 +48,15 @@ func (r *PasswordResetRepository) GetByHash(ctx context.Context, tokenHash strin
 	return &t, nil
 }
 
+func (r *PasswordResetRepository) InvalidateForUser(ctx context.Context, userID uuid.UUID) error {
+	if _, err := r.pool.Exec(ctx, `
+		UPDATE password_reset_tokens SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL
+	`, userID, time.Now().UTC()); err != nil {
+		return fmt.Errorf("invalidate password resets: %w", err)
+	}
+	return nil
+}
+
 func (r *PasswordResetRepository) MarkUsed(ctx context.Context, id uuid.UUID) error {
 	now := time.Now().UTC()
 	tag, err := r.pool.Exec(ctx, `

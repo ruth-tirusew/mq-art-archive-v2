@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"net/url"
@@ -31,11 +32,15 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 		return
 	}
 
-	authURL, _, err := h.auth.BeginOAuth(c.Request.Context(), "google", returnTo)
+	authURL, state, err := h.auth.BeginOAuth(c.Request.Context(), "google", returnTo)
 	if err != nil {
 		writeAuthError(c, err)
 		return
 	}
+	// Remember which browser started this sign-in. The callback only proceeds in that same
+	// browser, so a link an attacker crafts (their own code and state) cannot sign a victim in
+	// to the attacker's account.
+	h.setOAuthStateCookie(c, state)
 	c.Redirect(http.StatusFound, authURL)
 }
 
@@ -103,6 +108,13 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 
 	if h.auth.IsOAuthLinkState(state) {
 		h.completeGoogleLink(c, code, state)
+		return
+	}
+
+	bound, cookieErr := c.Cookie(oauthStateCookie)
+	h.clearOAuthStateCookie(c)
+	if cookieErr != nil || subtle.ConstantTimeCompare([]byte(bound), []byte(state)) != 1 {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "sign-in expired or was started in another browser; please try again"})
 		return
 	}
 
@@ -309,6 +321,11 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		writeAuthError(c, err)
 		return
 	}
+	// Changing the password revoked every older session, including this one. Keep the person who
+	// just changed it signed in on this device; every other device has to sign in again.
+	if token, err := h.auth.ReissueSession(c.Request.Context(), userID); err == nil {
+		h.setAuthCookie(c, token)
+	}
 	c.Status(http.StatusNoContent)
 }
 
@@ -370,6 +387,20 @@ func toNotificationResponse(prefs *identity.NotificationPreferences) dto.Notific
 	}
 }
 
+const oauthStateCookie = "mq_oauth_state"
+
+// The state cookie is only ever read on a top-level GET navigation back from Google, which sends
+// Lax cookies, so it does not need SameSite=None. Scoped to the OAuth routes, short-lived.
+func (h *AuthHandler) setOAuthStateCookie(c *gin.Context, state string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(oauthStateCookie, state, 600, "/api/v1/auth/google", "", authCookieSecure(http.SameSiteLaxMode), true)
+}
+
+func (h *AuthHandler) clearOAuthStateCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(oauthStateCookie, "", -1, "/api/v1/auth/google", "", authCookieSecure(http.SameSiteLaxMode), true)
+}
+
 func (h *AuthHandler) setAuthCookie(c *gin.Context, token string) {
 	sameSite := authCookieSameSite()
 	secure := authCookieSecure(sameSite)
@@ -416,15 +447,15 @@ func authCookieSecure(sameSite http.SameSite) bool {
 func writeAuthError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, apperrors.ErrUnauthorized):
-		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: apperrors.ErrUnauthorized.Error()})
 	case errors.Is(err, apperrors.ErrForbidden):
-		c.JSON(http.StatusForbidden, dto.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusForbidden, dto.ErrorResponse{Error: apperrors.ErrForbidden.Error()})
 	case errors.Is(err, apperrors.ErrConflict):
-		c.JSON(http.StatusConflict, dto.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusConflict, dto.ErrorResponse{Error: apperrors.ErrConflict.Error()})
 	case errors.Is(err, apperrors.ErrValidation):
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
 	case errors.Is(err, apperrors.ErrInvalidToken):
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: apperrors.ErrInvalidToken.Error()})
 	default:
 		writeError(c, err)
 	}

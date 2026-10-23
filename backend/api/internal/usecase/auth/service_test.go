@@ -583,3 +583,14 @@ func TestService_Login_unknownEmailIsUnauthorizedNotAPanic(t *testing.T) {
 	_, _, err := svc.Login(t.Context(), "nobody@example.com", "password1")
 	assist.ErrorIs(t, err, apperrors.ErrUnauthorized)
 }
+
+func TestService_UpdateMyProfile_rejectsNonWebAvatarURL(t *testing.T) {
+	id := uuid.New()
+	users := &stubUserRepo{byID: map[uuid.UUID]identity.User{id: {ID: id, Email: "a@example.com"}}}
+	svc := newAuthService(users, &stubOAuthAccountRepo{}, drivenauth.NewOAuthStateService("secret", 10*time.Minute), nil, nil)
+
+	for _, bad := range []string{"javascript:alert(1)", "data:image/svg+xml;base64,AAAA", "//evil.example/x.png"} {
+		_, err := svc.UpdateMyProfile(t.Context(), id, "Name", bad)
+		assist.ErrorIs(t, err, apperrors.ErrValidation)
+	}
+}

@@ -27,6 +27,8 @@ type AuthService interface {
 	UpdateMyProfile(ctx context.Context, userID uuid.UUID, displayName, avatarURL string) (*identity.User, error)
 	ChangeEmail(ctx context.Context, userID uuid.UUID, newEmail, currentPassword string) (*identity.User, error)
 	ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error
+	// ReissueSession mints a fresh access token after a password change revoked the old ones.
+	ReissueSession(ctx context.Context, userID uuid.UUID) (accessToken string, err error)
 
 	GetNotificationPreferences(ctx context.Context, userID uuid.UUID) (*identity.NotificationPreferences, error)
 	UpdateNotificationPreferences(ctx context.Context, userID uuid.UUID, prefs identity.NotificationPreferences) (*identity.NotificationPreferences, error)

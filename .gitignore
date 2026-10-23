@@ -7,3 +7,7 @@ dist/
 backups/*
 !backups/README.md
 backend/api/data/*.session
+
+# Go test coverage output
+coverage.out
+*.coverprofile

@@ -1,6 +1,9 @@
 package config
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -19,9 +22,12 @@ type Config struct {
 	OAuthCallbackURL   string
 	AuthCookieName     string
 	AuthDevMode        bool
-	ResendAPIKey       string
-	MailFrom           string
-	WebAppURL          string
+	// TrustedProxies are the proxy addresses whose X-Forwarded-For is believed. Anything else
+	// connecting directly is identified by its own address.
+	TrustedProxies []string
+	ResendAPIKey   string
+	MailFrom       string
+	WebAppURL      string
 	// PublicAPIURL is this API's own externally-reachable base URL — needed for links the
 	// API embeds in outbound content that point back at itself, like a digest email's
 	// unsubscribe link (GET {PublicAPIURL}/unsubscribe), as opposed to WebAppURL, which
@@ -92,6 +98,7 @@ func Load() Config {
 		OAuthCallbackURL:    getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/api/v1/auth/google/callback"),
 		AuthCookieName:      getEnv("AUTH_COOKIE_NAME", "mq_access_token"),
 		AuthDevMode:         getEnv("AUTH_DEV_MODE", "false") == "true",
+		TrustedProxies:      parseTrustedProxies(getEnv("TRUSTED_PROXIES", "")),
 		ResendAPIKey:        getEnv("RESEND_API_KEY", ""),
 		MailFrom:            getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>"),
 		WebAppURL:           webAppURL,
@@ -151,6 +158,31 @@ func (c Config) Validate() error {
 		return fmt.Errorf("AUTH_DEV_MODE must be false in production")
 	}
 	return nil
+}
+
+// defaultTrustedProxies are private and loopback ranges: the hops a platform load balancer
+// (Render, Fly, a local reverse proxy) connects from. A client on the public internet connects
+// from a public address, so its own X-Forwarded-For is never trusted.
+var defaultTrustedProxies = []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
+
+func parseTrustedProxies(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	switch strings.ToLower(raw) {
+	case "":
+		return defaultTrustedProxies
+	case "none":
+		return []string{}
+	}
+	return splitCSV(raw)
+}
+
+// DeriveKey returns a key for one specific purpose from the master secret, so the same JWT_SECRET
+// is never used directly to sign unrelated things. A value signed for one purpose (an OAuth state,
+// an unsubscribe link) cannot be replayed as another, and leaking one does not expose the session key.
+func DeriveKey(secret, purpose string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte("artiv/key/v1/" + purpose))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func parseWeekday(raw string, fallback time.Weekday) time.Weekday {

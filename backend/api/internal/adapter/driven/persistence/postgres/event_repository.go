@@ -116,12 +116,12 @@ func (r *EventRepository) List(ctx context.Context, filter events.ListFilter) ([
 	}
 	if filter.EventType != "" {
 		query += fmt.Sprintf(" AND e.event_type ILIKE $%d", argPos)
-		args = append(args, "%"+filter.EventType+"%")
+		args = append(args, containsPattern(filter.EventType))
 		argPos++
 	}
 	if filter.Query != "" {
 		query += fmt.Sprintf(" AND (e.title ILIKE $%d OR e.description ILIKE $%d OR e.venue ILIKE $%d OR e.city ILIKE $%d)", argPos, argPos, argPos, argPos)
-		args = append(args, "%"+filter.Query+"%")
+		args = append(args, containsPattern(filter.Query))
 		argPos++
 	}
 
@@ -152,8 +152,8 @@ func (r *EventRepository) GetBySlug(ctx context.Context, slug string) (*events.E
 		SELECT `+eventSelectColumns+`, `+eventLocationJoinColumns+`
 		FROM events e
 		LEFT JOIN event_locations l ON l.id = e.location_id
-		WHERE e.slug = $1 AND e.status = ANY($2)
-	`, slug, []string{string(events.EventStatusApproved), string(events.EventStatusPending)})
+		WHERE e.slug = $1 AND e.status = $2
+	`, slug, string(events.EventStatusApproved))
 
 	event, err := scanEventWithLocation(row)
 	if err != nil {

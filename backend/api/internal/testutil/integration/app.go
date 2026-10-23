@@ -102,7 +102,7 @@ func NewApp(t *testing.T) *App {
 		Digest: digestuc.NewService(
 			articleRepo, eventRepo, artPostRepo, digestRecipientRepo, digestRunRepo,
 			notifPrefsRepo, telegramLinkRepo, "integration-test-unsubscribe-secret",
-			maileradapter.NewLogMailer(), nil, "http://localhost:5173", "http://localhost:8080",
+			maileradapter.NewLogMailer(true), nil, "http://localhost:5173", "http://localhost:8080",
 		),
 		TokenSvc: tokenSvc,
 	}

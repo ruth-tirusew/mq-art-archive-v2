@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"github.com/mq/api/internal/domain/apperrors"
+	"github.com/mq/api/internal/domain/art"
+	"github.com/mq/api/internal/domain/institution"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -80,6 +83,10 @@ func (h *ProfileHandler) GetBySlug(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	if !profileIsPublic(profile) {
+		writeError(c, apperrors.ErrNotFound)
+		return
+	}
 	c.JSON(http.StatusOK, dto.ToArtistProfileResponse(*profile))
 }
 
@@ -95,6 +102,10 @@ func (h *InstitutionHandler) GetBySlug(c *gin.Context) {
 	inst, err := h.institutions.GetBySlug(c.Request.Context(), c.Param("slug"))
 	if err != nil {
 		writeError(c, err)
+		return
+	}
+	if inst.Status != institution.InstitutionStatusApproved {
+		writeError(c, apperrors.ErrNotFound)
 		return
 	}
 	c.JSON(http.StatusOK, dto.ToInstitutionResponse(*inst))
@@ -115,6 +126,10 @@ func (h *ArtHandler) ListByArtistSlug(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	if !profileIsPublic(artist) {
+		writeError(c, apperrors.ErrNotFound)
+		return
+	}
 	posts, err := h.art.ListByArtist(c.Request.Context(), artist.ID)
 	if err != nil {
 		writeError(c, err)
@@ -133,6 +148,11 @@ func (h *ArtHandler) GetByID(c *gin.Context) {
 	post, err := h.art.GetByID(c.Request.Context(), id)
 	if err != nil {
 		writeError(c, err)
+		return
+	}
+	// Drafts and archived works are private to their artist and admins (served by /me and /admin).
+	if post.Status != art.ArtStatusPublished {
+		writeError(c, apperrors.ErrNotFound)
 		return
 	}
 	c.JSON(http.StatusOK, dto.ToArtPostResponse(*post))

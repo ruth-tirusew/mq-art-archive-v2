@@ -254,7 +254,8 @@ func mediaFromURLs(urls []string, existing []domain.MediaAsset) []domain.MediaAs
 
 	out := make([]domain.MediaAsset, 0, len(urls))
 	for i, u := range urls {
-		if u == "" {
+		// Uploads always come back as https URLs; anything else (javascript:, data:, ...) is dropped.
+		if u == "" || !apperrors.IsWebURL(u) {
 			continue
 		}
 		id := uuid.New()

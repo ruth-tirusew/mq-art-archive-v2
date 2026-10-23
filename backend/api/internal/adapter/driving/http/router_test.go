@@ -81,9 +81,15 @@ func (stubContent) AdminRestoreRevision(ctx context.Context, articleID uuid.UUID
 type stubProfile struct{}
 
 func (stubProfile) GetArtistByHandle(ctx context.Context, handle string) (*profile.ArtistProfile, error) {
+	if handle == "private-handle" {
+		return &profile.ArtistProfile{ID: uuid.New(), Handle: handle, Slug: handle, Status: profile.ProfileStatusDraft}, nil
+	}
 	return &profile.ArtistProfile{ID: uuid.New(), Handle: handle, Slug: handle, DisplayName: "Artist", Status: profile.ProfileStatusApproved}, nil
 }
 func (stubProfile) GetArtistBySlug(ctx context.Context, slug string) (*profile.ArtistProfile, error) {
+	if slug == "private-artist" {
+		return &profile.ArtistProfile{ID: uuid.New(), Slug: slug, Status: profile.ProfileStatusPending}, nil
+	}
 	return &profile.ArtistProfile{ID: uuid.New(), Slug: slug, DisplayName: "Artist", Status: profile.ProfileStatusApproved}, nil
 }
 func (stubProfile) ListApproved(ctx context.Context, filter profile.ListFilter) ([]profile.ArtistProfile, error) {
@@ -127,6 +133,9 @@ func (stubProfile) AdminUpdate(ctx context.Context, id uuid.UUID, status *profil
 type stubInstitution struct{}
 
 func (stubInstitution) GetBySlug(ctx context.Context, slug string) (*institution.Institution, error) {
+	if slug == "private-gallery" {
+		return &institution.Institution{ID: uuid.New(), Slug: slug, Status: institution.InstitutionStatusPending}, nil
+	}
 	return &institution.Institution{ID: uuid.New(), Slug: slug, Name: "Gallery", Status: institution.InstitutionStatusApproved}, nil
 }
 func (stubInstitution) GetByID(ctx context.Context, id uuid.UUID) (*institution.Institution, error) {
@@ -196,8 +205,14 @@ func (stubArt) ListAll(ctx context.Context, status *art.ArtStatus, limit, offset
 	return []art.ArtPostWithArtist{{ArtPost: art.ArtPost{ID: uuid.New(), Title: "Work", Status: art.ArtStatusPublished, CreatedAt: time.Now().UTC()}, ArtistSlug: "artist", ArtistName: "Artist"}}, nil
 }
 
+// draftPostID is a post that exists but is not published: public routes must treat it as missing.
+var draftPostID = uuid.MustParse("00000000-0000-4000-8000-0000000000d1")
+
 func (stubArt) GetByID(ctx context.Context, id uuid.UUID) (*art.ArtPost, error) {
-	return &art.ArtPost{ID: id, Title: "Work"}, nil
+	if id == draftPostID {
+		return &art.ArtPost{ID: id, Title: "Draft", Status: art.ArtStatusDraft}, nil
+	}
+	return &art.ArtPost{ID: id, Title: "Work", Status: art.ArtStatusPublished}, nil
 }
 
 func (stubArt) GetOwned(ctx context.Context, artistID, postID uuid.UUID) (*art.ArtPost, error) {
@@ -291,7 +306,8 @@ func (stubAuth) BeginOAuth(_ context.Context, _, _ string) (string, string, erro
 func (stubAuth) BeginOAuthLink(context.Context, uuid.UUID, string, string) (string, error) {
 	return "https://example.com/auth", nil
 }
-func (stubAuth) IsOAuthLinkState(string) bool { return false }
+func (stubAuth) ReissueSession(context.Context, uuid.UUID) (string, error) { return "fresh-token", nil }
+func (stubAuth) IsOAuthLinkState(string) bool                              { return false }
 func (stubAuth) CompleteOAuthLink(context.Context, string, string, string, uuid.UUID) (string, error) {
 	return "http://localhost:5173/account", nil
 }
@@ -460,6 +476,21 @@ func TestRouter_getPostByID(t *testing.T) {
 	postID := uuid.New()
 	w := serveRouter(t, http.MethodGet, "/api/v1/posts/"+postID.String(), nil, nil)
 	assist.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestRouter_publicRoutesHideUnapprovedContent(t *testing.T) {
+	for _, path := range []string{
+		"/api/v1/posts/" + draftPostID.String(),
+		"/api/v1/artists/private-artist",
+		"/api/v1/artists/private-artist/posts",
+		"/api/v1/profiles/@private-handle",
+		"/api/v1/institutions/private-gallery",
+	} {
+		t.Run(path, func(t *testing.T) {
+			w := serveRouter(t, http.MethodGet, path, nil, nil)
+			assist.Equal(t, http.StatusNotFound, w.Code)
+		})
+	}
 }
 
 func TestRouter_createPost(t *testing.T) {

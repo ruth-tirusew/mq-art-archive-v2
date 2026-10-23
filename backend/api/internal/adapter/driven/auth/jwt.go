@@ -69,9 +69,14 @@ func (s *TokenService) Verify(_ context.Context, tokenString string) (outbound.T
 		return outbound.TokenClaims{}, apperrors.ErrInvalidToken
 	}
 
+	issuedAt := time.Time{}
+	if claims.IssuedAt != nil {
+		issuedAt = claims.IssuedAt.Time
+	}
 	return outbound.TokenClaims{
-		UserID: userID,
-		Role:   identity.Role(claims.Role),
+		UserID:   userID,
+		Role:     identity.Role(claims.Role),
+		IssuedAt: issuedAt,
 	}, nil
 }
 

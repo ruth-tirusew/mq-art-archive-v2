@@ -423,10 +423,26 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	if err != nil {
 		return err
 	}
+	// Consume the token first and atomically (it only succeeds for an unused token), so two
+	// simultaneous requests with the same link cannot both reset the password.
+	if err := s.resets.MarkUsed(ctx, record.ID); err != nil {
+		return apperrors.ErrInvalidToken
+	}
 	if err := s.users.UpdatePassword(ctx, record.UserID, hash); err != nil {
 		return err
 	}
-	return s.resets.MarkUsed(ctx, record.ID)
+	// Any other reset links mailed earlier must not work after this one has been used.
+	return s.resets.InvalidateForUser(ctx, record.UserID)
+}
+
+// ReissueSession returns a fresh access token for a user whose old ones were just revoked
+// (their own password change), so they stay signed in on the device they changed it from.
+func (s *Service) ReissueSession(ctx context.Context, userID uuid.UUID) (string, error) {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	return s.tokens.Issue(ctx, user)
 }
 
 func (s *Service) VerifyEmail(ctx context.Context, token string) error {
@@ -484,6 +500,9 @@ func (s *Service) GetMe(ctx context.Context, userID uuid.UUID) (*identity.User, 
 }
 
 func (s *Service) UpdateMyProfile(ctx context.Context, userID uuid.UUID, displayName, avatarURL string) (*identity.User, error) {
+	if err := apperrors.ValidateWebURL(avatarURL); err != nil {
+		return nil, err
+	}
 	if err := s.users.UpdateProfile(ctx, userID, strings.TrimSpace(displayName), strings.TrimSpace(avatarURL)); err != nil {
 		return nil, err
 	}
@@ -519,6 +538,8 @@ func (s *Service) ChangeEmail(ctx context.Context, userID uuid.UUID, newEmail, c
 	if err := s.users.UpdateEmail(ctx, userID, normalized); err != nil {
 		return nil, err
 	}
+	// The new address is unverified (the repository clears the flag): ask the owner to confirm it.
+	_ = s.ResendEmailVerification(ctx, userID)
 	return s.GetMe(ctx, userID)
 }
 
@@ -663,5 +684,12 @@ func validatePassword(password string) error {
 	if len(password) < minPasswordLength {
 		return fmt.Errorf("%w: password must be at least %d characters", apperrors.ErrValidation, minPasswordLength)
 	}
+	// bcrypt only reads the first 72 bytes, so a longer password would silently match any other
+	// that shares that prefix. Reject it instead of pretending the tail counts.
+	if len(password) > maxPasswordBytes {
+		return fmt.Errorf("%w: password must be at most %d bytes", apperrors.ErrValidation, maxPasswordBytes)
+	}
 	return nil
 }
+
+const maxPasswordBytes = 72

@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,7 +46,7 @@ func main() {
 	notifPrefsRepo := postgres.NewNotificationPreferencesRepository(pool)
 	telegramLinkRepo := postgres.NewTelegramLinkRepository(pool)
 
-	var mailer outbound.Mailer = maileradapter.NewLogMailer()
+	var mailer outbound.Mailer = maileradapter.NewLogMailer(strings.EqualFold(cfg.AppEnv, "development"))
 	if cfg.ResendAPIKey != "" {
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}

@@ -80,14 +80,12 @@
     return { draft, published, archived, total: posts.length };
   });
 
-  const pendingReview = $derived(
-    applications.length + artistCounts.pending + postCounts.draft + events.length
-  );
+  /** Only items an admin can actually act on: applications, profiles and events awaiting a decision. */
+  const pendingReview = $derived(applications.length + artistCounts.pending + events.length);
 
   const queueCreatedDates = $derived([
     ...applications.map((a) => a.created_at),
     ...artists.filter((a) => a.status === 'pending').map((a) => a.created_at),
-    ...posts.filter((p) => (p.status ?? 'draft') === 'draft').map((p) => p.created_at),
     ...events.map((e) => e.created_at)
   ]);
 
@@ -100,19 +98,7 @@
   });
 
   const appsOverTime = $derived(countByDay(applications.map((a) => a.created_at), weekDays));
-  /** Prefer applications; fall back to all inbound timestamps so the chart isn't empty. */
-  const seriesOverTime = $derived.by(() => {
-    const fromApps = appsOverTime;
-    if (fromApps.some((n) => n > 0)) return fromApps;
-    return countByDay(
-      [
-        ...applications.map((a) => a.created_at),
-        ...artists.map((a) => a.created_at),
-        ...posts.map((p) => p.created_at)
-      ],
-      weekDays
-    );
-  });
+  const seriesOverTime = $derived(appsOverTime);
 
   const lineChart = $derived.by(() => {
     const values = seriesOverTime;
@@ -136,43 +122,6 @@
       ` L${points[points.length - 1]?.x ?? padX},${h - padY} L${padX},${h - padY} Z`;
     const peak = points.reduce((best, p) => (p.v >= best.v ? p : best), points[0] ?? { x: 0, y: 0, v: 0, day: today });
     return { w, h, padX, padY, points, path, area, peak, max };
-  });
-
-  const funnel = $derived.by(() => {
-    const submitted = applications.length + artists.length + posts.length + events.length;
-    const underReview = applications.length + artistCounts.pending + postCounts.draft + events.length;
-    const approved = artistCounts.approved;
-    const published = postCounts.published;
-    const rows = [
-      { label: 'Submitted', count: submitted, color: 'bg-foreground' },
-      { label: 'Under review', count: underReview, color: 'bg-viz-tan' },
-      { label: 'Approved', count: approved, color: 'bg-viz-olive' },
-      { label: 'Published', count: published, color: 'bg-viz-navy' }
-    ];
-    const max = Math.max(...rows.map((r) => r.count), 1);
-    return rows.map((r) => ({ ...r, width: `${(r.count / max) * 100}%` }));
-  });
-
-  const archiveHealth = $derived.by(() => {
-    const approved = artistCounts.approved + postCounts.published;
-    const pending = artistCounts.pending + postCounts.draft + applications.length + events.length;
-    const other = artistCounts.draft + postCounts.archived;
-    const total = Math.max(approved + pending + other, 1);
-    const segs = [
-      { label: 'Approved', count: approved, pct: Math.round((approved / total) * 100), tone: 'viz-olive' },
-      { label: 'Pending', count: pending, pct: Math.round((pending / total) * 100), tone: 'viz-tan' },
-      { label: 'Other', count: other, pct: Math.round((other / total) * 100), tone: 'viz-terracotta' }
-    ];
-    const r = 38;
-    const c = 2 * Math.PI * r;
-    let offset = 0;
-    const rings = segs.map((s) => {
-      const len = (s.count / total) * c;
-      const ring = { ...s, dash: `${len} ${c - len}`, offset: -offset };
-      offset += len;
-      return ring;
-    });
-    return { segs: rings, approvedPct: segs[0].pct, total };
   });
 
   type ActivityTone = 'ok' | 'warn' | 'mute';
@@ -200,14 +149,6 @@
         when: relativeTime(p.published_at ?? p.updated_at),
         tone: 'ok',
         ts: new Date(p.published_at ?? p.updated_at ?? 0).getTime()
-      });
-    }
-    for (const p of posts.filter((x) => (x.status ?? 'draft') === 'draft').slice(0, 4)) {
-      items.push({
-        text: `Draft awaiting review — ${p.title}`,
-        when: relativeTime(p.created_at),
-        tone: 'mute',
-        ts: new Date(p.created_at ?? 0).getTime()
       });
     }
     for (const e of events.slice(0, 6)) {
@@ -241,7 +182,6 @@
 
   const sparkArtists = $derived(entitySpark(artists.map((a) => a.created_at), artists.length));
   const sparkPosts = $derived(entitySpark(posts.map((p) => p.created_at), posts.length));
-  const sparkEvents = $derived(entitySpark(events.map((e) => e.created_at), events.length));
 
   const contentByType = $derived.by(() => {
     const map = new Map<string, number>();
@@ -263,36 +203,6 @@
       width: `${(r.count / total) * 100}%`
     }));
   });
-
-  const heatmap = $derived.by(() => {
-    const hours = [8, 10, 12, 14, 16, 18];
-    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-    // Align Mon=0 … Sun=6
-    const grid: number[][] = Array.from({ length: 7 }, () => hours.map(() => 0));
-    const allDates = [
-      ...applications.map((a) => a.created_at),
-      ...artists.map((a) => a.created_at),
-      ...posts.map((p) => p.created_at),
-      ...events.map((e) => e.created_at)
-    ];
-    for (const iso of allDates) {
-      if (!iso) continue;
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) continue;
-      const dow = (d.getDay() + 6) % 7; // Mon=0
-      const h = d.getHours();
-      let hi = hours.findIndex((hour, i) => h >= hour && (i === hours.length - 1 || h < hours[i + 1]));
-      if (hi < 0) continue;
-      grid[dow][hi] += 1;
-    }
-    const max = Math.max(...grid.flat(), 1);
-    return { hours, dayLabels, grid, max };
-  });
-
-  function heatOpacity(n: number, max: number) {
-    if (n <= 0) return 0.12;
-    return 0.22 + (n / max) * 0.78;
-  }
 
   const recentApprovals = $derived.by(() => {
     const items: {
@@ -425,7 +335,7 @@
     <div class="flex items-start justify-between gap-4">
       <div>
         <h2 class="text-base font-medium text-foreground">Applications over time</h2>
-        <p class="mt-0.5 text-xs text-muted-foreground">Submitted applications</p>
+        <p class="mt-0.5 text-xs text-muted-foreground">Pending applications, by day received</p>
       </div>
       <span
         class="rounded-md border border-border/80 bg-background px-2.5 py-1 text-xs text-muted-foreground"
@@ -504,31 +414,6 @@
 
 <!-- Row 2 -->
 <div class="mt-4 grid gap-4 lg:grid-cols-12">
-  <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
-    <h2 class="text-base font-medium text-foreground">Submission funnel</h2>
-    <div class="mt-6 space-y-4">
-      {#each funnel as row}
-        <div>
-          <div class="mb-1.5 flex justify-between text-sm">
-            <span class="text-muted-foreground">{row.label}</span>
-            <span class="font-medium text-foreground">{loading ? '—' : row.count}</span>
-          </div>
-          <div class="h-3 overflow-hidden rounded-sm bg-muted/60">
-            <div
-              class="h-full rounded-sm transition-all duration-700 {row.color}"
-              style:width={loading ? '0%' : row.width}
-            ></div>
-          </div>
-        </div>
-      {/each}
-    </div>
-    <a
-      href="/applications"
-      class="mt-6 inline-block text-sm text-viz-navy underline-offset-4 hover:underline"
-    >
-      View full pipeline →
-    </a>
-  </article>
 
   <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
     <h2 class="text-base font-medium text-foreground">Recent activity</h2>
@@ -564,106 +449,6 @@
       </ol>
     {/if}
   </article>
-
-  <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
-    <h2 class="text-base font-medium text-foreground">Archive health</h2>
-    <p class="text-xs text-muted-foreground">Status overview</p>
-    <div class="mt-4 flex items-center gap-6">
-      <div class="relative h-36 w-36 shrink-0">
-        <svg viewBox="0 0 100 100" class="h-full w-full -rotate-90">
-          <circle cx="50" cy="50" r="38" fill="none" stroke-width="10" class="stroke-muted" />
-          {#if !loading}
-            {#each archiveHealth.segs as seg}
-              <circle
-                cx="50"
-                cy="50"
-                r="38"
-                fill="none"
-                stroke-width="10"
-                stroke-dasharray={seg.dash}
-                stroke-dashoffset={seg.offset}
-                class={seg.tone === 'viz-olive'
-                  ? 'stroke-viz-olive'
-                  : seg.tone === 'viz-tan'
-                    ? 'stroke-viz-tan'
-                    : 'stroke-viz-terracotta'}
-              />
-            {/each}
-          {/if}
-        </svg>
-        <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span class="font-display text-3xl leading-none text-foreground">
-            {loading ? '—' : `${archiveHealth.approvedPct}%`}
-          </span>
-          <span class="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Approved</span>
-        </div>
-      </div>
-      <ul class="space-y-2.5 text-sm">
-        {#each archiveHealth.segs as seg}
-          <li class="flex items-center gap-2">
-            <span
-              class="h-2.5 w-2.5 rounded-full {seg.tone === 'viz-olive'
-                ? 'bg-viz-olive'
-                : seg.tone === 'viz-tan'
-                  ? 'bg-viz-tan'
-                  : 'bg-viz-terracotta'}"
-            ></span>
-            <span class="text-muted-foreground">{seg.label}</span>
-            <span class="ml-auto font-medium text-foreground">{seg.pct}%</span>
-          </li>
-        {/each}
-      </ul>
-    </div>
-  </article>
-</div>
-
-<!-- Row 3: sparklines -->
-<div class="mt-4 grid gap-4 sm:grid-cols-3">
-  {#each [
-    { label: 'Artists', spark: sparkArtists, href: '/artists' },
-    { label: 'Posts', spark: sparkPosts, href: '/posts' },
-    { label: 'Events', spark: sparkEvents, href: '/events' }
-  ] as card}
-    <a
-      href={card.href}
-      class="rounded-xl border border-border/70 bg-card p-5 transition hover:border-foreground/30"
-    >
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <p class="text-sm text-muted-foreground">{card.label}</p>
-          <p class="mt-1 font-display text-3xl text-foreground">
-            {loading ? '—' : card.spark.total.toLocaleString()}
-          </p>
-          {#if !loading && card.spark.change !== null}
-            <p
-              class="mt-1 text-xs {card.spark.change >= 0
-                ? 'text-viz-sage'
-                : 'text-viz-terracotta'}"
-            >
-              {card.spark.change >= 0 ? '▲' : '▼'}
-              {Math.abs(card.spark.change)}% vs last 7 days
-            </p>
-          {:else if !loading}
-            <p class="mt-1 text-xs text-muted-foreground">No prior week data</p>
-          {/if}
-        </div>
-        <svg viewBox="0 0 120 36" class="mt-1 h-10 w-28 text-foreground/70" aria-hidden="true">
-          <path
-            d={card.spark.path}
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.75"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </div>
-    </a>
-  {/each}
-</div>
-
-<!-- Row 4 -->
-<div class="mt-4 grid gap-4 lg:grid-cols-12">
   <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
     <h2 class="text-base font-medium text-foreground">Content by type</h2>
     {#if loading}
@@ -702,34 +487,6 @@
       </div>
     {/if}
   </article>
-
-  <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
-    <h2 class="text-base font-medium text-foreground">Submissions heatmap</h2>
-    <div class="mt-5 overflow-x-auto">
-      <div
-        class="grid gap-1"
-        style="grid-template-columns: 1.5rem repeat({heatmap.hours.length}, minmax(1.6rem, 1fr))"
-      >
-        <div></div>
-        {#each heatmap.hours as h}
-          <div class="text-center text-[10px] text-muted-foreground">
-            {h > 12 ? `${h - 12} PM` : h === 12 ? '12 PM' : `${h} AM`}
-          </div>
-        {/each}
-        {#each heatmap.dayLabels as label, di}
-          <div class="flex items-center text-[11px] text-muted-foreground">{label}</div>
-          {#each heatmap.grid[di] as cell, hi}
-            <div
-              class="aspect-square rounded-sm bg-foreground"
-              style:opacity={heatOpacity(cell, heatmap.max)}
-              title="{label} {heatmap.hours[hi]}:00 — {cell}"
-            ></div>
-          {/each}
-        {/each}
-      </div>
-    </div>
-  </article>
-
   <article class="rounded-xl border border-border/70 bg-card p-6 lg:col-span-4">
     <h2 class="text-base font-medium text-foreground">Recent approvals</h2>
     {#if loading}
@@ -770,4 +527,49 @@
       </ul>
     {/if}
   </article>
+
+</div>
+
+<!-- Row 3: sparklines -->
+<div class="mt-4 grid gap-4 sm:grid-cols-2">
+  {#each [
+    { label: 'Artists', spark: sparkArtists, href: '/artists' },
+    { label: 'Posts', spark: sparkPosts, href: '/posts' }
+  ] as card}
+    <a
+      href={card.href}
+      class="rounded-xl border border-border/70 bg-card p-5 transition hover:border-foreground/30"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="text-sm text-muted-foreground">{card.label}</p>
+          <p class="mt-1 font-display text-3xl text-foreground">
+            {loading ? '—' : card.spark.total.toLocaleString()}
+          </p>
+          {#if !loading && card.spark.change !== null}
+            <p
+              class="mt-1 text-xs {card.spark.change >= 0
+                ? 'text-viz-sage'
+                : 'text-viz-terracotta'}"
+            >
+              {card.spark.change >= 0 ? '▲' : '▼'}
+              {Math.abs(card.spark.change)}% vs last 7 days
+            </p>
+          {:else if !loading}
+            <p class="mt-1 text-xs text-muted-foreground">No prior week data</p>
+          {/if}
+        </div>
+        <svg viewBox="0 0 120 36" class="mt-1 h-10 w-28 text-foreground/70" aria-hidden="true">
+          <path
+            d={card.spark.path}
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.75"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </div>
+    </a>
+  {/each}
 </div>

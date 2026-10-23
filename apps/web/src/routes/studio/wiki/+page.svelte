@@ -3,13 +3,19 @@
 	import { onMount } from 'svelte';
 	import { wikiSubmissionsService } from '$lib/application/wikiSubmissions';
 	import type { WikiSubmission } from '$lib/core/domain/wikiSubmission';
+	import { ApiError } from '$lib/adapters/api/client';
+	import { Alert, Badge, Button, EmptyState, ErrorState, PageHeader } from '$ui';
 
 	let submissions = $state<WikiSubmission[]>([]);
 	let toReview = $state<WikiSubmission[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let reviewQueueFailed = $state(false);
 
-	onMount(async () => {
+	async function load() {
+		loading = true;
+		error = '';
+		reviewQueueFailed = false;
 		try {
 			submissions = await wikiSubmissionsService.listMine();
 		} catch (e) {
@@ -18,27 +24,34 @@
 			loading = false;
 		}
 		// Contributors have no articles to own, so this 403s harmlessly for them — only
-		// artists ever have anything here.
+		// artists ever have anything here. Any other failure must be visible: it hides review work.
 		try {
 			toReview = await wikiSubmissionsService.listOwnPending();
-		} catch {
+		} catch (e) {
 			toReview = [];
+			if (!(e instanceof ApiError && e.status === 403)) reviewQueueFailed = true;
 		}
-	});
+	}
+
+	onMount(load);
 </script>
 
 <svelte:head><title>Wiki submissions — Artiv</title></svelte:head>
 
 <section class="mx-auto max-w-3xl px-6 py-14 md:px-10 md:py-20">
-	<div class="flex flex-wrap items-end justify-between gap-4">
-		<div>
-			<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">Community wiki</p>
-			<h1 class="mt-4 font-display text-4xl text-foreground">Your submissions</h1>
-		</div>
-		<a href="/studio/wiki/new" class="rounded-sm bg-foreground px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-background">
-			New submission
-		</a>
-	</div>
+	<PageHeader eyebrow="Community wiki">
+		Your <em class="italic">submissions</em>
+		{#snippet actions()}<Button href="/studio/wiki/new">New submission</Button>{/snippet}
+	</PageHeader>
+
+	{#if reviewQueueFailed}
+		<Alert tone="warning" title="Couldn’t check your review queue" class="mt-8">
+			<div class="flex flex-wrap items-center gap-4">
+				<span>Edits proposed to your articles may be waiting.</span>
+				<Button variant="secondary" size="sm" onclick={load}>Try again</Button>
+			</div>
+		</Alert>
+	{/if}
 
 	{#if !loading && toReview.length > 0}
 		<div class="mt-10">
@@ -55,11 +68,7 @@
 					>
 						<div class="flex flex-wrap items-center justify-between gap-3">
 							<h3 class="font-display text-lg text-foreground">{submission.title}</h3>
-							<span
-								class="rounded-full border border-accent px-3 py-1 font-mono text-[9px] uppercase tracking-[0.2em] text-accent"
-							>
-								Review
-							</span>
+							<Badge tone="accent">Review</Badge>
 						</div>
 						<p class="mt-2 line-clamp-2 text-sm text-muted-foreground">{submission.body}</p>
 					</a>
@@ -79,18 +88,18 @@
 			<Skeleton class="h-16 w-full" />
 		</div>
 	{:else if error}
-		<p class="mt-8 text-sm text-destructive" role="alert">{error}</p>
+		<div class="mt-8"><ErrorState message={error} onretry={load} /></div>
 	{:else if submissions.length === 0}
-		<p class="mt-8 text-sm text-muted-foreground">You have not submitted a wiki article yet.</p>
+		<EmptyState class="mt-8" title="You haven’t submitted anything yet." body="Propose a new entry or an edit. An editor reviews it before it goes live.">
+			{#snippet action()}<Button variant="secondary" size="sm" href="/studio/wiki/new">Submit an article →</Button>{/snippet}
+		</EmptyState>
 	{:else}
 		<div class="mt-4 divide-y divide-border/60 border-y border-border/60">
 			{#each submissions as submission}
 				<article class="py-5" data-testid="web-wiki-submission-item">
 					<div class="flex flex-wrap items-center justify-between gap-3">
 						<h2 class="font-display text-xl text-foreground">{submission.title}</h2>
-						<span class="rounded-full border border-border px-3 py-1 font-mono text-[9px] uppercase tracking-[0.2em]">
-							{submission.status}
-						</span>
+						<Badge tone={submission.status === 'approved' ? 'success' : submission.status === 'rejected' ? 'destructive' : 'warning'}>{submission.status}</Badge>
 					</div>
 					<p class="mt-2 line-clamp-2 text-sm text-muted-foreground">{submission.body}</p>
 					{#if submission.review_notes}

@@ -6,28 +6,38 @@
 	import { analyticsService } from '$lib/application/analytics';
 	import type { ArtistProfile } from '$lib/core/domain/profile';
 	import type { ArtPost } from '$lib/core/domain/art';
+	import { Alert, Badge, Button, ErrorState, PageHeader } from '$ui';
 
 	let profile = $state<ArtistProfile | null>(null);
 	let posts = $state<ArtPost[]>([]);
-	let profileViews = $state(0);
+	let profileViews = $state<number | null>(0);
+	let postsFailed = $state(false);
 	let error = $state('');
 	let loaded = $state(false);
 
-	onMount(async () => {
+	async function load() {
+		error = '';
+		postsFailed = false;
 		try {
 			const [p, ps] = await Promise.all([
 				profileService.getMyProfile(),
-				artPostService.listMyPosts().catch(() => [] as ArtPost[])
+				artPostService.listMyPosts().catch(() => {
+					postsFailed = true;
+					return [] as ArtPost[];
+				})
 			]);
 			profile = p;
 			posts = ps;
-			const views = await analyticsService.query('artist', p.id).catch(() => []);
-			profileViews = views.reduce((total, view) => total + view.count, 0);
+			// Views are a nice-to-have: show a dash when they fail rather than a false zero.
+			const views = await analyticsService.query('artist', p.id).catch(() => null);
+			profileViews = views ? views.reduce((total, view) => total + view.count, 0) : null;
 			loaded = true;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Could not load profile';
 		}
-	});
+	}
+
+	onMount(load);
 
 	const counts = $derived.by(() => {
 		const drafts = posts.filter((p) => (p.status ?? 'draft') === 'draft').length;
@@ -37,7 +47,7 @@
 	});
 
 	const isPublic = $derived(profile?.status === 'approved');
-	const firstRun = $derived(!isPublic && posts.length === 0);
+	const firstRun = $derived(!isPublic && posts.length === 0 && !postsFailed);
 	const publishReady = $derived(Boolean(profile?.bio) && Boolean(profile?.portrait_url));
 
 	const checklist = $derived.by(() => {
@@ -77,17 +87,16 @@
 </script>
 
 <section class="mx-auto max-w-3xl px-6 py-14 md:px-10 md:py-20">
-	<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">Studio</p>
-	<h1 class="mt-4 font-display text-4xl text-foreground">
+	<PageHeader eyebrow="Studio">
 		{#if firstRun && profile}
-			Welcome to Artiv, {profile.display_name}
+			Welcome to <em class="italic">Artiv</em>, {profile.display_name}
 		{:else}
-			Welcome back
+			Welcome <em class="italic">back</em>
 		{/if}
-	</h1>
+	</PageHeader>
 
 	{#if error}
-		<p class="mt-6 text-sm text-destructive" role="alert">{error}</p>
+		<div class="mt-8"><ErrorState message={error} onretry={load} /></div>
 	{:else if !loaded || !profile}
 		<div class="mt-8 space-y-4" role="status" aria-live="polite">
 			<span class="sr-only">Loading your profile</span>
@@ -96,6 +105,15 @@
 			<Skeleton class="h-48 w-full" />
 		</div>
 	{:else}
+		{#if postsFailed}
+			<Alert tone="warning" title="Couldn’t load your works" class="mt-8">
+				<div class="flex flex-wrap items-center gap-4">
+					<span>Counts below may be incomplete.</span>
+					<Button variant="secondary" size="sm" onclick={load}>Try again</Button>
+				</div>
+			</Alert>
+		{/if}
+
 		{#if !isPublic}
 			<div class="mt-8 rounded-sm border border-accent/40 bg-accent/5 p-6">
 				<p class="font-display text-xl text-foreground">
@@ -145,23 +163,11 @@
 		{/if}
 
 		<div class="mt-8 flex flex-wrap gap-2">
-			<span class="rounded-full border border-border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] capitalize">
-				{profile.status ?? 'draft'}
-			</span>
-			{#if profile.featured}
-				<span class="rounded-full border border-accent bg-accent/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
-					Featured
-				</span>
-			{/if}
-			{#if profile.open_for_commission}
-				<span class="rounded-full border border-border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em]">
-					Open for commission
-				</span>
-			{/if}
+			<Badge tone={isPublic ? 'success' : 'neutral'}>{isPublic ? 'Public' : (profile.status ?? 'draft')}</Badge>
+			{#if profile.featured}<Badge tone="accent">Featured</Badge>{/if}
+			{#if profile.open_for_commission}<Badge>Open for commission</Badge>{/if}
 			{#if profile.in_residence}
-				<span class="rounded-full border border-border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em]">
-					In residence{#if profile.residency_place} · {profile.residency_place}{/if}
-				</span>
+				<Badge>In residence{#if profile.residency_place} · {profile.residency_place}{/if}</Badge>
 			{/if}
 		</div>
 
@@ -171,7 +177,7 @@
 				<p class="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Profile visits</p>
 				<p class="mt-1 text-xs text-muted-foreground">Unique daily views in the last month</p>
 			</div>
-			<p class="font-display text-3xl text-foreground">{profileViews.toLocaleString()}</p>
+			<p class="font-display text-3xl text-foreground" title={profileViews === null ? 'Visit counts are unavailable right now' : undefined}>{profileViews === null ? '—' : profileViews.toLocaleString()}</p>
 		</div>
 		{/if}
 
@@ -201,7 +207,7 @@
 			</ul>
 		</div>
 
-		{#if !firstRun}
+		{#if !firstRun && !postsFailed}
 		<div class="mt-6 grid grid-cols-3 gap-3">
 			<div class="rounded-sm border border-border/60 p-4 text-center">
 				<p class="font-display text-2xl text-foreground">{counts.drafts}</p>

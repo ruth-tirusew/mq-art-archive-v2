@@ -13,6 +13,9 @@
 		size?: Size;
 		/** Renders an anchor instead of a button. */
 		href?: string;
+		/** Link-only attributes, used when `href` is set. */
+		target?: string;
+		rel?: string;
 		/** Shows a spinner and blocks interaction. Use for in-flight submits. */
 		loading?: boolean;
 		class?: string;
@@ -24,6 +27,8 @@
 		tone = 'default',
 		size = 'md',
 		href,
+		target,
+		rel,
 		loading = false,
 		disabled = false,
 		type = 'button',
@@ -67,7 +72,7 @@
 </script>
 
 {#if href}
-	<a {href} class={classes} aria-disabled={inert || undefined} tabindex={inert ? -1 : undefined}>
+	<a {href} {target} {rel} class={classes} aria-disabled={inert || undefined} tabindex={inert ? -1 : undefined}>
 		{@render children()}
 	</a>
 {:else}

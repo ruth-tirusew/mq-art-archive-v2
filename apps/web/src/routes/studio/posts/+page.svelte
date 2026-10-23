@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { onMount } from 'svelte';
 	import { artPostService } from '$lib/application/artPosts';
 	import type { ArtPost } from '$lib/core/domain/art';
@@ -91,7 +92,12 @@
 
 	<div class="mt-8">
 		{#if loading}
-			<p class="text-muted-foreground">Loading…</p>
+			<div class="space-y-3" role="status" aria-live="polite">
+				<span class="sr-only">Loading posts</span>
+				<Skeleton class="h-16 w-full" />
+				<Skeleton class="h-16 w-full" />
+				<Skeleton class="h-16 w-full" />
+			</div>
 		{:else if filtered.length === 0}
 			<p class="text-sm text-muted-foreground">No posts in this view.</p>
 		{:else}

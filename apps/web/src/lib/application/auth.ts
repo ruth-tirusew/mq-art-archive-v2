@@ -81,5 +81,8 @@ export function postLoginPath(user: User, returnTo = '/studio'): string {
 	// explicit returnTo (e.g. they were sent to login from a specific page); otherwise
 	// land on home rather than the generic '/studio' default, which they can't access.
 	if (user.role === 'public') return returnTo === '/studio' ? '/' : returnTo;
-	return '/apply';
+	// Contributors work in the studio's wiki section; everyone else (admins, institutions)
+	// has no application to finish, so send them home rather than into /apply.
+	if (user.role === 'contributor') return returnTo;
+	return returnTo === '/studio' || returnTo.startsWith('/apply') ? '/' : returnTo;
 }

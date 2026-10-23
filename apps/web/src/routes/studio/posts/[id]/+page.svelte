@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
@@ -155,7 +156,11 @@
 	{/if}
 
 	{#if !loaded && !error}
-		<p class="mt-6 text-muted-foreground">Loading…</p>
+		<div class="mt-6 space-y-4" role="status" aria-live="polite">
+			<span class="sr-only">Loading post</span>
+			<Skeleton class="h-12 w-full" />
+			<Skeleton class="h-48 w-full" />
+		</div>
 	{:else if error && !loaded}
 		<p class="mt-6 text-sm text-destructive" role="alert">{error}</p>
 	{:else}

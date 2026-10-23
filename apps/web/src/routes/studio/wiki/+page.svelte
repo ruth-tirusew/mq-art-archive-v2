@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { onMount } from 'svelte';
 	import { wikiSubmissionsService } from '$lib/application/wikiSubmissions';
 	import type { WikiSubmission } from '$lib/core/domain/wikiSubmission';
@@ -72,7 +73,11 @@
 	{/if}
 
 	{#if loading}
-		<p class="mt-8 text-muted-foreground">Loading submissions…</p>
+		<div class="mt-8 space-y-3" role="status" aria-live="polite">
+			<span class="sr-only">Loading submissions</span>
+			<Skeleton class="h-16 w-full" />
+			<Skeleton class="h-16 w-full" />
+		</div>
 	{:else if error}
 		<p class="mt-8 text-sm text-destructive" role="alert">{error}</p>
 	{:else if submissions.length === 0}

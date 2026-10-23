@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { authService, currentUser } from '$lib/application/auth';
 	import type { NotificationPreferences } from '$lib/core/domain/auth';
 
@@ -198,7 +199,11 @@
 	<div class="space-y-4 border-t border-border/60 pt-10">
 		<h2 class="font-display text-xl text-foreground">Notifications</h2>
 		{#if notificationsLoading}
-			<p class="text-sm text-muted-foreground">Loading…</p>
+			<div class="space-y-3" role="status" aria-live="polite">
+				<span class="sr-only">Loading notification settings</span>
+				<Skeleton class="h-5 w-3/4" />
+				<Skeleton class="h-5 w-2/3" />
+			</div>
 		{:else if notifications}
 			<label class="flex items-center gap-3 text-sm text-foreground">
 				<input type="checkbox" bind:checked={notifications.newsletter_enabled} />

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { authService } from '$lib/application/auth';
@@ -38,7 +39,12 @@
 	<h1 class="mt-4 font-display text-4xl text-foreground">Saved articles</h1>
 
 	{#if loading}
-		<p class="mt-8 text-muted-foreground">Loading…</p>
+		<div class="mt-8 space-y-3" role="status" aria-live="polite">
+			<span class="sr-only">Loading saved articles</span>
+			<Skeleton class="h-20 w-full" />
+			<Skeleton class="h-20 w-full" />
+			<Skeleton class="h-20 w-full" />
+		</div>
 	{:else if error}
 		<p class="mt-8 text-sm text-destructive" role="alert">{error}</p>
 	{:else if articles.length === 0}

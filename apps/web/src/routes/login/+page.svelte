@@ -7,7 +7,19 @@
 
 	type Mode = 'signin' | 'signup';
 
-	const returnTo = $derived($page.url.searchParams.get('return_to') ?? '/studio');
+	type Audience = 'reader' | 'artist';
+
+	const requestedReturnTo = $page.url.searchParams.get('return_to') ?? '/studio';
+	// Artist entry points (?intent=artist, or heading to /apply) pre-select the artist flow.
+	let audience = $state<Audience>(
+		$page.url.searchParams.get('intent') === 'artist' || requestedReturnTo.startsWith('/apply')
+			? 'artist'
+			: 'reader'
+	);
+	// New artists continue to the application; existing artists are forwarded on to their studio.
+	const returnTo = $derived(
+		audience === 'artist' && !requestedReturnTo.startsWith('/apply') ? '/apply' : requestedReturnTo
+	);
 	const loginHref = $derived(googleLoginUrl(returnTo, $page.url.origin));
 
 	let mode = $state<Mode>('signin');
@@ -50,14 +62,57 @@
 
 <section class="mx-auto max-w-lg px-6 py-24 md:px-10">
 	<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">Account</p>
-	<h1 class="mt-4 font-display text-4xl text-foreground">
-		{mode === 'signup' ? 'Create account' : 'Sign in'}
+
+	<div
+		class="mt-6 grid grid-cols-2 gap-2"
+		role="group"
+		aria-label="I am signing in as"
+	>
+		{#each [{ key: 'reader', label: 'Reader' }, { key: 'artist', label: 'Artist' }] as option}
+			<button
+				type="button"
+				aria-pressed={audience === option.key}
+				class="rounded-sm border px-4 py-3 font-mono text-[11px] uppercase tracking-[0.18em] transition {audience ===
+				option.key
+					? 'border-foreground bg-foreground text-background'
+					: 'border-border text-muted-foreground hover:text-foreground'}"
+				onclick={() => {
+					audience = option.key as Audience;
+					error = '';
+				}}
+			>
+				{option.label}
+			</button>
+		{/each}
+	</div>
+
+	<h1 class="mt-8 font-display text-4xl text-foreground">
+		{#if audience === 'artist'}
+			{mode === 'signup' ? 'Create your artist account' : 'Artist sign in'}
+		{:else}
+			{mode === 'signup' ? 'Create account' : 'Sign in'}
+		{/if}
 	</h1>
 	<p class="mt-4 text-sm leading-relaxed text-muted-foreground">
-		{mode === 'signup'
-			? 'Create an account with email and password, or continue with Google.'
-			: 'Sign in with email and password or Google to manage your profile, submit an application, or access your studio.'}
+		{#if audience === 'artist'}
+			{mode === 'signup'
+				? 'Create an account, then tell us about your work. Once our team approves your application you can publish your own profile.'
+				: 'Sign in to open your studio. New here? Create an account and apply — it takes a few minutes.'}
+		{:else}
+			{mode === 'signup'
+				? 'Create a free account to follow artists, save articles and join the conversation.'
+				: 'Sign in to save articles, comment and keep up with the artists you follow.'}
+		{/if}
 	</p>
+	{#if audience === 'reader' && mode === 'signup'}
+		<p class="mt-2 text-xs text-muted-foreground">
+			Are you an artist? Switch to <button
+				type="button"
+				class="underline underline-offset-4"
+				onclick={() => (audience = 'artist')}>Artist</button
+			> above to apply for a profile.
+		</p>
+	{/if}
 
 	<form class="mt-8 space-y-4" onsubmit={handleSubmit}>
 		<label class="block">

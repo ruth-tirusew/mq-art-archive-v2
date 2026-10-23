@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -56,7 +57,11 @@
 	<p class="mt-8 font-mono text-[11px] uppercase tracking-[0.3em] text-accent">Community wiki</p>
 
 	{#if loading}
-		<p class="mt-6 text-muted-foreground">Loading…</p>
+		<div class="mt-6 space-y-4" role="status" aria-live="polite">
+			<span class="sr-only">Loading submission</span>
+			<Skeleton class="h-8 w-1/2" />
+			<Skeleton class="h-40 w-full" />
+		</div>
 	{:else if error && !review}
 		<p class="mt-6 text-sm text-destructive" role="alert">{error}</p>
 	{:else if review}

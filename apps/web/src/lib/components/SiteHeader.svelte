@@ -146,10 +146,17 @@
 					>
 						Studio
 					</a>
+				{:else if !$authLoading && (!$currentUser || $currentUser.role === 'public')}
+					<a
+						href="/apply"
+						class="{navLinkClass} {isActive('/apply') ? 'text-foreground after:scale-x-100' : ''}"
+					>
+						Apply as artist
+					</a>
 				{/if}
 
 				{#if $authLoading}
-					<span class="text-muted-foreground">…</span>
+					<span class="inline-block h-3 w-16 animate-pulse rounded-sm bg-border/60" role="status" aria-label="Loading account"></span>
 				{:else if $currentUser}
 					<ProfileDropdown />
 				{:else}
@@ -204,6 +211,11 @@
 							>
 								Studio
 							</a>
+						</li>
+					{/if}
+					{#if !$authLoading && (!$currentUser || $currentUser.role === 'public')}
+						<li>
+							<a href="/apply" class="{mobileLinkClass}" onclick={closeMenu}>Apply as artist</a>
 						</li>
 					{/if}
 					{#if $currentUser}

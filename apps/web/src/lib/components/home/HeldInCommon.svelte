@@ -60,7 +60,7 @@
 					<p class="t-eyebrow text-ochre">Apply</p>
 					<h3 class="t-h2">Get listed on <em class="italic text-ochre">Artiv.</em></h3>
 					<p class="t-lead text-cream/75">
-						Artists, institutions and galleries in Ethiopia can apply for a verified profile.
+						Artists in Ethiopia can apply for a verified profile and share their work with the world.
 					</p>
 				</div>
 				<div class="mt-auto">

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { onMount } from 'svelte';
 	import ShareableProfile from '$lib/components/ShareableProfile.svelte';
 	import MediaUploader from '$lib/components/MediaUploader.svelte';
@@ -36,7 +37,7 @@
 	let inResidence = $state(false);
 	let residencyPlace = $state('');
 	let openForCommission = $state(false);
-	let visibility = $state<'draft' | 'pending'>('draft');
+	let visibility = $state<'draft' | 'approved'>('draft');
 
 	function applyProfile(p: ArtistProfile) {
 		displayName = p.display_name;
@@ -59,7 +60,7 @@
 		socialInstagram = p.social?.instagram ?? '';
 		socialTwitter = p.social?.twitter ?? '';
 		socialTelegram = p.social?.telegram ?? '';
-		visibility = p.status === 'pending' ? 'pending' : 'draft';
+		visibility = p.status === 'approved' ? 'approved' : 'draft';
 	}
 
 	function parseInfluences(text: string): string[] {
@@ -96,10 +97,7 @@
 				telegram: socialTelegram
 			}
 		};
-		// Leave approved profiles approved unless the artist is still in onboarding.
-		if (profile?.status !== 'approved') {
-			input.status = visibility;
-		}
+		input.status = visibility;
 		return input;
 	}
 
@@ -142,7 +140,7 @@
 				twitter: socialTwitter,
 				telegram: socialTelegram
 			},
-			status: profile.status === 'approved' ? 'approved' : visibility
+			status: visibility
 		};
 	});
 
@@ -171,7 +169,12 @@
 	{#if error && !loaded}
 		<p class="mt-6 text-sm text-destructive" role="alert">{error}</p>
 	{:else if !loaded}
-		<p class="mt-6 text-muted-foreground">Loading…</p>
+		<div class="mt-6 space-y-4" role="status" aria-live="polite">
+			<span class="sr-only">Loading profile</span>
+			<Skeleton class="h-12 w-full" />
+			<Skeleton class="h-12 w-full" />
+			<Skeleton class="h-40 w-full" />
+		</div>
 	{:else}
 		<div class="mt-10 grid gap-10 lg:grid-cols-2">
 			<form class="space-y-6" onsubmit={(e) => { e.preventDefault(); void save(); }}>
@@ -258,19 +261,29 @@
 					<input class="field" placeholder="Telegram" bind:value={socialTelegram} />
 				</fieldset>
 
-				{#if profile?.status === 'approved'}
-					<p class="rounded-sm border border-border/60 px-4 py-3 text-sm text-muted-foreground">
-						Your profile is published. Changes appear in the live preview immediately; save to update the public page.
-					</p>
-				{:else}
-					<div>
-						<label class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground" for="status">Visibility</label>
-						<select id="status" class="field" bind:value={visibility}>
-							<option value="draft">Draft (only you)</option>
-							<option value="pending">Submit for review</option>
-						</select>
-					</div>
-				{/if}
+				<div class="rounded-sm border border-border/60 p-4">
+					<label class="flex items-start gap-3">
+						<input
+							type="checkbox"
+							class="mt-1"
+							checked={visibility === 'approved'}
+							onchange={(e) => (visibility = e.currentTarget.checked ? 'approved' : 'draft')}
+						/>
+						<span>
+							<span class="block text-sm text-foreground">
+								Make my profile public
+							</span>
+							<span class="mt-1 block text-xs text-muted-foreground">
+								{#if visibility === 'approved'}
+									Anyone can see your profile and published works. Untick to take it offline.
+								{:else}
+									Only you can see your profile right now. Add a portrait and a short bio, then
+									tick this and save to go live — no extra review needed.
+								{/if}
+							</span>
+						</span>
+					</label>
+				</div>
 
 				{#if message}
 					<p class="text-sm text-accent">{message}</p>

@@ -4,7 +4,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authService, currentUser } from '$lib/application/auth';
-  import { ErrorBoundary, NavProgress, Toaster } from '$ui';
+  import { BrandLoader, ErrorBoundary, NavProgress, Toaster } from '$ui';
   import AdminSidebar from '$lib/components/AdminSidebar.svelte';
   import { SidebarProvider, SidebarTrigger } from '$lib/components/ui/sidebar';
   import LayoutDashboard from 'lucide-svelte/icons/layout-dashboard';
@@ -259,6 +259,7 @@
   />
 </svelte:head>
 
+<BrandLoader />
 <NavProgress />
 <Toaster />
 

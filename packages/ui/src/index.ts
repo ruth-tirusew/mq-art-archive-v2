@@ -3,6 +3,7 @@ export { fieldClass } from './components/fieldClass';
 export { createConfirm } from './components/confirm.svelte';
 export { toast } from './components/toast.svelte';
 export { default as Alert } from './components/Alert.svelte';
+export { default as BrandLoader } from './components/BrandLoader.svelte';
 export { default as Badge } from './components/Badge.svelte';
 export { default as Button } from './components/Button.svelte';
 export { default as Checkbox } from './components/Checkbox.svelte';

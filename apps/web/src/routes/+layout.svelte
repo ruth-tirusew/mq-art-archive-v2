@@ -6,7 +6,7 @@
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import { page } from '$app/stores';
 	import { authService } from '$lib/application/auth';
-	import { ErrorBoundary, NavProgress, Toaster } from '$ui';
+	import { BrandLoader, ErrorBoundary, NavProgress, Toaster } from '$ui';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
 
@@ -26,6 +26,7 @@
 	/>
 </svelte:head>
 
+<BrandLoader />
 <NavProgress />
 <Toaster />
 

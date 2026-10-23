@@ -3,6 +3,7 @@ package onboarding
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -19,6 +20,19 @@ type Service struct {
 	users        outbound.UserRepository
 	profiles     outbound.ProfileRepository
 	institutions outbound.InstitutionRepository
+	mailer       outbound.Mailer
+	webAppURL    string
+}
+
+// Option customises optional collaborators of the onboarding Service.
+type Option func(*Service)
+
+// WithMailer enables best-effort decision emails to applicants.
+func WithMailer(mailer outbound.Mailer, webAppURL string) Option {
+	return func(s *Service) {
+		s.mailer = mailer
+		s.webAppURL = strings.TrimRight(webAppURL, "/")
+	}
 }
 
 func NewService(
@@ -26,13 +40,18 @@ func NewService(
 	users outbound.UserRepository,
 	profiles outbound.ProfileRepository,
 	institutions outbound.InstitutionRepository,
+	opts ...Option,
 ) inbound.OnboardingService {
-	return &Service{
+	s := &Service{
 		applications: applications,
 		users:        users,
 		profiles:     profiles,
 		institutions: institutions,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *Service) ListPending(ctx context.Context) ([]domain.OnboardingApplication, error) {
@@ -63,15 +82,15 @@ func (s *Service) SubmitWithHandle(
 ) (*domain.OnboardingApplication, error) {
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
-		return nil, errors.New("display_name is required")
+		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "display_name is required")
 	}
 	if applicantType != domain.ApplicantTypeArtist && applicantType != domain.ApplicantTypeInstitution {
-		return nil, errors.New("invalid applicant_type")
+		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "invalid applicant_type")
 	}
 	requestedHandle = strings.ToLower(strings.TrimSpace(requestedHandle))
 	if applicantType == domain.ApplicantTypeArtist {
 		if !validHandle(requestedHandle) {
-			return nil, errors.New("requested_handle must be 3-30 lowercase letters, numbers, or underscores")
+			return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "requested_handle must be 3-30 lowercase letters, numbers, or underscores")
 		}
 	} else {
 		requestedHandle = ""
@@ -121,9 +140,14 @@ func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID
 		return nil, err
 	}
 
+	reviewNotes := strings.TrimSpace(notes)
+	if status == domain.ApprovalStatusRejected && reviewNotes == "" {
+		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "a reason is required when rejecting an application")
+	}
+
 	now := time.Now().UTC()
 	app.Status = status
-	app.Notes = notes
+	app.ReviewNotes = reviewNotes
 	app.ReviewedBy = &reviewerID
 	app.ReviewedAt = &now
 	app.UpdatedAt = now
@@ -141,7 +165,45 @@ func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID
 		}
 	}
 
-	return s.applications.Save(ctx, *app)
+	saved, err := s.applications.Save(ctx, *app)
+	if err != nil {
+		return nil, err
+	}
+	s.notifyDecision(ctx, saved)
+	return saved, nil
+}
+
+// notifyDecision emails the applicant about the outcome. Failures are ignored: the
+// review itself has already been saved and must not fail because of a mail outage.
+func (s *Service) notifyDecision(ctx context.Context, app *domain.OnboardingApplication) {
+	if s.mailer == nil {
+		return
+	}
+	user, err := s.users.GetByID(ctx, app.ApplicantID)
+	if err != nil || user == nil || user.Email == "" {
+		return
+	}
+	subject, body := decisionEmail(app, s.webAppURL)
+	_ = s.mailer.Send(ctx, user.Email, subject, body)
+}
+
+func decisionEmail(app *domain.OnboardingApplication, webAppURL string) (string, string) {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Hi %s,\n\n", app.DisplayName)
+	if app.Status == domain.ApprovalStatusApproved {
+		b.WriteString("Good news: your Artiv application was approved.\n\n")
+		if app.ReviewNotes != "" {
+			fmt.Fprintf(&b, "A note from the team:\n%s\n\n", app.ReviewNotes)
+		}
+		fmt.Fprintf(&b, "Next, open your studio, add a portrait and a short bio, and publish your profile:\n%s/studio\n", webAppURL)
+		return "Welcome to Artiv — your application was approved", b.String()
+	}
+	b.WriteString("Thanks for applying to Artiv. We couldn't approve your application this time.\n\n")
+	if app.ReviewNotes != "" {
+		fmt.Fprintf(&b, "Reason:\n%s\n\n", app.ReviewNotes)
+	}
+	fmt.Fprintf(&b, "You can update your details and apply again:\n%s/apply\n", webAppURL)
+	return "Update on your Artiv application", b.String()
 }
 
 func (s *Service) provisionArtist(ctx context.Context, app *domain.OnboardingApplication) error {

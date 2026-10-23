@@ -90,7 +90,7 @@ func TestService_UpdateArtist_delegatesToRepository(t *testing.T) {
 	assist.Equal(t, profile.ID, got.ID)
 }
 
-func TestService_UpdateOwnProfile_rejectsApprovedStatus(t *testing.T) {
+func TestService_UpdateOwnProfile_publishRequiresBasics(t *testing.T) {
 	userID := uuid.New()
 	repo := &mockProfileRepo{
 		getByUserID: func(ctx context.Context, uid uuid.UUID) (*domain.ArtistProfile, error) {
@@ -100,6 +100,47 @@ func TestService_UpdateOwnProfile_rejectsApprovedStatus(t *testing.T) {
 	svc := NewService(repo, nil, nil)
 
 	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{Status: domain.ProfileStatusApproved})
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+}
+
+func TestService_UpdateOwnProfile_publishesWhenComplete(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockProfileRepo{
+		getByUserID: func(ctx context.Context, uid uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist", Status: domain.ProfileStatusDraft}, nil
+		},
+		getBySlug: func(ctx context.Context, slug string) (*domain.ArtistProfile, error) {
+			return nil, apperrors.ErrNotFound
+		},
+		getByHandle: func(ctx context.Context, handle string) (*domain.ArtistProfile, error) {
+			return nil, apperrors.ErrNotFound
+		},
+		save: func(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
+			assist.Equal(t, domain.ProfileStatusApproved, p.Status)
+			assist.NotNil(t, p.ApprovedAt)
+			return &p, nil
+		},
+	}
+	svc := NewService(repo, nil, nil)
+
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{
+		Bio:         "Painter",
+		PortraitURL: "https://example.com/p.jpg",
+		Status:      domain.ProfileStatusApproved,
+	})
+	assist.NoError(t, err)
+}
+
+func TestService_UpdateOwnProfile_rejectsPendingStatus(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockProfileRepo{
+		getByUserID: func(ctx context.Context, uid uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist", Status: domain.ProfileStatusDraft}, nil
+		},
+	}
+	svc := NewService(repo, nil, nil)
+
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{Status: domain.ProfileStatusPending})
 	assist.ErrorIs(t, err, apperrors.ErrForbidden)
 }
 
@@ -142,7 +183,7 @@ func TestService_UpdateOwnProfile_savesUpdates(t *testing.T) {
 		},
 		save: func(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
 			assist.Equal(t, "New Bio", p.Bio)
-			assist.Equal(t, domain.ProfileStatusPending, p.Status)
+			assist.Equal(t, domain.ProfileStatusDraft, p.Status)
 			return &p, nil
 		},
 	}
@@ -150,7 +191,7 @@ func TestService_UpdateOwnProfile_savesUpdates(t *testing.T) {
 
 	got, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{
 		Bio:    "New Bio",
-		Status: domain.ProfileStatusPending,
+		Status: domain.ProfileStatusDraft,
 	})
 	assist.NoError(t, err)
 	assist.Equal(t, "New Bio", got.Bio)

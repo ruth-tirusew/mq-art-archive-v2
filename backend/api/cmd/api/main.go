@@ -115,7 +115,6 @@ func main() {
 	artSvc := artuc.NewService(artPostRepo)
 	profileSvc := profileuc.NewService(profileRepo, userRepo, artPostRepo)
 	institutionSvc := institutionuc.NewService(institutionRepo)
-	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo)
 	searchSvc := searchuc.NewService(articleRepo, eventRepo, profileRepo, artPostRepo)
 	identitySvc := identityuc.NewService(userRepo)
 	settingsSvc := settingsuc.NewService(scrapeSettingsRepo, eventReloader, cfg.TelegramSessionPath)
@@ -129,6 +128,7 @@ func main() {
 	if cfg.ResendAPIKey != "" {
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}
+	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo, onboardinguc.WithMailer(mailer, cfg.WebAppURL))
 	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
 	// polling goroutine below can reuse this same instance rather than constructing a
 	// second one. telegramNotifier stays a nil interface when the bot isn't configured,

@@ -28,6 +28,7 @@ type OnboardingApplication struct {
 	DisplayName     string
 	RequestedHandle string
 	Notes           string
+	ReviewNotes     string
 	Status          ApprovalStatus
 	ReviewedBy      *uuid.UUID
 	ReviewedAt      *time.Time

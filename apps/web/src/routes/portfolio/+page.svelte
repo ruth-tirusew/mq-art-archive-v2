@@ -17,9 +17,7 @@
 <section class="border-b border-border/60">
 	<div class="mx-auto grid max-w-[1600px] gap-12 px-6 py-14 md:grid-cols-12 md:px-10 md:py-20">
 		<div class="md:col-span-7">
-			<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">
-				⁂ &nbsp; Pillar 02 · Digital identity
-			</p>
+			<p class="t-eyebrow text-accent">Portfolio</p>
 			<h1 class="mt-4 max-w-xl font-display text-4xl leading-[1.05] text-foreground md:text-6xl">
 				One link. The whole <em class="italic">studio</em>.
 			</h1>
@@ -49,12 +47,11 @@
 
 			<ul class="mt-10 grid grid-cols-2 gap-x-6 gap-y-3 text-sm text-foreground/90">
 				{#each [
-					'Verified handle + tier badge',
-					'Six-work portfolio strip',
-					'Telegram, IG & WhatsApp',
-					'Direct contact links',
-					'Press kit + high-res download',
-					'QR for in-person handoff'
+					'Your own @handle address',
+					'Three-work portfolio strip',
+					'Telegram and Instagram links',
+					'Contact and commission requests',
+					'Open-for-commission status'
 				] as f}
 					<li class="flex items-start gap-2.5">
 						<span class="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-accent"></span>

@@ -666,7 +666,7 @@ func TestArtHandler_ListByArtistSlug_success(t *testing.T) {
 		},
 		&mockProfile{
 			getArtistBySlug: func(ctx context.Context, slug string) (*profile.ArtistProfile, error) {
-				return &profile.ArtistProfile{ID: artistID, Slug: slug}, nil
+				return &profile.ArtistProfile{ID: artistID, Slug: slug, Status: profile.ProfileStatusApproved}, nil
 			},
 		},
 	)
@@ -702,7 +702,7 @@ func TestArtHandler_ListByArtistSlug_listError(t *testing.T) {
 		},
 		&mockProfile{
 			getArtistBySlug: func(ctx context.Context, slug string) (*profile.ArtistProfile, error) {
-				return &profile.ArtistProfile{ID: artistID, Slug: slug}, nil
+				return &profile.ArtistProfile{ID: artistID, Slug: slug, Status: profile.ProfileStatusApproved}, nil
 			},
 		},
 	)
@@ -718,7 +718,7 @@ func TestArtHandler_GetByID_success(t *testing.T) {
 	h := NewArtHandler(&mockArt{
 		getByID: func(ctx context.Context, id uuid.UUID) (*art.ArtPost, error) {
 			assist.Equal(t, postID, id)
-			return &art.ArtPost{ID: postID, ArtistID: artistID, Title: "Sunset"}, nil
+			return &art.ArtPost{ID: postID, ArtistID: artistID, Title: "Sunset", Status: art.ArtStatusPublished}, nil
 		},
 	}, &mockProfile{})
 

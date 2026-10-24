@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { fieldClass as inputClass } from '$ui';
+  import { eventTypes } from '$lib/core/domain/eventTypes';
+  import { ConfirmDialog, createConfirm, toast } from '$ui';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { eventsService } from '$lib/application/events';
@@ -10,15 +14,12 @@
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
 
-  const inputClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
-
   let { data } = $props();
   let event = $state(data.event);
   let notes = $state('');
+  const confirm = createConfirm();
   let saving = $state(false);
   let errorMessage = $state('');
-  let message = $state('');
 
   function toLocalInput(iso?: string | null) {
     if (!iso) return '';
@@ -37,7 +38,6 @@
   let imageUrl = $state(data.event.image_url ?? '');
   let startsAt = $state(toLocalInput(data.event.starts_at));
   let endsAt = $state(toLocalInput(data.event.ends_at));
-  let status = $state<EventStatus>(data.event.status);
 
   function applyEvent(e: typeof event) {
     event = e;
@@ -50,14 +50,12 @@
     imageUrl = e.image_url ?? '';
     startsAt = toLocalInput(e.starts_at);
     endsAt = toLocalInput(e.ends_at);
-    status = e.status;
   }
 
   async function saveContent(ev: Event) {
     ev.preventDefault();
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyEvent(
         await eventsService.update(event.id, {
@@ -70,10 +68,10 @@
           image_url: imageUrl || null,
           starts_at: new Date(startsAt).toISOString(),
           ends_at: endsAt ? new Date(endsAt).toISOString() : null,
-          status
+          status: event.status
         })
       );
-      message = 'Event saved.';
+      toast.success('Event saved.');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Save failed';
     } finally {
@@ -81,13 +79,33 @@
     }
   }
 
+  function askReview(reviewStatus: 'approved' | 'rejected') {
+    if (reviewStatus === 'approved') {
+      confirm.ask({
+        title: 'Approve this event?',
+        description: 'It appears on the public events calendar.',
+        confirmLabel: 'Approve',
+        run: () => review(reviewStatus)
+      });
+    } else {
+      confirm.ask({
+        title: 'Reject this event?',
+        description: notes.trim()
+          ? 'It stays off the public calendar. Your review note is saved with it.'
+          : 'It stays off the public calendar. You have not added a review note.',
+        confirmLabel: 'Reject',
+        destructive: true,
+        run: () => review(reviewStatus)
+      });
+    }
+  }
+
   async function review(reviewStatus: 'approved' | 'rejected') {
     saving = true;
     errorMessage = '';
-    message = '';
     try {
       applyEvent(await eventsService.review(event.id, reviewStatus, notes));
-      message = `Marked ${reviewStatus}.`;
+      toast.success(`Event ${reviewStatus}.`);
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Review failed';
     } finally {
@@ -95,8 +113,9 @@
     }
   }
 
+  let confirmDelete = $state(false);
+
   async function remove() {
-    if (!confirm('Delete this event? This cannot be undone.')) return;
     saving = true;
     errorMessage = '';
     try {
@@ -104,17 +123,18 @@
       await goto('/events');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Delete failed';
+      confirmDelete = false;
       saving = false;
     }
   }
 </script>
 
 <svelte:head>
-  <title>{event.title} — mq admin</title>
+  <title>{event.title} — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="03 — Events"
+  eyebrow="Events"
   title={event.title}
   description="Edit event content and review publication status."
 />
@@ -124,7 +144,7 @@
     <CardHeader>
       <div class="flex flex-wrap items-center gap-2">
         <Badge variant="secondary">{event.event_type}</Badge>
-        <Badge>{event.status}</Badge>
+        <StatusBadge status={event.status} />
       </div>
       <CardTitle class="pt-2">{event.title}</CardTitle>
     </CardHeader>
@@ -134,13 +154,24 @@
         <Textarea id="notes" bind:value={notes} placeholder="Optional review notes" />
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button disabled={saving} onclick={() => review('approved')}>Approve</Button>
-        <Button variant="destructive" disabled={saving} onclick={() => review('rejected')}>Reject</Button>
-        <Button variant="outline" disabled={saving} onclick={() => remove()}>Delete</Button>
+        <Button class="disabled:opacity-100" disabled={saving || event.status === 'approved'} onclick={() => askReview('approved')}>
+          {event.status === 'approved' ? 'Approved' : 'Approve'}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={saving || event.status === 'rejected'}
+          onclick={() => askReview('rejected')}
+        >
+          {event.status === 'rejected' ? 'Rejected' : 'Reject'}
+        </Button>
       </div>
-      {#if message}<Alert>{message}</Alert>{/if}
       {#if errorMessage}<Alert variant="destructive">{errorMessage}</Alert>{/if}
-      <Button variant="ghost" href="/events">Back to list</Button>
+      <div class="flex items-center justify-between gap-4 border-t border-border/60 pt-4">
+        <p class="text-xs text-muted-foreground">Deleting an event cannot be undone.</p>
+        <Button variant="destructive" size="sm" disabled={saving} onclick={() => (confirmDelete = true)}>
+          Delete event
+        </Button>
+      </div>
     </CardContent>
   </Card>
 
@@ -161,15 +192,10 @@
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="space-y-2">
             <Label for="event_type">Type</Label>
-            <input id="event_type" bind:value={eventType} class={inputClass} />
-          </div>
-          <div class="space-y-2">
-            <Label for="status">Status</Label>
-            <select id="status" bind:value={status} class={inputClass}>
-              <option value="pending">pending</option>
-              <option value="approved">approved</option>
-              <option value="rejected">rejected</option>
-            </select>
+            <input id="event_type" list="event-types" bind:value={eventType} class={inputClass} />
+            <datalist id="event-types">
+              {#each eventTypes as type}<option value={type}></option>{/each}
+            </datalist>
           </div>
           <div class="space-y-2">
             <Label for="venue">Venue</Label>
@@ -201,3 +227,13 @@
     </CardContent>
   </Card>
 </div>
+<ConfirmDialog
+  bind:open={confirmDelete}
+  title="Delete this event?"
+  description="This cannot be undone."
+  confirmLabel="Delete event"
+  destructive
+  busy={saving}
+  onconfirm={remove}
+/>
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

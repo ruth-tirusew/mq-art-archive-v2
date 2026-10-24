@@ -7,15 +7,12 @@
   import { Alert } from '$lib/components/ui/alert';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
-  import { Label } from '$lib/components/ui/label';
+  import { Field, Input } from '$ui';
   import { Separator } from '$lib/components/ui/separator';
-
-  type Mode = 'signin' | 'signup';
 
   const loginUrl = $derived(googleLoginUrl($page.url.origin));
   const accessDenied = $derived($page.url.searchParams.get('error') === 'access_denied');
 
-  let mode = $state<Mode>('signin');
   let email = $state('');
   let password = $state('');
   let submitting = $state(false);
@@ -26,10 +23,7 @@
     error = '';
     submitting = true;
     try {
-      const user =
-        mode === 'signup'
-          ? await authService.register(email, password)
-          : await authService.login(email, password);
+      const user = await authService.login(email, password);
 
       if (user.role === 'admin') {
         await goto('/applications');
@@ -56,14 +50,14 @@
 </script>
 
 <svelte:head>
-  <title>Login — mq admin</title>
+  <title>Login — Artiv admin</title>
 </svelte:head>
 
 <div class="flex min-h-screen items-center justify-center px-6 py-12">
   <Card class="w-full max-w-md">
     <CardHeader>
-      <p class="font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">mq admin</p>
-      <CardTitle>{mode === 'signup' ? 'Create account' : 'Sign in'}</CardTitle>
+      <p class="font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">Artiv admin</p>
+      <CardTitle>Sign in</CardTitle>
       <CardDescription>
         Use email and password or Google. Admin privileges are required to continue.
       </CardDescription>
@@ -77,31 +71,18 @@
       {/if}
 
       <form class="space-y-4" data-testid="admin-login-form" onsubmit={handleSubmit}>
-        <div class="space-y-2">
-          <Label for="email">Email</Label>
-          <input
-            id="email"
-            type="email"
-            required
-            autocomplete="email"
-            bind:value={email}
-            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          />
-        </div>
-        <div class="space-y-2">
-          <Label for="password">Password</Label>
-          <input
-            id="password"
-            type="password"
-            required
-            minlength="8"
-            autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            bind:value={password}
-            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-          />
-        </div>
+        <Field label="Email" required>
+          {#snippet children({ id, required })}
+            <Input {id} {required} type="email" autocomplete="email" bind:value={email} />
+          {/snippet}
+        </Field>
+        <Field label="Password" required>
+          {#snippet children({ id, required })}
+            <Input {id} {required} type="password" minlength={8} autocomplete="current-password" bind:value={password} />
+          {/snippet}
+        </Field>
         <Button type="submit" class="w-full" disabled={submitting}>
-          {submitting ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+          {submitting ? 'Please wait…' : 'Sign in'}
         </Button>
       </form>
       <div class="flex items-center gap-3">

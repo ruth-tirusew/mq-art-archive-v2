@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -64,6 +65,18 @@ func (s *Service) GetArtistByUserID(ctx context.Context, userID uuid.UUID) (*dom
 }
 
 func (s *Service) UpdateArtist(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
+	// This is the editor path. Taking a live profile down puts a hold on it so the artist cannot
+	// simply publish it again; an editor approving it releases the hold.
+	if current, err := s.profiles.GetArtistByID(ctx, p.ID); err == nil {
+		switch {
+		case p.Status == domain.ProfileStatusApproved:
+			p.ModerationHold = false
+		case current.Status == domain.ProfileStatusApproved:
+			p.ModerationHold = true
+		default:
+			p.ModerationHold = current.ModerationHold
+		}
+	}
 	return s.profiles.SaveArtist(ctx, p)
 }
 
@@ -88,6 +101,9 @@ func (s *Service) UpdateOwnProfile(ctx context.Context, userID uuid.UUID, update
 	updated.Discipline = update.Discipline
 	updated.Tagline = update.Tagline
 	updated.YearsActive = update.YearsActive
+	if err := apperrors.ValidateWebURL(update.PortraitURL); err != nil {
+		return nil, err
+	}
 	updated.PortraitURL = update.PortraitURL
 	if update.Influences != nil {
 		updated.Influences = update.Influences
@@ -99,10 +115,27 @@ func (s *Service) UpdateOwnProfile(ctx context.Context, userID uuid.UUID, update
 	updated.Social = update.Social
 
 	if update.Status != "" {
-		if update.Status != domain.ProfileStatusDraft && update.Status != domain.ProfileStatusPending {
+		switch update.Status {
+		case domain.ProfileStatusDraft:
+			updated.Status = domain.ProfileStatusDraft
+			updated.ApprovedAt = nil
+		case domain.ProfileStatusApproved:
+			if current.ModerationHold {
+				return nil, fmt.Errorf("%w: an editor has taken this profile down; contact the team to have it restored", apperrors.ErrForbidden)
+			}
+			// Admin approval of the application already vetted the artist, so they can
+			// publish themselves once the profile has the basics.
+			if missing := missingPublishFields(updated); len(missing) > 0 {
+				return nil, fmt.Errorf("%w: add %s before publishing", apperrors.ErrValidation, strings.Join(missing, ", "))
+			}
+			if updated.Status != domain.ProfileStatusApproved {
+				now := time.Now().UTC()
+				updated.ApprovedAt = &now
+			}
+			updated.Status = domain.ProfileStatusApproved
+		default:
 			return nil, apperrors.ErrForbidden
 		}
-		updated.Status = update.Status
 	}
 
 	if updated.Slug == "" {
@@ -229,6 +262,9 @@ func (s *Service) applyAdminWrite(ctx context.Context, current *domain.ArtistPro
 	updated.Discipline = write.Discipline
 	updated.Tagline = write.Tagline
 	updated.YearsActive = write.YearsActive
+	if err := apperrors.ValidateWebURL(write.PortraitURL); err != nil {
+		return nil, err
+	}
 	updated.PortraitURL = write.PortraitURL
 	if write.Influences != nil {
 		updated.Influences = write.Influences
@@ -289,4 +325,15 @@ func (s *Service) ensureUniqueHandle(ctx context.Context, profileID uuid.UUID, h
 		return apperrors.ErrConflict
 	}
 	return nil
+}
+
+func missingPublishFields(p domain.ArtistProfile) []string {
+	var missing []string
+	if strings.TrimSpace(p.Bio) == "" {
+		missing = append(missing, "a bio")
+	}
+	if strings.TrimSpace(p.PortraitURL) == "" {
+		missing = append(missing, "a portrait")
+	}
+	return missing
 }

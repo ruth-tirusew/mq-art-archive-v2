@@ -20,4 +20,6 @@ type PasswordResetRepository interface {
 	Create(ctx context.Context, token PasswordResetToken) error
 	GetByHash(ctx context.Context, tokenHash string) (*PasswordResetToken, error)
 	MarkUsed(ctx context.Context, id uuid.UUID) error
+	// InvalidateForUser consumes every outstanding reset token for the user.
+	InvalidateForUser(ctx context.Context, userID uuid.UUID) error
 }

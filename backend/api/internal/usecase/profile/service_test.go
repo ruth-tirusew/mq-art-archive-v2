@@ -42,6 +42,9 @@ func (m *mockProfileRepo) ListAll(ctx context.Context, status *domain.ProfileSta
 }
 
 func (m *mockProfileRepo) GetArtistByID(ctx context.Context, id uuid.UUID) (*domain.ArtistProfile, error) {
+	if m.getByID == nil {
+		return nil, apperrors.ErrNotFound
+	}
 	return m.getByID(ctx, id)
 }
 
@@ -90,7 +93,7 @@ func TestService_UpdateArtist_delegatesToRepository(t *testing.T) {
 	assist.Equal(t, profile.ID, got.ID)
 }
 
-func TestService_UpdateOwnProfile_rejectsApprovedStatus(t *testing.T) {
+func TestService_UpdateOwnProfile_publishRequiresBasics(t *testing.T) {
 	userID := uuid.New()
 	repo := &mockProfileRepo{
 		getByUserID: func(ctx context.Context, uid uuid.UUID) (*domain.ArtistProfile, error) {
@@ -100,6 +103,47 @@ func TestService_UpdateOwnProfile_rejectsApprovedStatus(t *testing.T) {
 	svc := NewService(repo, nil, nil)
 
 	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{Status: domain.ProfileStatusApproved})
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+}
+
+func TestService_UpdateOwnProfile_publishesWhenComplete(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockProfileRepo{
+		getByUserID: func(ctx context.Context, uid uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist", Status: domain.ProfileStatusDraft}, nil
+		},
+		getBySlug: func(ctx context.Context, slug string) (*domain.ArtistProfile, error) {
+			return nil, apperrors.ErrNotFound
+		},
+		getByHandle: func(ctx context.Context, handle string) (*domain.ArtistProfile, error) {
+			return nil, apperrors.ErrNotFound
+		},
+		save: func(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
+			assist.Equal(t, domain.ProfileStatusApproved, p.Status)
+			assist.NotNil(t, p.ApprovedAt)
+			return &p, nil
+		},
+	}
+	svc := NewService(repo, nil, nil)
+
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{
+		Bio:         "Painter",
+		PortraitURL: "https://example.com/p.jpg",
+		Status:      domain.ProfileStatusApproved,
+	})
+	assist.NoError(t, err)
+}
+
+func TestService_UpdateOwnProfile_rejectsPendingStatus(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockProfileRepo{
+		getByUserID: func(ctx context.Context, uid uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist", Status: domain.ProfileStatusDraft}, nil
+		},
+	}
+	svc := NewService(repo, nil, nil)
+
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{Status: domain.ProfileStatusPending})
 	assist.ErrorIs(t, err, apperrors.ErrForbidden)
 }
 
@@ -142,7 +186,7 @@ func TestService_UpdateOwnProfile_savesUpdates(t *testing.T) {
 		},
 		save: func(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
 			assist.Equal(t, "New Bio", p.Bio)
-			assist.Equal(t, domain.ProfileStatusPending, p.Status)
+			assist.Equal(t, domain.ProfileStatusDraft, p.Status)
 			return &p, nil
 		},
 	}
@@ -150,8 +194,51 @@ func TestService_UpdateOwnProfile_savesUpdates(t *testing.T) {
 
 	got, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{
 		Bio:    "New Bio",
-		Status: domain.ProfileStatusPending,
+		Status: domain.ProfileStatusDraft,
 	})
 	assist.NoError(t, err)
 	assist.Equal(t, "New Bio", got.Bio)
+}
+
+func TestService_UpdateOwnProfile_cannotRepublishAProfileAnEditorTookDown(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockProfileRepo{
+		getByUserID: func(ctx context.Context, uid uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist",
+				Status: domain.ProfileStatusDraft, ModerationHold: true}, nil
+		},
+		save: func(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
+			t.Fatal("a held profile must not be saved as published")
+			return &p, nil
+		},
+	}
+	svc := NewService(repo, nil, nil)
+
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{
+		Bio: "Painter", PortraitURL: "https://example.com/p.jpg", Status: domain.ProfileStatusApproved,
+	})
+	assist.ErrorIs(t, err, apperrors.ErrForbidden)
+}
+
+func TestService_UpdateArtist_takedownSetsHoldAndApprovalReleasesIt(t *testing.T) {
+	id := uuid.New()
+	current := domain.ArtistProfile{ID: id, Status: domain.ProfileStatusApproved}
+	var saved domain.ArtistProfile
+	repo := &mockProfileRepo{
+		getByID: func(ctx context.Context, _ uuid.UUID) (*domain.ArtistProfile, error) { c := current; return &c, nil },
+		save: func(ctx context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
+			saved = p
+			return &p, nil
+		},
+	}
+	svc := NewService(repo, nil, nil)
+
+	_, err := svc.UpdateArtist(context.Background(), domain.ArtistProfile{ID: id, Status: domain.ProfileStatusDraft})
+	assist.NoError(t, err)
+	assist.Equal(t, true, saved.ModerationHold)
+
+	current = saved // now taken down and held
+	_, err = svc.UpdateArtist(context.Background(), domain.ArtistProfile{ID: id, Status: domain.ProfileStatusApproved})
+	assist.NoError(t, err)
+	assist.Equal(t, false, saved.ModerationHold)
 }

@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { ConfirmDialog, createConfirm, toast } from '$ui';
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import { Skeleton } from '$lib/components/ui/skeleton';
   import { onMount } from 'svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import DiffView from '$lib/components/wiki/DiffView.svelte';
@@ -7,6 +11,7 @@
   import { wikiSubmissionsService } from '$lib/application/wikiSubmissions';
   import type { WikiSubmission, WikiSubmissionReview } from '$lib/core/domain/wikiSubmission';
 
+  const confirm = createConfirm();
   let submissions = $state<WikiSubmission[]>([]);
   let notes = $state<Record<string, string>>({});
   let busyId = $state('');
@@ -20,6 +25,8 @@
   onMount(load);
 
   async function load() {
+    error = '';
+    loading = true;
     try {
       submissions = await wikiSubmissionsService.listPending();
     } catch (e) {
@@ -43,6 +50,27 @@
     }
   }
 
+  function askReview(item: WikiSubmission, action: 'approve' | 'reject') {
+    confirm.ask(
+      action === 'approve'
+        ? {
+            title: 'Approve this submission?',
+            description: 'It is published to the public wiki immediately.',
+            confirmLabel: 'Approve',
+            run: () => review(item, action)
+          }
+        : {
+            title: 'Reject this submission?',
+            description: notes[item.id]?.trim()
+              ? 'The submitter sees your note.'
+              : 'You have not added a note, so the submitter will not know why.',
+            confirmLabel: 'Reject',
+            destructive: true,
+            run: () => review(item, action)
+          }
+    );
+  }
+
   async function review(item: WikiSubmission, action: 'approve' | 'reject') {
     busyId = item.id;
     error = '';
@@ -50,6 +78,7 @@
       if (action === 'approve') await wikiSubmissionsService.approve(item.id, notes[item.id]);
       else await wikiSubmissionsService.reject(item.id, notes[item.id]);
       submissions = submissions.filter((submission) => submission.id !== item.id);
+      toast.success(action === 'approve' ? 'Submission approved and published.' : 'Submission rejected.');
     } catch (e) {
       error = e instanceof Error ? e.message : 'Review failed';
     } finally {
@@ -58,19 +87,24 @@
   }
 </script>
 
-<svelte:head><title>Wiki submissions — mq admin</title></svelte:head>
+<svelte:head><title>Wiki submissions — Artiv admin</title></svelte:head>
 
 <PageHeader
-  eyebrow="06 — Wiki"
+  eyebrow="Wiki"
   title="Community submissions"
   description="Review proposed wiki articles and edits."
 />
 
-{#if error}<p class="mb-5 text-sm text-destructive" role="alert">{error}</p>{/if}
+{#if error}
+  <div class="mb-5 flex items-center justify-between gap-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+    <span>{error}</span>
+    <Button variant="outline" size="sm" onclick={load}>Try again</Button>
+  </div>
+{/if}
 {#if loading}
-  <p class="text-sm text-muted-foreground">Loading submissions…</p>
-{:else if submissions.length === 0}
-  <p class="text-sm text-muted-foreground">No pending wiki submissions.</p>
+  <div class="space-y-3" role="status"><span class="sr-only">Loading submissions</span><Skeleton class="h-24 w-full" /><Skeleton class="h-24 w-full" /></div>
+{:else if submissions.length === 0 && !error}
+  <EmptyState title="No pending submissions" description="Community-proposed articles and edits will appear here." />
 {:else}
   <div class="space-y-5">
     {#each submissions as item}
@@ -85,7 +119,7 @@
               {item.kind === 'edit' ? `Edit to ${item.article_id}` : 'New article'} · submitter {item.submitter_id}
             </p>
           </div>
-          <Badge variant="secondary">{item.status}</Badge>
+          <StatusBadge status={item.status} />
         </div>
 
         {#if item.kind === 'edit'}
@@ -94,7 +128,7 @@
           </Button>
           {#if expanded[item.id]}
             {#if diffLoading[item.id]}
-              <p class="mt-3 text-xs text-muted-foreground">Loading diff…</p>
+              <div class="mt-3 space-y-2" role="status"><span class="sr-only">Loading diff</span><Skeleton class="h-16 w-full" /></div>
             {:else if review_?.article}
               {#if stale}
                 <p class="mt-3 text-xs text-amber-600 dark:text-amber-400">
@@ -126,10 +160,11 @@
           oninput={(event) => notes[item.id] = event.currentTarget.value}
         ></textarea>
         <div class="mt-4 flex gap-3">
-          <Button disabled={busyId === item.id} onclick={() => review(item, 'approve')}>Approve</Button>
-          <Button variant="destructive" disabled={busyId === item.id} onclick={() => review(item, 'reject')}>Reject</Button>
+          <Button disabled={busyId === item.id} onclick={() => askReview(item, 'approve')}>Approve</Button>
+          <Button variant="destructive" disabled={busyId === item.id} onclick={() => askReview(item, 'reject')}>Reject</Button>
         </div>
       </article>
     {/each}
   </div>
 {/if}
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

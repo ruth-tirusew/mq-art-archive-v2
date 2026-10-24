@@ -86,6 +86,12 @@ func (s *Service) createEvent(ctx context.Context, write domain.EventWrite, sour
 		return nil, apperrors.ErrValidation
 	}
 
+	if err := apperrors.ValidateWebURL(write.SourceURL); err != nil {
+		return nil, err
+	}
+	if err := apperrors.ValidateWebURL(deref(write.ImageURL)); err != nil {
+		return nil, err
+	}
 	sourceURL := strings.TrimSpace(write.SourceURL)
 	if sourceURL == "" {
 		sourceURL = sourcePrefix + id.String()
@@ -136,6 +142,12 @@ func (s *Service) AdminUpdateContent(ctx context.Context, id uuid.UUID, write do
 		return nil, apperrors.ErrValidation
 	}
 
+	if err := apperrors.ValidateWebURL(write.SourceURL); err != nil {
+		return nil, err
+	}
+	if err := apperrors.ValidateWebURL(deref(write.ImageURL)); err != nil {
+		return nil, err
+	}
 	event.Title = title
 	event.Description = write.Description
 	if strings.TrimSpace(write.SourceURL) != "" {
@@ -203,6 +215,14 @@ func (s *Service) Sync(ctx context.Context) (int, error) {
 
 	var upserted int
 	for _, event := range fetched {
+		// Feeds are untrusted input: skip items whose link is not a real web address, and drop
+		// image URLs that are not.
+		if !apperrors.IsWebURL(event.SourceURL) || strings.TrimSpace(event.SourceURL) == "" {
+			continue
+		}
+		if event.ImageURL != nil && !apperrors.IsWebURL(*event.ImageURL) {
+			event.ImageURL = nil
+		}
 		prepared, err := s.prepareEvent(ctx, event)
 		if err != nil {
 			return upserted, err
@@ -257,4 +277,11 @@ func (s *Service) prepareEvent(ctx context.Context, event domain.Event) (domain.
 		event.Venue = loc.Name
 	}
 	return event, nil
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

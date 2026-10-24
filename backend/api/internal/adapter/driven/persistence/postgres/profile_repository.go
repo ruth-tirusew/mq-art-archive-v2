@@ -26,7 +26,7 @@ const artistProfileColumns = `
 	COALESCE(influences, '{}') AS influences, in_residence, COALESCE(residency_place, '') AS residency_place, open_for_commission,
 	COALESCE(contact_email, '') AS contact_email, COALESCE(contact_phone, '') AS contact_phone, COALESCE(contact_website, '') AS contact_website, COALESCE(contact_location, '') AS contact_location,
 	COALESCE(social_instagram, '') AS social_instagram, COALESCE(social_twitter, '') AS social_twitter, COALESCE(social_telegram, '') AS social_telegram,
-	status, approved_at, created_at, updated_at
+	status, approved_at, created_at, updated_at, moderation_hold
 `
 
 func (r *ProfileRepository) GetArtistByHandle(ctx context.Context, handle string) (*profile.ArtistProfile, error) {
@@ -67,7 +67,7 @@ func (r *ProfileRepository) ListApproved(ctx context.Context, filter profile.Lis
 	}
 	if filter.Query != "" {
 		query += fmt.Sprintf(" AND (display_name ILIKE $%d OR bio ILIKE $%d OR discipline ILIKE $%d OR slug ILIKE $%d OR handle ILIKE $%d)", argPos, argPos, argPos, argPos, argPos)
-		args = append(args, "%"+filter.Query+"%")
+		args = append(args, containsPattern(filter.Query))
 		argPos++
 	}
 	query += " ORDER BY display_name ASC"
@@ -105,7 +105,7 @@ func (r *ProfileRepository) CountApproved(ctx context.Context, filter profile.Li
 	}
 	if filter.Query != "" {
 		query += fmt.Sprintf(" AND (display_name ILIKE $%d OR bio ILIKE $%d OR discipline ILIKE $%d OR slug ILIKE $%d OR handle ILIKE $%d)", argPos, argPos, argPos, argPos, argPos)
-		args = append(args, "%"+filter.Query+"%")
+		args = append(args, containsPattern(filter.Query))
 	}
 	var total int
 	if err := r.pool.QueryRow(ctx, query, args...).Scan(&total); err != nil {
@@ -215,8 +215,8 @@ func (r *ProfileRepository) SaveArtist(ctx context.Context, p profile.ArtistProf
 			influences, in_residence, residency_place, open_for_commission,
 			contact_email, contact_phone, contact_website, contact_location,
 			social_instagram, social_twitter, social_telegram,
-			status, approved_at, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+			status, approved_at, created_at, updated_at, moderation_hold
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
 		ON CONFLICT (id) DO UPDATE SET
 			slug = EXCLUDED.slug,
 			handle = EXCLUDED.handle,
@@ -241,13 +241,14 @@ func (r *ProfileRepository) SaveArtist(ctx context.Context, p profile.ArtistProf
 			social_telegram = EXCLUDED.social_telegram,
 			status = EXCLUDED.status,
 			approved_at = EXCLUDED.approved_at,
+			moderation_hold = EXCLUDED.moderation_hold,
 			updated_at = EXCLUDED.updated_at
 		RETURNING `+artistProfileColumns,
 		p.ID, p.UserID, p.Slug, nullIfEmpty(p.Handle, p.Slug), p.DisplayName, p.Bio, p.Born, p.Discipline, p.Tagline, p.YearsActive, p.PortraitURL, p.Featured,
 		influences, p.InResidence, p.ResidencyPlace, p.OpenForCommission,
 		p.Contact.Email, p.Contact.Phone, p.Contact.Website, p.Contact.Location,
 		p.Social.Instagram, p.Social.Twitter, p.Social.Telegram,
-		string(p.Status), p.ApprovedAt, p.CreatedAt, p.UpdatedAt,
+		string(p.Status), p.ApprovedAt, p.CreatedAt, p.UpdatedAt, p.ModerationHold,
 	)
 
 	saved, err := scanArtistProfile(row)
@@ -291,7 +292,7 @@ func scanArtistProfile(row scannable) (profile.ArtistProfile, error) {
 		&p.Influences, &p.InResidence, &p.ResidencyPlace, &p.OpenForCommission,
 		&p.Contact.Email, &p.Contact.Phone, &p.Contact.Website, &p.Contact.Location,
 		&p.Social.Instagram, &p.Social.Twitter, &p.Social.Telegram,
-		&status, &p.ApprovedAt, &p.CreatedAt, &p.UpdatedAt,
+		&status, &p.ApprovedAt, &p.CreatedAt, &p.UpdatedAt, &p.ModerationHold,
 	)
 	if err != nil {
 		return profile.ArtistProfile{}, err

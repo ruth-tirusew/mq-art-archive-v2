@@ -159,6 +159,6 @@ FRS onboarding test: [`docs/frs-onboarding-test.md`](docs/frs-onboarding-test.md
 |----------|---------|
 | `APP_ENV` | `production` enables strict config validation |
 | `JWT_SECRET` | Signs access tokens and OAuth state |
-| `AUTH_DEV_MODE` | When `true`, allows `X-User-ID` header fallback for tests |
+| `AUTH_DEV_MODE` | Default `false`. When `true`, anyone who sends an `X-User-ID` header is logged in as that user. Local and test use only; never set on a reachable server |
 | `CLOUDINARY_*` | Pilot media uploads |
 | `PUBLIC_API_URL` | Required by web/admin for all product content. |

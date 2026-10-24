@@ -33,7 +33,7 @@ func TestCompleteUploadValidatesAndPersists(t *testing.T) {
 	svc := NewService(signerStub{}, storageStub{}, repo, "mq")
 	owner := uuid.New()
 	asset, err := svc.CompleteUpload(context.Background(), owner, domain.Completion{
-		PublicID: "mq/abc", SecureURL: "https://res.cloudinary.com/cloud/image/upload/abc.webp",
+		PublicID: "mq/abc", SecureURL: "https://res.cloudinary.com/cloud/image/upload/v1/mq/abc.webp",
 		ResourceType: "image", Format: "webp", Width: 100, Height: 200, Bytes: 1024,
 	})
 	if err != nil {
@@ -50,6 +50,11 @@ func TestCompleteUploadRejectsUnsafeMetadata(t *testing.T) {
 		{PublicID: "other/a", SecureURL: "https://res.cloudinary.com/x", ResourceType: "image", Format: "jpeg", Bytes: 1},
 		{PublicID: "mq/a", SecureURL: "http://res.cloudinary.com/x", ResourceType: "image", Format: "jpeg", Bytes: 1},
 		{PublicID: "mq/a", SecureURL: "https://res.cloudinary.com/x", ResourceType: "image", Format: "gif", Bytes: 1},
+		// Host must be exactly res.cloudinary.com, not merely end in cloudinary.com...
+		{PublicID: "mq/a", SecureURL: "https://evilcloudinary.com/mq/a.jpg", ResourceType: "image", Format: "jpeg", Width: 1, Height: 1, Bytes: 1},
+		{PublicID: "mq/a", SecureURL: "https://res.cloudinary.com.evil.example/mq/a.jpg", ResourceType: "image", Format: "jpeg", Width: 1, Height: 1, Bytes: 1},
+		// ...and the URL has to point at the asset that was actually signed.
+		{PublicID: "mq/a", SecureURL: "https://res.cloudinary.com/cloud/image/upload/v1/someone/else.jpg", ResourceType: "image", Format: "jpeg", Width: 1, Height: 1, Bytes: 1},
 		{PublicID: "mq/a", SecureURL: "https://res.cloudinary.com/x", ResourceType: "image", Format: "jpeg", Bytes: domain.MaxImageBytes + 1},
 	}
 	for i, completion := range cases {

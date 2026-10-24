@@ -103,7 +103,9 @@ test.describe('@wiki artist self-review', () => {
 		// Unchanged lines render too, not just the delta.
 		await expect(diff.getByText('Line one stays.')).toBeVisible();
 
-		await page.getByRole('button', { name: 'Approve' }).click();
+		await page.getByRole('button', { name: 'Approve', exact: true }).click();
+		// Approving publishes to the public wiki, so it asks first.
+		await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
 		await expect(page).toHaveURL(/\/studio\/wiki$/);
 
 		// Verify the approval actually persisted the edit (not just navigated away).
@@ -157,7 +159,9 @@ test.describe('@wiki artist self-review', () => {
 		await expect(page.getByText(/changed since the submission was written/i)).toBeVisible();
 
 		// Approving should fail (optimistic-concurrency conflict), not silently overwrite.
-		await page.getByRole('button', { name: 'Approve' }).click();
+		await page.getByRole('button', { name: 'Approve', exact: true }).click();
+		// Approving publishes to the public wiki, so it asks first.
+		await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
 		await expect(page.getByRole('alert')).toBeVisible();
 		await expect(page).toHaveURL(new RegExp(`/studio/wiki/${editSubmission.id}$`));
 

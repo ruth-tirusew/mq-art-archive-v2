@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,7 +40,7 @@ func TestProfileHandler_GetByHandle_success(t *testing.T) {
 	h := NewProfileHandler(&mockProfile{
 		getArtistByHandle: func(ctx context.Context, handle string) (*profile.ArtistProfile, error) {
 			assist.Equal(t, "studio", handle)
-			return &profile.ArtistProfile{Handle: handle, DisplayName: "Studio"}, nil
+			return &profile.ArtistProfile{Handle: handle, DisplayName: "Studio", Status: profile.ProfileStatusApproved}, nil
 		},
 	})
 
@@ -127,4 +129,34 @@ func TestQueryHelpers(t *testing.T) {
 
 	filter := eventListFilter(c)
 	assist.Equal(t, false, filter.UpcomingOnly)
+}
+
+func TestQueryLimit_isCapped(t *testing.T) {
+	for query, want := range map[string]int{
+		"":               50,
+		"?limit=10":      10,
+		"?limit=1000000": maxPageSize,
+		"?limit=-5":      50,
+		"?limit=abc":     50,
+	} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodGet, "/"+query, nil)
+		assist.Equal(t, want, queryLimit(c, 50))
+	}
+}
+
+func TestWriteError_doesNotLeakInternals(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+	writeError(c, fmt.Errorf("get user by id: ERROR: relation \"users\" violates constraint users_pkey"))
+	assist.Equal(t, http.StatusInternalServerError, w.Code)
+	assist.Equal(t, false, strings.Contains(w.Body.String(), "constraint"))
+
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	c2.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+	writeError(c2, fmt.Errorf("get artist by slug %q: %w", "x", apperrors.ErrNotFound))
+	assist.Equal(t, http.StatusNotFound, w2.Code)
+	assist.Equal(t, false, strings.Contains(w2.Body.String(), "get artist"))
 }

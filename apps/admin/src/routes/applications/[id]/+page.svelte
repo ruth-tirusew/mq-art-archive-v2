@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { ConfirmDialog, createConfirm, toast } from '$ui';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { onboardingService } from '$lib/application/onboarding';
@@ -11,6 +13,7 @@
 
   let { data } = $props();
 
+  const confirm = createConfirm();
   let notes = $state('');
   let submitting = $state(false);
   let errorMessage = $state('');
@@ -26,11 +29,36 @@
     });
   }
 
-  async function review(status: 'approved' | 'rejected') {
-    submitting = true;
+  function askReview(status: 'approved' | 'rejected') {
     errorMessage = '';
+    if (status === 'rejected' && !notes.trim()) {
+      errorMessage = 'Add a reason before rejecting. The applicant will see it.';
+      return;
+    }
+    confirm.ask(
+      status === 'approved'
+        ? {
+            title: 'Approve this application?',
+            description: 'The applicant is notified of the decision and gets access to the studio.',
+            confirmLabel: 'Approve',
+            run: () => review(status)
+          }
+        : {
+            title: 'Reject this application?',
+            description: 'The applicant is notified and sees your note.',
+            confirmLabel: 'Reject',
+            destructive: true,
+            run: () => review(status)
+          }
+    );
+  }
+
+  async function review(status: 'approved' | 'rejected') {
+    errorMessage = '';
+    submitting = true;
     try {
       await onboardingService.review(data.application.id, status, notes);
+      toast.success(status === 'approved' ? 'Application approved.' : 'Application rejected.');
       await goto('/applications');
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Review failed';
@@ -41,20 +69,20 @@
 </script>
 
 <svelte:head>
-  <title>{data.application.display_name} — mq admin</title>
+  <title>{data.application.display_name} — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="02 — Onboarding"
+  eyebrow="Applications"
   title={data.application.display_name}
-  description="Review this application and approve or reject with optional notes."
+  description="Approve or reject this application. Your note is shown to the applicant."
 />
 
 <Card>
   <CardHeader>
     <div class="flex flex-wrap items-center gap-2">
       <Badge variant="secondary">{data.application.applicant_type}</Badge>
-      <Badge>{data.application.status}</Badge>
+      <StatusBadge status={data.application.status} />
     </div>
     <CardTitle class="pt-2">{data.application.display_name}</CardTitle>
   </CardHeader>
@@ -99,22 +127,28 @@
       </div>
     {/if}
 
+    {#if data.application.review_notes}
+      <div>
+        <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Note sent to applicant</p>
+        <p class="mt-2 whitespace-pre-wrap text-sm text-foreground">{data.application.review_notes}</p>
+      </div>
+    {/if}
+
     {#if data.application.status === 'pending'}
       <div class="space-y-2">
-        <Label for="notes">Review notes</Label>
-        <Textarea id="notes" bind:value={notes} placeholder="Optional notes for the applicant or internal record" />
+        <Label for="notes">Note to applicant</Label>
+        <Textarea id="notes" bind:value={notes} placeholder="Required when rejecting (explain what to fix). Optional when approving, e.g. a welcome message." />
       </div>
 
       <div class="flex flex-wrap gap-3">
-        <Button disabled={submitting} onclick={() => review('approved')}>Approve</Button>
-        <Button variant="destructive" disabled={submitting} onclick={() => review('rejected')}>Reject</Button>
+        <Button disabled={submitting} onclick={() => askReview('approved')}>Approve</Button>
+        <Button variant="destructive" disabled={submitting} onclick={() => askReview('rejected')}>Reject</Button>
       </div>
     {/if}
 
     {#if errorMessage}
       <Alert variant="destructive">{errorMessage}</Alert>
     {/if}
-
-    <Button variant="ghost" href="/applications">Back to list</Button>
   </CardContent>
 </Card>
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

@@ -206,3 +206,30 @@ func TestRequireRole_missingRole(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 	assist.Equal(t, http.StatusUnauthorized, w.Code)
 }
+
+func TestAuthenticate_rejectsTokensIssuedBeforeASessionRevocation(t *testing.T) {
+	userID := uuid.New()
+	tokenSvc := auth.NewTokenService("secret", time.Hour)
+	token, err := tokenSvc.Issue(t.Context(), &identity.User{ID: userID, Role: identity.RolePublic})
+	assist.NoError(t, err)
+
+	serve := func(validAfter *time.Time) int {
+		identitySvc := &identityStub{users: map[uuid.UUID]*identity.User{
+			userID: {ID: userID, Email: "u@example.com", Role: identity.RolePublic, SessionsValidAfter: validAfter},
+		}}
+		r := gin.New()
+		r.Use(Authenticate(AuthConfig{Verifier: tokenSvc, Identity: identitySvc, CookieName: "c"}))
+		r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	assist.Equal(t, http.StatusOK, serve(nil))
+	past := time.Now().Add(-time.Hour)
+	assist.Equal(t, http.StatusOK, serve(&past)) // password changed long before this token existed
+	future := time.Now().Add(time.Hour)
+	assist.Equal(t, http.StatusUnauthorized, serve(&future)) // password changed after this token was issued
+}

@@ -1,4 +1,5 @@
 <script lang="ts" module>
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { getContext, setContext } from 'svelte';
 	import { goto } from '$app/navigation';
 
@@ -127,7 +128,11 @@
 			</div>
 			<div class="max-h-[50vh] overflow-y-auto p-2">
 				{#if loading}
-						<p class="px-3 py-6 text-center text-sm text-muted-foreground">Searching…</p>
+						<div class="space-y-3 px-3 py-4" role="status" aria-live="polite">
+							<span class="sr-only">Searching</span>
+							<Skeleton class="h-10 w-full" />
+							<Skeleton class="h-10 w-full" />
+						</div>
 					{:else if searchError}
 						<p class="px-3 py-6 text-center text-sm text-muted-foreground">Search is temporarily unavailable.</p>
 					{:else if query.trim() && !apiHasResults}

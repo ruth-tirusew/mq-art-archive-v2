@@ -39,7 +39,9 @@ func (s *Service) CompleteUpload(ctx context.Context, userID uuid.UUID, in domai
 		return nil, fmt.Errorf("%w: image format must be jpeg, png, or webp", apperrors.ErrValidation)
 	}
 	u, err := url.Parse(in.SecureURL)
-	if err != nil || u.Scheme != "https" || !strings.HasSuffix(strings.ToLower(u.Hostname()), "cloudinary.com") {
+	// Exact host (a suffix check lets evilcloudinary.com through) and the path must contain the
+	// public id we issued, so the URL cannot point at somebody else's file.
+	if err != nil || u.Scheme != "https" || strings.ToLower(u.Hostname()) != "res.cloudinary.com" || !strings.Contains(u.Path, in.PublicID) {
 		return nil, fmt.Errorf("%w: invalid secure_url", apperrors.ErrValidation)
 	}
 	if in.Bytes <= 0 || in.Bytes > domain.MaxImageBytes || in.Width <= 0 || in.Height <= 0 {

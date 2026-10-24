@@ -7,6 +7,7 @@
 		acquisitionPalette,
 		acquisitionTitle
 	} from '$lib/utils/fields';
+	import { Button, EmptyState, PageHeader } from '$ui';
 	import type { PageData } from './$types';
 
 	type FilterKey = 'city' | 'medium' | 'year' | 'style' | 'residency' | 'exhibition';
@@ -40,6 +41,10 @@
 
 	const hasFilters = $derived(Object.keys(active).length > 0);
 
+	function meta(w: ArtPost): string {
+		return [w.medium, w.year].filter(Boolean).join(' · ');
+	}
+
 	function toggle(key: FilterKey, value: string) {
 		const next = { ...active };
 		if (next[key] === value) delete next[key];
@@ -56,15 +61,22 @@
 	/>
 </svelte:head>
 
-<section class="mx-auto max-w-[1600px] px-6 py-14 md:px-10 md:py-20">
-	<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-terracotta">
-		⁂ &nbsp; All works · {items.length}
-	</p>
-	<h1 class="mt-4 font-display text-4xl text-foreground md:text-6xl">The archive</h1>
-	<p class="mt-4 max-w-2xl text-muted-foreground">
-		Browse the full collection. Filter by city, medium, year, or style.
-	</p>
+<section class="container-page py-14 md:py-20">
+	<PageHeader
+		eyebrow="All works · {items.length}"
+		lead="Browse the full collection. Filter by city, medium, year, or style."
+	>
+		The <em class="italic">archive</em>
+	</PageHeader>
 
+	{#if items.length === 0}
+		<EmptyState class="mt-10" title="No works have been added yet." body="Works appear here once artists publish them from their studio.">
+			{#snippet action()}
+				<Button variant="secondary" size="sm" href="/artists">Meet the artists →</Button>
+				<Button variant="link" href="/apply">Apply to be listed →</Button>
+			{/snippet}
+		</EmptyState>
+	{:else}
 	<div
 		class="sticky top-[65px] z-30 -mx-6 mt-10 border-y border-border/60 bg-background/95 px-6 py-4 backdrop-blur md:-mx-10 md:px-10"
 	>
@@ -102,7 +114,7 @@
 		</div>
 	</div>
 
-	<p class="mt-6 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+	<p class="t-meta mt-6 text-muted-foreground">
 		Showing {filtered.length} of {items.length}
 	</p>
 
@@ -129,7 +141,7 @@
 								{acquisitionArtistName(w)}
 							</p>
 							<p class="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-cream/60">
-								{w.medium} · {w.year}
+								{meta(w)}
 							</p>
 							<span class="mt-2 inline-block font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
 								View →
@@ -141,7 +153,7 @@
 					<div>
 						<p class="font-display text-lg italic text-foreground">{acquisitionTitle(w)}</p>
 						<p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-							{acquisitionArtistName(w)} · {w.year}
+							{[acquisitionArtistName(w), w.year].filter(Boolean).join(' · ')}
 						</p>
 					</div>
 					<div class="flex gap-1 pt-1">
@@ -155,6 +167,9 @@
 	</div>
 
 	{#if filtered.length === 0}
-		<p class="mt-16 text-center text-muted-foreground">No works match these filters.</p>
+		<EmptyState class="mt-10" eyebrow="No matches" title="No works match these filters." body="Try removing a filter to see more of the archive.">
+			{#snippet action()}<Button variant="secondary" size="sm" onclick={() => (active = {})}>Clear filters</Button>{/snippet}
+		</EmptyState>
+	{/if}
 	{/if}
 </section>

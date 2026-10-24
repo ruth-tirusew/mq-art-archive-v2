@@ -6,6 +6,7 @@
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import { page } from '$app/stores';
 	import { authService } from '$lib/application/auth';
+	import { BrandLoader, ErrorBoundary, NavProgress, Toaster } from '$ui';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
 
@@ -25,13 +26,19 @@
 	/>
 </svelte:head>
 
+<BrandLoader />
+<NavProgress />
+<Toaster />
+
 <SearchProvider>
 	<div class="page-enter min-h-screen bg-background">
 		{#if !isHandlePage}
 			<SiteHeader />
 		{/if}
 		<div class="overflow-x-clip">
-			{@render children()}
+			<ErrorBoundary>
+				{@render children()}
+			</ErrorBoundary>
 			{#if !isHandlePage}
 				<SiteFooter />
 			{/if}

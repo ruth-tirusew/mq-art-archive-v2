@@ -66,6 +66,9 @@ type fakeContent struct {
 func newFakeContent(articles ...content.Article) *fakeContent {
 	m := map[uuid.UUID]content.Article{}
 	for _, a := range articles {
+		if a.Status == "" {
+			a.Status = content.ArticleStatusPublished // fixtures are live unless a test says otherwise
+		}
 		m[a.ID] = a
 	}
 	return &fakeContent{articles: m}
@@ -518,5 +521,28 @@ func TestListMyCommentsAll_spansMultipleArticles(t *testing.T) {
 	}
 	if len(activity) != 2 {
 		t.Fatalf("expected 2 activity entries, got %d", len(activity))
+	}
+}
+
+func TestEngagement_unpublishedArticlesLookMissing(t *testing.T) {
+	ctx := context.Background()
+	userID := uuid.New()
+	for _, status := range []content.ArticleStatus{content.ArticleStatusDraft, content.ArticleStatusArchived} {
+		articleID := uuid.New()
+		svc := NewService(newFakeFavoriteRepo(), nil, nil,
+			newFakeContent(content.Article{ID: articleID, Body: "hello world", Status: status}), nil)
+
+		if _, _, err := svc.ToggleFavorite(ctx, userID, articleID); !errors.Is(err, apperrors.ErrNotFound) {
+			t.Fatalf("%s: favorite should be not found, got %v", status, err)
+		}
+		if _, err := svc.CreateHighlight(ctx, userID, articleID, "hello", 0, 5); !errors.Is(err, apperrors.ErrNotFound) {
+			t.Fatalf("%s: highlight should be not found, got %v", status, err)
+		}
+		if _, err := svc.ListComments(ctx, articleID); !errors.Is(err, apperrors.ErrNotFound) {
+			t.Fatalf("%s: comments should be not found, got %v", status, err)
+		}
+		if _, err := svc.PopularHighlight(ctx, articleID); !errors.Is(err, apperrors.ErrNotFound) {
+			t.Fatalf("%s: popular highlight should be not found, got %v", status, err)
+		}
 	}
 }

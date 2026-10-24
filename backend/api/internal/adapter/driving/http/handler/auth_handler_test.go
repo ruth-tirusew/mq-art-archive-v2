@@ -30,6 +30,18 @@ func (m *mockAuth) BeginOAuth(ctx context.Context, provider, returnTo string) (s
 	return m.beginOAuth(ctx, provider, returnTo)
 }
 
+func (m *mockAuth) BeginOAuthLink(context.Context, uuid.UUID, string, string) (string, error) {
+	return "", nil
+}
+func (m *mockAuth) ReissueSession(context.Context, uuid.UUID) (string, error) {
+	return "fresh-token", nil
+}
+func (m *mockAuth) IsOAuthLinkState(string) bool { return false }
+func (m *mockAuth) CompleteOAuthLink(context.Context, string, string, string, uuid.UUID) (string, error) {
+	return "", nil
+}
+func (m *mockAuth) UnlinkOAuth(context.Context, uuid.UUID, string) error { return nil }
+
 func (m *mockAuth) CompleteOAuth(ctx context.Context, provider, code, state string) (string, *identity.User, string, error) {
 	return m.completeOAuth(ctx, provider, code, state)
 }
@@ -112,8 +124,29 @@ func TestAuthHandler_GoogleCallback_success(t *testing.T) {
 		},
 	}, "mq_access_token")
 
-	w := serve(t, http.MethodGet, "/api/v1/auth/google/callback?code=abc&state=xyz", nil, nil, nil, h.GoogleCallback)
+	w := serve(t, http.MethodGet, "/api/v1/auth/google/callback?code=abc&state=xyz", nil, nil,
+		map[string]string{"Cookie": "mq_oauth_state=xyz"}, h.GoogleCallback)
 	assist.Equal(t, http.StatusFound, w.Code)
+}
+
+func TestAuthHandler_GoogleCallback_mustComeFromTheBrowserThatStartedIt(t *testing.T) {
+	completed := false
+	h := NewAuthHandler(&mockAuth{
+		completeOAuth: func(ctx context.Context, provider, code, state string) (string, *identity.User, string, error) {
+			completed = true
+			return "token", &identity.User{ID: uuid.New()}, "http://localhost:5174/", nil
+		},
+	}, "mq_access_token")
+
+	for name, headers := range map[string]map[string]string{
+		"no cookie (attacker-crafted link opened by a victim)": nil,
+		"cookie for a different state":                         {"Cookie": "mq_oauth_state=other"},
+	} {
+		w := serve(t, http.MethodGet, "/api/v1/auth/google/callback?code=abc&state=xyz", nil, nil, headers, h.GoogleCallback)
+		assist.Equal(t, http.StatusBadRequest, w.Code)
+		assist.Equal(t, false, completed)
+		_ = name
+	}
 }
 
 func TestAuthHandler_GoogleCallback_missingParams(t *testing.T) {

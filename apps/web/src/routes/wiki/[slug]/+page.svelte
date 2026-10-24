@@ -15,11 +15,12 @@
 	import { ApiError } from '$lib/adapters/api/client';
 	import type { Highlight, PopularHighlight } from '$lib/core/domain/highlight';
 	import type { Comment } from '$lib/core/domain/comment';
+	import { Alert, Button, toast } from '$ui';
 
 	let { data }: { data: PageData } = $props();
 
 	const article = $derived(data.article);
-	const title = $derived(article?.title ?? 'Wiki unavailable');
+	const title = $derived(article.title);
 	// Foundation for comments/highlights (both anchor to a span of this body — see
 	// $lib/utils/textAnchor): each rendered paragraph carries the index a selection
 	// inside it needs to resolve back to a global offset in article.body.
@@ -32,6 +33,7 @@
 	let myHighlights = $state<Highlight[]>([]);
 	let comments = $state<Comment[]>([]);
 	let expandedParagraph = $state<number | null>(null);
+	let commentsFailed = $state(false);
 
 	let composer = $state<{ anchor: TextAnchor; top: number; left: number } | null>(null);
 	let composerDraft = $state('');
@@ -47,9 +49,13 @@
 
 	async function refreshEngagement() {
 		if (!article?.id) return;
+		commentsFailed = false;
 		const [popular, list] = await Promise.all([
 			highlightsService.getPopular(article.id).catch(() => null),
-			commentsService.list(article.id).catch(() => [])
+			commentsService.list(article.id).catch(() => {
+				commentsFailed = true;
+				return [] as Comment[];
+			})
 		]);
 		popularHighlight = popular;
 		comments = list;
@@ -70,6 +76,7 @@
 			myHighlights = await highlightsService.listMine(article.id);
 		} catch (e) {
 			if (e instanceof ApiError && e.status === 401) requireLogin();
+			else toast.error('Couldn’t save your highlight. Try again.');
 		}
 	}
 
@@ -122,6 +129,22 @@
 		if (!$currentUser) return requireLogin();
 		await commentsService.create(article.id, { body, isGeneral: true });
 		comments = await commentsService.list(article.id);
+	}
+
+	/**
+	 * Comments carry no thread id: a "thread" is every comment on the same passage. Group them so a
+	 * reply is anchored to the passage the reader is actually looking at, not whichever comment
+	 * happens to be first in the paragraph.
+	 */
+	function threadsFor(list: Comment[]): { key: string; anchor: Comment; comments: Comment[] }[] {
+		const groups = new Map<string, Comment[]>();
+		for (const c of list) {
+			const key = `${c.start}:${c.end}`;
+			groups.set(key, [...(groups.get(key) ?? []), c]);
+		}
+		return [...groups.entries()]
+			.map(([key, comments]) => ({ key, anchor: comments[0], comments }))
+			.sort((a, b) => a.anchor.start - b.anchor.start);
 	}
 
 	async function submitReply(anchoredTo: Comment, body: string) {
@@ -233,15 +256,22 @@
 						{anchoredComments.length === 1 ? 'comment' : 'comments'}
 					</button>
 					{#if expandedParagraph === i}
-						<div class="mt-3 rounded-sm border border-border/60 bg-card/30 p-4">
-							<CommentThread
-								comments={anchoredComments}
-								placeholder="Reply to this thread…"
-								currentUserId={$currentUser?.id}
-								{signInHref}
-								onSubmit={(body) => submitReply(anchoredComments[0], body)}
-								onDelete={deleteComment}
-							/>
+						<div class="mt-3 space-y-4">
+							{#each threadsFor(anchoredComments) as thread (thread.key)}
+								<div class="rounded-sm border border-border/60 bg-card/30 p-4">
+									<p class="mb-3 line-clamp-2 border-l-2 border-accent pl-2 text-xs italic text-muted-foreground">
+										“{thread.anchor.quoted_text}”
+									</p>
+									<CommentThread
+										comments={thread.comments}
+										placeholder="Reply to this passage…"
+										currentUserId={$currentUser?.id}
+										{signInHref}
+										onSubmit={(body) => submitReply(thread.anchor, body)}
+										onDelete={deleteComment}
+									/>
+								</div>
+							{/each}
 						</div>
 					{/if}
 				{/if}
@@ -292,6 +322,14 @@
 		<h2 class="font-display text-2xl text-foreground">
 			Responses {#if comments.filter((c) => c.is_general).length > 0}({comments.filter((c) => c.is_general).length}){/if}
 		</h2>
+		{#if commentsFailed}
+			<Alert tone="warning" title="Couldn’t load comments" class="mt-6">
+				<div class="flex flex-wrap items-center gap-4">
+					<span>Existing comments may be missing from this page.</span>
+					<Button variant="secondary" size="sm" onclick={refreshEngagement}>Try again</Button>
+				</div>
+			</Alert>
+		{/if}
 		<div class="mt-6">
 			<CommentThread
 				comments={comments.filter((c) => c.is_general)}
@@ -303,18 +341,6 @@
 		</div>
 	</section>
 </article>
-{:else}
-	<section class="mx-auto max-w-[900px] px-6 py-24 text-center md:px-10">
-		<h1 class="font-display text-4xl text-foreground">Wiki entry unavailable</h1>
-		<p class="mt-4 text-muted-foreground">We couldn't load this entry from the API.</p>
-		<button
-			type="button"
-			onclick={() => location.reload()}
-			class="mt-6 rounded-full bg-foreground px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.2em] text-background"
-		>
-			Retry
-		</button>
-	</section>
 {/if}
 
 <style>

@@ -10,6 +10,7 @@ import (
 	"net/mail"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,9 @@ type Service struct {
 	notifications  outbound.NotificationPreferencesRepository
 	webAppURL      string
 	verifications  outbound.EmailVerificationRepository
+
+	dummyOnce sync.Once
+	dummyHash string
 }
 
 func NewService(
@@ -125,6 +129,11 @@ func (s *Service) CompleteOAuth(ctx context.Context, provider, code, state strin
 
 	user, err := s.findOrCreateUser(ctx, provider, info)
 	if err != nil {
+		// ErrConflict means an account with this email already exists. The caller still needs
+		// returnTo to explain what to do next ("sign in, then link Google in settings").
+		if errors.Is(err, apperrors.ErrConflict) {
+			return "", nil, returnTo, err
+		}
 		return "", nil, "", err
 	}
 	if info.EmailVerified && user.EmailVerifiedAt == nil {
@@ -142,6 +151,97 @@ func (s *Service) CompleteOAuth(ctx context.Context, provider, code, state strin
 		return "", nil, "", err
 	}
 	return token, user, returnTo, nil
+}
+
+func (s *Service) BeginOAuthLink(_ context.Context, userID uuid.UUID, provider, returnTo string) (string, error) {
+	p, ok := s.providers[provider]
+	if !ok {
+		return "", fmt.Errorf("unknown provider: %s", provider)
+	}
+	if err := s.validateReturnTo(returnTo); err != nil {
+		return "", err
+	}
+	state, err := s.state.SignLink(returnTo, userID)
+	if err != nil {
+		return "", err
+	}
+	return p.AuthCodeURL(state), nil
+}
+
+func (s *Service) IsOAuthLinkState(state string) bool {
+	_, _, err := s.state.VerifyLink(state)
+	return err == nil
+}
+
+// CompleteOAuthLink attaches the provider account to actorID. The state must have been issued
+// to that same user, so a link callback replayed in someone else's browser is rejected.
+func (s *Service) CompleteOAuthLink(ctx context.Context, provider, code, state string, actorID uuid.UUID) (string, error) {
+	p, ok := s.providers[provider]
+	if !ok {
+		return "", fmt.Errorf("unknown provider: %s", provider)
+	}
+	returnTo, stateUser, err := s.state.VerifyLink(state)
+	if err != nil {
+		return "", err
+	}
+	if err := s.validateReturnTo(returnTo); err != nil {
+		return "", err
+	}
+	if stateUser != actorID {
+		return returnTo, apperrors.ErrUnauthorized
+	}
+
+	info, err := p.Exchange(ctx, code)
+	if err != nil {
+		return returnTo, err
+	}
+	if !info.EmailVerified {
+		return returnTo, apperrors.ErrUnauthorized
+	}
+
+	if existing, err := s.oauthAccounts.GetByProviderSubject(ctx, provider, info.ProviderUserID); err == nil {
+		if existing.UserID == actorID {
+			return returnTo, nil // already linked to this user; nothing to do
+		}
+		return returnTo, apperrors.ErrConflict // belongs to a different Artiv account
+	} else if !errors.Is(err, apperrors.ErrNotFound) {
+		return returnTo, err
+	}
+	if _, err := s.oauthAccounts.GetByUserProvider(ctx, actorID, provider); err == nil {
+		return returnTo, apperrors.ErrConflict // this user already has a different one linked
+	} else if !errors.Is(err, apperrors.ErrNotFound) {
+		return returnTo, err
+	}
+
+	if err := s.oauthAccounts.Create(ctx, identity.OAuthAccount{
+		UserID:         actorID,
+		Provider:       provider,
+		ProviderUserID: info.ProviderUserID,
+		Email:          info.Email,
+	}); err != nil {
+		return returnTo, err
+	}
+
+	// If the provider's verified email is the account's own email, that also proves ownership.
+	if s.verifiedUsers != nil {
+		if user, err := s.users.GetByID(ctx, actorID); err == nil && user.EmailVerifiedAt == nil && strings.EqualFold(user.Email, info.Email) {
+			_ = s.verifiedUsers.MarkEmailVerified(ctx, actorID, time.Now().UTC())
+		}
+	}
+	return returnTo, nil
+}
+
+// UnlinkOAuth disconnects a provider. It requires a password so the user cannot lock themselves
+// out of the only way back into the account.
+func (s *Service) UnlinkOAuth(ctx context.Context, userID uuid.UUID, provider string) error {
+	_, passwordHash, err := s.users.GetAuthByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if passwordHash == nil || *passwordHash == "" {
+		return apperrors.ErrConflict
+	}
+	return s.oauthAccounts.DeleteByUserProvider(ctx, userID, provider)
 }
 
 func (s *Service) Register(ctx context.Context, email, password string) (string, *identity.User, error) {
@@ -186,6 +286,17 @@ func (s *Service) Register(ctx context.Context, email, password string) (string,
 	return token, &user, nil
 }
 
+// burnPasswordCheck spends one password-hash comparison against a throwaway hash. It is used on
+// login paths that have no real hash to check so they take about as long as a real attempt.
+func (s *Service) burnPasswordCheck(password string) {
+	s.dummyOnce.Do(func() {
+		s.dummyHash, _ = s.passwords.Hash("artiv-timing-equaliser")
+	})
+	if s.dummyHash != "" {
+		_ = s.passwords.Check(s.dummyHash, password)
+	}
+}
+
 func (s *Service) Login(ctx context.Context, email, password string) (string, *identity.User, error) {
 	normalized, err := normalizeEmail(email)
 	if err != nil {
@@ -193,14 +304,17 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, *i
 	}
 
 	user, passwordHash, err := s.users.GetAuthByEmail(ctx, normalized)
-	print(&user.Email)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
+			// Same work and same answer as a wrong password, so response time and status
+			// don't reveal whether the email has an account.
+			s.burnPasswordCheck(password)
 			return "", nil, apperrors.ErrUnauthorized
 		}
 		return "", nil, err
 	}
 	if passwordHash == nil || *passwordHash == "" {
+		s.burnPasswordCheck(password)
 		return "", nil, apperrors.ErrUnauthorized
 	}
 	if !s.passwords.Check(*passwordHash, password) {
@@ -224,19 +338,14 @@ func (s *Service) findOrCreateUser(ctx context.Context, provider string, info *o
 		return nil, err
 	}
 
-	user, err := s.users.GetByEmail(ctx, info.Email)
-	if err == nil {
-		if linkErr := s.oauthAccounts.Create(ctx, identity.OAuthAccount{
-			UserID:         user.ID,
-			Provider:       provider,
-			ProviderUserID: info.ProviderUserID,
-			Email:          info.Email,
-		}); linkErr != nil {
-			return nil, linkErr
-		}
-		return user, nil
-	}
-	if !errors.Is(err, apperrors.ErrNotFound) {
+	// An account with this email already exists (password-registered, or another login). Do not
+	// attach this provider to it automatically: anyone can register a password account with
+	// someone else's email address, and linking by email would hand that account to the real
+	// owner while leaving the registrant's password working. The owner links explicitly from
+	// settings while signed in instead.
+	if _, err := s.users.GetByEmail(ctx, info.Email); err == nil {
+		return nil, apperrors.ErrConflict
+	} else if !errors.Is(err, apperrors.ErrNotFound) {
 		return nil, err
 	}
 
@@ -314,10 +423,26 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	if err != nil {
 		return err
 	}
+	// Consume the token first and atomically (it only succeeds for an unused token), so two
+	// simultaneous requests with the same link cannot both reset the password.
+	if err := s.resets.MarkUsed(ctx, record.ID); err != nil {
+		return apperrors.ErrInvalidToken
+	}
 	if err := s.users.UpdatePassword(ctx, record.UserID, hash); err != nil {
 		return err
 	}
-	return s.resets.MarkUsed(ctx, record.ID)
+	// Any other reset links mailed earlier must not work after this one has been used.
+	return s.resets.InvalidateForUser(ctx, record.UserID)
+}
+
+// ReissueSession returns a fresh access token for a user whose old ones were just revoked
+// (their own password change), so they stay signed in on the device they changed it from.
+func (s *Service) ReissueSession(ctx context.Context, userID uuid.UUID) (string, error) {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	return s.tokens.Issue(ctx, user)
 }
 
 func (s *Service) VerifyEmail(ctx context.Context, token string) error {
@@ -366,10 +491,18 @@ func (s *Service) GetMe(ctx context.Context, userID uuid.UUID) (*identity.User, 
 		return nil, err
 	}
 	user.HasPassword = passwordHash != nil && *passwordHash != ""
+	if _, err := s.oauthAccounts.GetByUserProvider(ctx, userID, "google"); err == nil {
+		user.GoogleLinked = true
+	} else if !errors.Is(err, apperrors.ErrNotFound) {
+		return nil, err
+	}
 	return user, nil
 }
 
 func (s *Service) UpdateMyProfile(ctx context.Context, userID uuid.UUID, displayName, avatarURL string) (*identity.User, error) {
+	if err := apperrors.ValidateWebURL(avatarURL); err != nil {
+		return nil, err
+	}
 	if err := s.users.UpdateProfile(ctx, userID, strings.TrimSpace(displayName), strings.TrimSpace(avatarURL)); err != nil {
 		return nil, err
 	}
@@ -405,6 +538,8 @@ func (s *Service) ChangeEmail(ctx context.Context, userID uuid.UUID, newEmail, c
 	if err := s.users.UpdateEmail(ctx, userID, normalized); err != nil {
 		return nil, err
 	}
+	// The new address is unverified (the repository clears the flag): ask the owner to confirm it.
+	_ = s.ResendEmailVerification(ctx, userID)
 	return s.GetMe(ctx, userID)
 }
 
@@ -549,5 +684,12 @@ func validatePassword(password string) error {
 	if len(password) < minPasswordLength {
 		return fmt.Errorf("%w: password must be at least %d characters", apperrors.ErrValidation, minPasswordLength)
 	}
+	// bcrypt only reads the first 72 bytes, so a longer password would silently match any other
+	// that shares that prefix. Reject it instead of pretending the tail counts.
+	if len(password) > maxPasswordBytes {
+		return fmt.Errorf("%w: password must be at most %d bytes", apperrors.ErrValidation, maxPasswordBytes)
+	}
 	return nil
 }
+
+const maxPasswordBytes = 72

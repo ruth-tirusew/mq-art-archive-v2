@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fieldClass as inputClass } from '$ui';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import MediaUploader from '$lib/components/MediaUploader.svelte';
@@ -9,9 +10,6 @@
   import { Card, CardContent } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
-
-  const inputClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
   let { data } = $props();
 
@@ -65,11 +63,11 @@
 </script>
 
 <svelte:head>
-  <title>New post — mq admin</title>
+  <title>New post — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="05 — Posts"
+  eyebrow="Posts"
   title="New post"
   description="Create an art post on behalf of an artist."
 />

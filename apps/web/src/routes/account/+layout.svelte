@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { authService, currentUser, authLoading } from '$lib/application/auth';
+	import { authService, currentUser } from '$lib/application/auth';
+	import PageSkeleton from '$lib/components/PageSkeleton.svelte';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
 	let ready = $state(false);
@@ -31,8 +32,8 @@
 	<title>Account — Artiv</title>
 </svelte:head>
 
-{#if $authLoading || !ready}
-	<p class="mx-auto max-w-3xl px-6 py-24 text-muted-foreground">Loading account…</p>
+{#if !ready}
+	<PageSkeleton rows={3} label="Loading account" class="mx-auto max-w-3xl px-6 py-16 md:px-10 md:py-20" />
 {:else}
 	<div class="border-b border-border/60 bg-card/20">
 		<div class="mx-auto flex max-w-3xl flex-wrap items-center gap-4 px-6 py-4 md:px-10">

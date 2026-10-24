@@ -18,6 +18,7 @@
 		isSameDay,
 		startOfWeek
 	} from '$lib/components/events/eventFormat';
+	import { Button, EmptyState, ErrorState } from '$ui';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -109,9 +110,20 @@
 		bookmarkVersion += 1;
 	}
 
-	function onSubmitted(event: Event) {
-		localEvents = [event, ...localEvents];
-		rangeTab = 'upcoming';
+	// A submission is pending review, so it must not appear in the public list yet. The form stays
+	// open and shows its own confirmation.
+	function onSubmitted() {}
+
+	const hasActiveFilters = $derived(
+		typeFilter !== 'All' || venueFilter !== 'All' || weekFilter !== 'all' || savedOnly || selectedDay !== null
+	);
+
+	function clearFilters() {
+		typeFilter = 'All';
+		venueFilter = 'All';
+		weekFilter = 'all';
+		savedOnly = false;
+		selectedDay = null;
 	}
 </script>
 
@@ -136,19 +148,9 @@
 	{venues}
 />
 
-<section class="mx-auto max-w-[1600px] px-6 py-10 md:px-10 md:py-14">
+<section class="container-page py-10 md:py-14">
 	{#if data.error && localEvents.length === 0}
-		<div class="rounded-sm border border-border bg-card/40 px-6 py-12 text-center">
-			<h2 class="font-display text-2xl text-foreground">Events temporarily unavailable</h2>
-			<p class="mt-3 text-sm text-muted-foreground">We couldn't load the calendar from the API.</p>
-			<button
-				type="button"
-				onclick={() => location.reload()}
-				class="mt-6 rounded-full bg-foreground px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.2em] text-background"
-			>
-				Retry
-			</button>
-		</div>
+		<ErrorState status={503} message="We couldn't load the calendar. Your connection is fine; the archive isn't answering." />
 	{:else if rangeTab === 'submissions'}
 		<div class="grid gap-10 lg:grid-cols-[16rem_1fr]">
 			<div class="hidden lg:block">
@@ -175,11 +177,18 @@
 
 			<div class="min-w-0">
 				{#if filtered.length === 0}
-					<p
-						class="py-16 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground"
-					>
-						No events match this filter.
-					</p>
+					{#if hasActiveFilters}
+						<EmptyState eyebrow="No matches" title="No events match these filters." body="Try widening the date or type, or clear everything.">
+							{#snippet action()}<Button variant="secondary" size="sm" onclick={clearFilters}>Clear filters</Button>{/snippet}
+						</EmptyState>
+					{:else}
+						<EmptyState
+							title={rangeTab === 'past' ? 'No past events on record.' : 'Nothing on the calendar yet.'}
+							body="Know of an opening, talk or residency? Send it in and an editor will review it."
+						>
+							{#snippet action()}<Button variant="secondary" size="sm" onclick={() => (rangeTab = 'submissions')}>Submit an event →</Button>{/snippet}
+						</EmptyState>
+					{/if}
 				{:else if viewMode === 'grid'}
 					<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 						{#each filtered as event (event.id)}

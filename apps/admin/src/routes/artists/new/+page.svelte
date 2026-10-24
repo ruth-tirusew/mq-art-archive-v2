@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fieldClass as inputClass } from '$ui';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import MediaUploader from '$lib/components/MediaUploader.svelte';
@@ -9,9 +10,6 @@
   import { Card, CardContent } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
-
-  const inputClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
   let email = $state('');
   let displayName = $state('');
@@ -55,11 +53,11 @@
 </script>
 
 <svelte:head>
-  <title>New artist — mq admin</title>
+  <title>New artist — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="04 — Artists"
+  eyebrow="Artists"
   title="New artist"
   description="Create a user account and artist profile."
 />

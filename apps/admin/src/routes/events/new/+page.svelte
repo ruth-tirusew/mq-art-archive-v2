@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { fieldClass as inputClass } from '$ui';
+  import { eventTypes } from '$lib/core/domain/eventTypes';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { eventsService } from '$lib/application/events';
@@ -8,9 +10,6 @@
   import { Card, CardContent } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
-
-  const inputClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
   let title = $state('');
   let description = $state('');
@@ -52,11 +51,11 @@
 </script>
 
 <svelte:head>
-  <title>New event — mq admin</title>
+  <title>New event — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="03 — Events"
+  eyebrow="Events"
   title="New event"
   description="Manually add an art event for review or publication."
 />
@@ -77,7 +76,10 @@
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="space-y-2">
           <Label for="event_type">Type</Label>
-          <input id="event_type" bind:value={eventType} class={inputClass} />
+          <input id="event_type" list="event-types" bind:value={eventType} class={inputClass} />
+          <datalist id="event-types">
+            {#each eventTypes as type}<option value={type}></option>{/each}
+          </datalist>
         </div>
         <div class="space-y-2">
           <Label for="status">Status</Label>

@@ -40,7 +40,7 @@ func NewScraperRSS(cfg RSSConfig) outbound.EventSource {
 	}
 	client := cfg.Client
 	if client == nil {
-		client = &http.Client{Timeout: timeout}
+		client = newSafeClient(timeout)
 	}
 	return &ScraperRSS{
 		sources:   cfg.Sources,

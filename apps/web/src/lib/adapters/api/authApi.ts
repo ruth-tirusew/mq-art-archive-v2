@@ -23,6 +23,10 @@ export class AuthApi implements AuthPort {
     });
   }
 
+  unlinkGoogle(): Promise<void> {
+    return apiFetch<void>('/api/v1/auth/google/link', { method: 'DELETE' });
+  }
+
   logout(): Promise<void> {
     return apiFetch<void>('/api/v1/auth/logout', { method: 'POST' });
   }

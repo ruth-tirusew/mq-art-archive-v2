@@ -26,6 +26,7 @@ type OnboardingApplicationResponse struct {
 	DisplayName     string     `json:"display_name"`
 	RequestedHandle string     `json:"requested_handle,omitempty"`
 	Notes           string     `json:"notes,omitempty"`
+	ReviewNotes     string     `json:"review_notes,omitempty"`
 	Status          string     `json:"status"`
 	ReviewedBy      *uuid.UUID `json:"reviewed_by,omitempty"`
 	ReviewedAt      *time.Time `json:"reviewed_at,omitempty"`
@@ -41,6 +42,7 @@ func ToOnboardingApplicationResponse(app domain.OnboardingApplication) Onboardin
 		DisplayName:     app.DisplayName,
 		RequestedHandle: app.RequestedHandle,
 		Notes:           app.Notes,
+		ReviewNotes:     app.ReviewNotes,
 		Status:          string(app.Status),
 		ReviewedBy:      app.ReviewedBy,
 		ReviewedAt:      app.ReviewedAt,

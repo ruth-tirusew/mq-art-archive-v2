@@ -47,6 +47,10 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("configuration: %v", err)
 	}
+	if cfg.AuthDevMode {
+		// Header auth lets anyone who knows a user id act as that user. Loud on purpose.
+		log.Printf("WARNING: AUTH_DEV_MODE is enabled (APP_ENV=%s): X-User-ID header authentication is active. Never run this on a reachable server.", cfg.AppEnv)
+	}
 
 	if err := postgres.Migrate(cfg.DatabaseURL); err != nil {
 		log.Fatalf("migrate: %v", err)
@@ -99,7 +103,7 @@ func main() {
 
 	// Auth adapters
 	tokenSvc := auth.NewTokenService(cfg.JWTSecret, cfg.JWTAccessTTL)
-	stateSvc := auth.NewOAuthStateService(cfg.JWTSecret, 10*time.Minute)
+	stateSvc := auth.NewOAuthStateService(config.DeriveKey(cfg.JWTSecret, "oauth-state"), 10*time.Minute)
 
 	var oauthProviders []outbound.OAuthProvider
 	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
@@ -115,7 +119,6 @@ func main() {
 	artSvc := artuc.NewService(artPostRepo)
 	profileSvc := profileuc.NewService(profileRepo, userRepo, artPostRepo)
 	institutionSvc := institutionuc.NewService(institutionRepo)
-	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo)
 	searchSvc := searchuc.NewService(articleRepo, eventRepo, profileRepo, artPostRepo)
 	identitySvc := identityuc.NewService(userRepo)
 	settingsSvc := settingsuc.NewService(scrapeSettingsRepo, eventReloader, cfg.TelegramSessionPath)
@@ -125,10 +128,11 @@ func main() {
 	engagementSvc := engagementuc.NewService(favoriteRepo, highlightRepo, commentRepo, contentSvc, identitySvc)
 	analyticsSvc := analyticsuc.NewService(analyticsRepo)
 	passwordHasher := auth.NewBcryptPasswordHasher()
-	var mailer outbound.Mailer = maileradapter.NewLogMailer()
+	var mailer outbound.Mailer = maileradapter.NewLogMailer(strings.EqualFold(cfg.AppEnv, "development"))
 	if cfg.ResendAPIKey != "" {
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}
+	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo, onboardinguc.WithMailer(mailer, cfg.WebAppURL))
 	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
 	// polling goroutine below can reuse this same instance rather than constructing a
 	// second one. telegramNotifier stays a nil interface when the bot isn't configured,
@@ -201,6 +205,13 @@ func main() {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.HTTPPort),
 		Handler: router,
+		// Without these a client can hold connections open indefinitely by sending headers or a
+		// body one byte at a time (Slowloris) and exhaust the server.
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 16,
 	}
 
 	go func() {

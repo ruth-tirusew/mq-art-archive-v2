@@ -13,6 +13,7 @@
 		artistTagline,
 		artistYearsActive
 	} from '$lib/utils/fields';
+	import { Button, EmptyState, ErrorState } from '$ui';
 	import type { PageData } from './$types';
 	import type { ArtistsSortKey } from './+page';
 
@@ -73,6 +74,12 @@
 		syncQuery({ sort: value });
 	}
 
+	function pageHref(target: number) {
+		const params = new URLSearchParams($page.url.searchParams);
+		params.set('page', String(target));
+		return `?${params}`;
+	}
+
 	const featured = $derived(roster.find((a) => a.featured) ?? null);
 	const featuredCover = $derived(featured ? coverFor(featured.slug, featured) : undefined);
 	const rest = $derived(roster.filter((a) => a.slug !== featured?.slug));
@@ -94,8 +101,8 @@
 		'lg:col-span-2'
 	];
 
-	const updated = new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
-	const quarter = Math.ceil((new Date().getMonth() + 1) / 3);
+	// The works query is capped at 200, so say so instead of presenting it as an exact total.
+	const worksLabel = $derived(totalWorks >= 200 ? '200+' : String(totalWorks));
 </script>
 
 <svelte:head>
@@ -108,17 +115,17 @@
 
 {#if !featured}
 <section class="border-b border-border/60">
-	<div class="mx-auto grid max-w-[1600px] grid-cols-12 gap-6 px-6 py-14 md:px-10 md:py-20">
+	<div class="container-page grid grid-cols-12 gap-6 py-14 md:py-20">
 		<div class="col-span-12 md:col-span-8">
-			<p class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-accent">
-				<span>✕</span> Index — {roster.length} artists · {totalWorks} works
+			<p class="t-eyebrow flex items-center gap-3 text-accent">
+				<span>✕</span> Index — {roster.length} artists · {worksLabel} works
 			</p>
 			<h1 class="mt-6 font-display text-[13vw] leading-[0.9] tracking-tight text-foreground md:text-[7.5vw]">
 				The <em class="italic text-accent">roster</em>.
 			</h1>
 			<p class="mt-6 max-w-xl text-balance text-lg leading-relaxed text-muted-foreground">
-				Painters, printmakers, and image-keepers working out of Addis, Bahir Dar, Berlin and Brooklyn
-				— held together by a shared inheritance and a stubborn refusal to inherit quietly.
+				Painters, printmakers, and image-keepers working in Ethiopia and across the diaspora — held
+				together by a shared inheritance and a stubborn refusal to inherit quietly.
 			</p>
 		</div>
 		<aside
@@ -128,7 +135,6 @@
 			<p><span class="text-accent">●</span> Featured this quarter</p>
 			<p><span class="text-secondary">◐</span> In residence abroad</p>
 			<p>▢ &nbsp; Open for commission</p>
-			<p class="pt-3 text-muted-foreground/70">Updated {updated}</p>
 		</aside>
 	</div>
 </section>
@@ -137,11 +143,11 @@
 {#if featured}
 <section class="max-h-[calc(100vh-65px)] overflow-hidden border-b border-border/60 bg-ink text-cream">
 	<div
-		class="mx-auto grid max-h-[calc(100vh-65px)] max-w-[1600px] grid-cols-12 gap-4 px-6 py-8 md:grid-rows-[auto_minmax(0,1fr)] md:gap-5 md:px-10 md:py-8"
+		class="container-page grid max-h-[calc(100vh-65px)] grid-cols-12 gap-4 py-8 md:grid-rows-[auto_minmax(0,1fr)] md:gap-5"
 	>
 		<div class="col-span-12 md:col-span-7 md:row-start-1">
-			<p class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.3em] text-cream/60">
-				<span>✕</span> Index — {roster.length} artists · {totalWorks} works
+			<p class="t-eyebrow flex items-center gap-3 text-cream/60">
+				<span>✕</span> Index — {roster.length} artists · {worksLabel} works
 			</p>
 		</div>
 		<a
@@ -168,7 +174,7 @@
 		<div class="col-span-12 flex min-h-0 flex-col justify-between md:col-span-7 md:row-start-2">
 			<div>
 				<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-cream/60">
-					Spotlight / Q{quarter}
+					Spotlight
 				</p>
 				<a href="/artists/{featured.slug}" class="group block">
 					<h2
@@ -202,7 +208,7 @@
 {/if}
 
 <section class="sticky top-[64px] z-10 border-b border-border/60 bg-background/90 backdrop-blur">
-	<div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-6 py-3 md:px-10">
+	<div class="container-page flex flex-wrap items-center justify-between gap-4 py-3">
 		<div class="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em]">
 			<button
 				type="button"
@@ -245,11 +251,9 @@
 	</div>
 </section>
 
-<section class="mx-auto max-w-[1600px] px-6 py-10 md:px-10 md:py-14">
+<section class="container-page py-10 md:py-14">
 	{#if loadFailed && roster.length === 0}
-		<p class="py-16 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
-			Roster unavailable right now. Try again shortly.
-		</p>
+		<ErrorState status={503} message="The roster didn't load. Nothing is wrong with your connection." />
 	{:else}
 		<div class="grid auto-rows-[minmax(160px,auto)] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
 			{#each filtered as a, i}
@@ -345,29 +349,28 @@
 						Submit your name and supporting links. Approved artists get access to the studio.
 					</p>
 				</div>
-				<a
-					href="/apply"
-					class="mt-6 inline-block font-mono text-[10px] uppercase tracking-[0.25em] text-foreground underline decoration-accent underline-offset-8"
-				>
-					Apply →
-				</a>
+				<div class="mt-6"><Button variant="link" href="/apply">Apply →</Button></div>
 			</div>
 		</div>
 
 		{#if filtered.length === 0}
-			<p class="mt-16 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
-				No artists match this filter yet.
-			</p>
+			<div class="mt-10">
+				{#if filter}
+					<EmptyState eyebrow="No matches" title="No {filter.toLowerCase()} artists in the roster yet." body="Try another discipline, or see everyone.">
+						{#snippet action()}<Button variant="secondary" size="sm" onclick={() => setFilter(null)}>Clear filter</Button>{/snippet}
+					</EmptyState>
+				{:else}
+					<EmptyState title="The roster is empty." body="Artists appear here once their profiles are approved.">
+						{#snippet action()}<Button variant="secondary" size="sm" href="/apply">Apply to be listed →</Button>{/snippet}
+					</EmptyState>
+				{/if}
+			</div>
 		{/if}
 		{#if pagination.pages > 1}
-			<nav class="mt-12 flex items-center justify-center gap-4 font-mono text-[10px] uppercase tracking-[0.2em]" aria-label="Artist pages">
-				{#if pagination.page > 1}
-					<a href="?{new URLSearchParams({ ...Object.fromEntries($page.url.searchParams), page: String(pagination.page - 1) })}">← Previous</a>
-				{:else}<span class="opacity-40">← Previous</span>{/if}
-				<span>Page {pagination.page} of {pagination.pages}</span>
-				{#if pagination.page < pagination.pages}
-					<a href="?{new URLSearchParams({ ...Object.fromEntries($page.url.searchParams), page: String(pagination.page + 1) })}">Next →</a>
-				{:else}<span class="opacity-40">Next →</span>{/if}
+			<nav class="mt-12 flex items-center justify-center gap-4" aria-label="Artist pages">
+				<Button variant="secondary" size="sm" href={pageHref(pagination.page - 1)} disabled={pagination.page <= 1}>← Previous</Button>
+				<span class="t-meta text-muted-foreground">Page {pagination.page} of {pagination.pages}</span>
+				<Button variant="secondary" size="sm" href={pageHref(pagination.page + 1)} disabled={pagination.page >= pagination.pages}>Next →</Button>
 			</nav>
 		{/if}
 	{/if}

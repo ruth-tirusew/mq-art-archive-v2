@@ -8,6 +8,7 @@ export interface OnboardingApplication {
 	display_name: string;
 	requested_handle?: string;
 	notes?: string;
+	review_notes?: string;
 	status: ApprovalStatus;
 	reviewed_by?: string | null;
 	reviewed_at?: string | null;

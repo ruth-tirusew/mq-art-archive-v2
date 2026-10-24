@@ -166,6 +166,7 @@ func TestService_Review_updatesApplication(t *testing.T) {
 		ApplicantID:   applicantID,
 		ApplicantType: domain.ApplicantTypeArtist,
 		DisplayName:   "Studio X",
+		Notes:         "instagram.com/studiox",
 		Status:        domain.ApprovalStatusPending,
 	}
 
@@ -175,7 +176,8 @@ func TestService_Review_updatesApplication(t *testing.T) {
 		},
 		save: func(ctx context.Context, app domain.OnboardingApplication) (*domain.OnboardingApplication, error) {
 			assist.Equal(t, domain.ApprovalStatusApproved, app.Status)
-			assist.Equal(t, "looks good", app.Notes)
+			assist.Equal(t, "looks good", app.ReviewNotes)
+			assist.Equal(t, "instagram.com/studiox", app.Notes)
 			assist.Equal(t, reviewerID, *app.ReviewedBy)
 			assist.NotNil(t, app.ReviewedAt)
 			return &app, nil
@@ -289,4 +291,30 @@ func TestService_Submit_createsApplication(t *testing.T) {
 	got, err := svc.SubmitWithHandle(context.Background(), applicantID, domain.ApplicantTypeArtist, "Studio X", "studio_x", "portfolio link")
 	assist.NoError(t, err)
 	assist.Equal(t, "Studio X", got.DisplayName)
+}
+
+func TestService_Review_rejectRequiresReason(t *testing.T) {
+	appID := uuid.New()
+	repo := &mockOnboardingRepo{
+		getByID: func(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error) {
+			return &domain.OnboardingApplication{ID: appID, ApplicantID: uuid.New(), Status: domain.ApprovalStatusPending}, nil
+		},
+	}
+	svc := NewService(repo, &mockUserRepo{}, &mockProfileRepo{}, &mockInstitutionRepo{})
+
+	_, err := svc.Review(context.Background(), appID, uuid.New(), domain.ApprovalStatusRejected, "  ")
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+}
+
+func TestDecisionEmail(t *testing.T) {
+	rejected := &domain.OnboardingApplication{DisplayName: "Sam", Status: domain.ApprovalStatusRejected, ReviewNotes: "Please add a link to your work"}
+	subject, body := decisionEmail(rejected, "https://artiv.example")
+	assist.Contains(t, subject, "Update")
+	assist.Contains(t, body, "Please add a link to your work")
+	assist.Contains(t, body, "https://artiv.example/apply")
+
+	approved := &domain.OnboardingApplication{DisplayName: "Sam", Status: domain.ApprovalStatusApproved}
+	subject, body = decisionEmail(approved, "https://artiv.example")
+	assist.Contains(t, subject, "approved")
+	assist.Contains(t, body, "https://artiv.example/studio")
 }

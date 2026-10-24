@@ -1,6 +1,8 @@
 package http
 
 import (
+	"log"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,9 +40,21 @@ type RouterDeps struct {
 
 func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engine {
 	r := gin.New()
-	r.Use(middleware.RequestID(), middleware.Recovery(deps.Monitor), middleware.CORS(cfg.CORSOrigins))
+	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		log.Printf("invalid TRUSTED_PROXIES, ignoring forwarded headers: %v", err)
+		_ = r.SetTrustedProxies(nil)
+	}
+	r.Use(middleware.SecurityHeaders(strings.EqualFold(cfg.AppEnv, "production")), middleware.BodyLimit(1<<20),
+		middleware.RequestID(), middleware.Recovery(deps.Monitor), middleware.CORS(cfg.CORSOrigins, cfg.AuthDevMode), middleware.CSRF(cfg.CORSOrigins))
 	authLimit := middleware.NewRateLimiter(10, time.Minute).Middleware()
 	writeLimit := middleware.NewRateLimiter(30, time.Minute).Middleware()
+	// Creating accounts is the cheapest way to enumerate emails and burn bcrypt time.
+	registerLimit := middleware.NewRateLimiter(5, time.Minute).Middleware()
+	// Slows one account being attacked from many IPs (credential stuffing, reset-mail bombing).
+	perEmail := middleware.NewRateLimiter(10, 15*time.Minute)
+	emailLimit := perEmail.ByJSONField("email")
+	// Enumeration-friendly public lookups.
+	lookupLimit := middleware.NewRateLimiter(60, time.Minute).Middleware()
 
 	r.GET("/health", handlers.Health.Health)
 	r.GET("/unsubscribe", handlers.Digest.Unsubscribe)
@@ -79,8 +93,8 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		v1.GET("/events", handlers.Event.List)
 		v1.POST("/events/submissions", writeLimit, handlers.Event.Submit)
 		v1.GET("/events/:slug", handlers.Event.GetBySlug)
-		v1.GET("/search", handlers.Search.Search)
-		v1.GET("/handles/:handle/available", handlers.Onboarding.CheckHandleAvailable)
+		v1.GET("/search", lookupLimit, handlers.Search.Search)
+		v1.GET("/handles/:handle/available", lookupLimit, handlers.Onboarding.CheckHandleAvailable)
 		v1.POST("/analytics/view", writeLimit, handlers.Analytics.Record)
 
 		v1.POST("/applications", writeLimit, middleware.Authenticate(deps.Auth), handlers.Onboarding.Submit)
@@ -118,11 +132,13 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		auth := v1.Group("/auth")
 		{
 			auth.GET("/google", handlers.Auth.GoogleLogin)
-			auth.GET("/google/callback", handlers.Auth.GoogleCallback)
-			auth.POST("/register", handlers.Auth.Register)
-			auth.POST("/login", authLimit, handlers.Auth.Login)
+			auth.GET("/google/link", middleware.Authenticate(deps.Auth), handlers.Auth.GoogleLink)
+			auth.DELETE("/google/link", middleware.Authenticate(deps.Auth), handlers.Auth.UnlinkGoogle)
+			auth.GET("/google/callback", middleware.OptionalAuthenticate(deps.Auth), handlers.Auth.GoogleCallback)
+			auth.POST("/register", registerLimit, emailLimit, handlers.Auth.Register)
+			auth.POST("/login", authLimit, emailLimit, handlers.Auth.Login)
 			auth.POST("/logout", handlers.Auth.Logout)
-			auth.POST("/forgot-password", authLimit, handlers.Auth.ForgotPassword)
+			auth.POST("/forgot-password", authLimit, emailLimit, handlers.Auth.ForgotPassword)
 			auth.POST("/reset-password", authLimit, handlers.Auth.ResetPassword)
 			auth.POST("/verify-email", authLimit, handlers.Auth.VerifyEmail)
 			auth.POST("/resend-verification", authLimit, middleware.Authenticate(deps.Auth), handlers.Auth.ResendEmailVerification)

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"github.com/mq/api/internal/domain/apperrors"
 	"net/http"
 	"strconv"
 
@@ -14,13 +15,17 @@ import (
 	"github.com/mq/api/internal/port/inbound"
 )
 
+// maxPageSize bounds how many rows one request can ask for. Without it ?limit=1000000 turns any
+// public list (including the ILIKE-over-body article search) into a cheap way to hurt the database.
+const maxPageSize = 200
+
 func queryLimit(c *gin.Context, defaultLimit int) int {
 	if v := c.Query("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
+			return min(n, maxPageSize)
 		}
 	}
-	return defaultLimit
+	return min(defaultLimit, maxPageSize)
 }
 
 func queryOffset(c *gin.Context) int {
@@ -93,7 +98,7 @@ func articleListFilter(c *gin.Context) content.ListFilter {
 
 func eventListFilter(c *gin.Context) events.ListFilter {
 	filter := events.ListFilter{
-		Statuses:   []events.EventStatus{events.EventStatusApproved, events.EventStatusPending},
+		Statuses:  []events.EventStatus{events.EventStatusApproved, events.EventStatusPending},
 		EventType: c.Query("type"),
 		Query:     c.Query("q"),
 		Limit:     queryLimit(c, 50),
@@ -133,6 +138,10 @@ func (h *ProfileHandler) GetByHandle(c *gin.Context) {
 	profile, err := h.profiles.GetArtistByHandle(c.Request.Context(), c.Param("handle"))
 	if err != nil {
 		writeError(c, err)
+		return
+	}
+	if !profileIsPublic(profile) {
+		writeError(c, apperrors.ErrNotFound)
 		return
 	}
 	c.JSON(http.StatusOK, dto.ToArtistProfileResponse(*profile))
@@ -186,7 +195,3 @@ func (h *EventHandler) Submit(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, dto.ToEventResponse(*event))
 }
-
-
-
-

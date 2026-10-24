@@ -105,7 +105,7 @@ func (r *ArtPostRepository) ListPublished(ctx context.Context, filter art.ListFi
 	}
 	if filter.Medium != "" {
 		query += fmt.Sprintf(" AND p.medium ILIKE $%d", argPos)
-		args = append(args, "%"+filter.Medium+"%")
+		args = append(args, containsPattern(filter.Medium))
 		argPos++
 	}
 	if filter.Year != nil {
@@ -115,7 +115,7 @@ func (r *ArtPostRepository) ListPublished(ctx context.Context, filter art.ListFi
 	}
 	if filter.Style != "" {
 		query += fmt.Sprintf(" AND p.style ILIKE $%d", argPos)
-		args = append(args, "%"+filter.Style+"%")
+		args = append(args, containsPattern(filter.Style))
 		argPos++
 	}
 	if filter.FeaturedAcquisition != nil {
@@ -125,7 +125,7 @@ func (r *ArtPostRepository) ListPublished(ctx context.Context, filter art.ListFi
 	}
 	if filter.Query != "" {
 		query += fmt.Sprintf(" AND (p.title ILIKE $%d OR p.description ILIKE $%d OR p.medium ILIKE $%d OR p.city ILIKE $%d OR p.style ILIKE $%d OR ap.display_name ILIKE $%d)", argPos, argPos, argPos, argPos, argPos, argPos)
-		args = append(args, "%"+filter.Query+"%")
+		args = append(args, containsPattern(filter.Query))
 		argPos++
 	}
 	if filter.PublishedSince != nil {

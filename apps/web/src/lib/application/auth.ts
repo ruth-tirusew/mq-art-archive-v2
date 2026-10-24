@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { AuthApi } from '$lib/adapters/api/authApi';
 import type { NotificationPreferences, User } from '$lib/core/domain/auth';
-import { googleLoginUrl } from '$lib/core/domain/auth';
+import { googleLinkUrl, googleLoginUrl } from '$lib/core/domain/auth';
 
 const api = new AuthApi();
 
@@ -10,6 +10,7 @@ export const authLoading = writable(true);
 
 export const authService = {
 	googleLoginUrl,
+	googleLinkUrl,
 
 	async load(): Promise<User | null> {
 		authLoading.set(true);
@@ -35,6 +36,11 @@ export const authService = {
 		const user = await api.register(email, password);
 		currentUser.set(user);
 		return user;
+	},
+
+	async unlinkGoogle(): Promise<void> {
+		await api.unlinkGoogle();
+		await this.load();
 	},
 
 	async logout(): Promise<void> {
@@ -81,5 +87,8 @@ export function postLoginPath(user: User, returnTo = '/studio'): string {
 	// explicit returnTo (e.g. they were sent to login from a specific page); otherwise
 	// land on home rather than the generic '/studio' default, which they can't access.
 	if (user.role === 'public') return returnTo === '/studio' ? '/' : returnTo;
-	return '/apply';
+	// Contributors work in the studio's wiki section; everyone else (admins, institutions)
+	// has no application to finish, so send them home rather than into /apply.
+	if (user.role === 'contributor') return returnTo;
+	return returnTo === '/studio' || returnTo.startsWith('/apply') ? '/' : returnTo;
 }

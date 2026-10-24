@@ -16,7 +16,7 @@ test.describe('@smoke artists', () => {
 
 		// Without a live API the roster is empty; with API (or seed) cards appear.
 		const cards = page.getByTestId('web-artist-card');
-		const unavailable = page.getByText(/Roster unavailable/i);
+		const unavailable = page.getByText(/can.t reach the archive/i);
 		await expect(cards.first().or(unavailable)).toBeVisible({ timeout: 15_000 });
 	});
 });
@@ -28,7 +28,7 @@ test.describe('@smoke wiki', () => {
 		await expect(
 			page
 				.getByRole('heading', { name: /handbook for working as an artist/i })
-				.or(page.getByRole('heading', { name: /wiki temporarily unavailable/i }))
+				.or(page.getByRole('heading', { name: /can.t reach the archive/i }))
 		).toBeVisible();
 	});
 });

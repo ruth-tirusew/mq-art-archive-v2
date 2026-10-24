@@ -2587,6 +2587,10 @@ components:
           type: string
         notes:
           type: string
+          description: The applicant's own links and notes.
+        review_notes:
+          type: string
+          description: Note from the reviewer, shown to the applicant. Required when rejecting.
         status:
           type: string
           enum: [pending, approved, rejected]

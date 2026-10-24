@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { onMount } from 'svelte';
 	import { favoritesService } from '$lib/application/favorites';
 	import { highlightsService } from '$lib/application/highlights';
@@ -44,7 +45,12 @@
 	</div>
 
 	{#if loading}
-		<p class="text-muted-foreground">Loading…</p>
+		<div class="space-y-3" role="status" aria-live="polite">
+			<span class="sr-only">Loading your activity</span>
+			<Skeleton class="h-6 w-40" />
+			<Skeleton class="h-16 w-full" />
+			<Skeleton class="h-16 w-full" />
+		</div>
 	{:else if error}
 		<p class="text-sm text-destructive" role="alert">{error}</p>
 	{:else}

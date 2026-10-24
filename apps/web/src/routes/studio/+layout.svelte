@@ -2,7 +2,8 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { authService, currentUser, authLoading } from '$lib/application/auth';
+	import { authService, currentUser } from '$lib/application/auth';
+	import PageSkeleton from '$lib/components/PageSkeleton.svelte';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
 	let ready = $state(false);
@@ -41,8 +42,8 @@
 	<title>Studio — Artiv</title>
 </svelte:head>
 
-{#if $authLoading || !ready}
-	<p class="mx-auto max-w-3xl px-6 py-24 text-muted-foreground">Loading studio…</p>
+{#if !ready}
+	<PageSkeleton rows={3} label="Loading studio" class="mx-auto max-w-3xl px-6 py-16 md:px-10 md:py-20" />
 {:else if $currentUser?.role !== 'artist' && $currentUser?.role !== 'contributor'}
 	<section class="mx-auto max-w-2xl px-6 py-24 md:px-10">
 		<p class="font-mono text-[11px] uppercase tracking-[0.3em] text-accent">Studio access</p>

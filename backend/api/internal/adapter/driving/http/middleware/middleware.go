@@ -20,18 +20,25 @@ func RequestID() gin.HandlerFunc {
 	}
 }
 
-func CORS(origins []string) gin.HandlerFunc {
+// CORS allows the configured origins. devMode adds the X-User-ID header, which only exists for
+// local/test header authentication and must never be advertised by a production API.
+func CORS(origins []string, devMode bool) gin.HandlerFunc {
 	allowed := make(map[string]struct{}, len(origins))
 	for _, o := range origins {
 		allowed[strings.TrimSpace(o)] = struct{}{}
 	}
 
 	return func(c *gin.Context) {
+		c.Writer.Header().Add("Vary", "Origin")
 		origin := c.GetHeader("Origin")
 		if _, ok := allowed[origin]; ok {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-User-ID, X-Request-ID")
+			allowHeaders := "Content-Type, Authorization, X-Request-ID"
+			if devMode {
+				allowHeaders = "Content-Type, Authorization, X-User-ID, X-Request-ID"
+			}
+			c.Header("Access-Control-Allow-Headers", allowHeaders)
 			c.Header("Access-Control-Allow-Credentials", "true")
 		}
 		if c.Request.Method == http.MethodOptions {

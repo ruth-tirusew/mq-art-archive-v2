@@ -47,6 +47,16 @@ func (s *Service) UpdateScrapeSettings(ctx context.Context, updatedBy uuid.UUID,
 	}
 
 	applyUpdate(current, update)
+	// Sources are fetched by the server: only real web addresses (the HTTP client additionally
+	// refuses private and internal destinations when it connects).
+	for _, source := range current.ScrapeSources {
+		if strings.TrimSpace(source) == "" {
+			continue
+		}
+		if err := apperrors.ValidateWebURL(source); err != nil {
+			return nil, err
+		}
+	}
 	if current.ScrapeTimeoutSeconds <= 0 {
 		return nil, apperrors.ErrValidation
 	}

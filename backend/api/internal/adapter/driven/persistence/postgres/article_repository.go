@@ -46,7 +46,7 @@ func (r *ArticleRepository) ListPublished(ctx context.Context, filter content.Li
 	}
 	if filter.Query != "" {
 		query += fmt.Sprintf(" AND (title ILIKE $%d OR excerpt ILIKE $%d OR body ILIKE $%d)", argPos, argPos, argPos)
-		args = append(args, "%"+filter.Query+"%")
+		args = append(args, containsPattern(filter.Query))
 		argPos++
 	}
 	if filter.PublishedSince != nil {

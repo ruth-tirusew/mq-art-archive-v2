@@ -36,8 +36,22 @@ func NewService(
 	return &Service{favorites: favorites, highlights: highlights, comments: comments, content: content, identity: identity}
 }
 
+// publishedArticle returns the article only if readers can see it. Drafts and archived articles
+// must look like they do not exist to everyone: otherwise anyone holding an id can read their
+// comments and highlights, and unpublished pages accept new engagement.
+func (s *Service) publishedArticle(ctx context.Context, id uuid.UUID) (*domain.Article, error) {
+	article, err := s.content.AdminGet(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if article.Status != domain.ArticleStatusPublished {
+		return nil, apperrors.ErrNotFound
+	}
+	return article, nil
+}
+
 func (s *Service) ToggleFavorite(ctx context.Context, userID, articleID uuid.UUID) (bool, int, error) {
-	if _, err := s.content.AdminGet(ctx, articleID); err != nil {
+	if _, err := s.publishedArticle(ctx, articleID); err != nil {
 		return false, 0, err
 	}
 
@@ -84,7 +98,7 @@ func (s *Service) ListMyFavorites(ctx context.Context, userID uuid.UUID) ([]doma
 
 	articles := make([]domain.Article, 0, len(ids))
 	for _, id := range ids {
-		article, err := s.content.AdminGet(ctx, id)
+		article, err := s.publishedArticle(ctx, id)
 		if err != nil {
 			continue // favorited article was since deleted — skip rather than fail the list
 		}
@@ -113,7 +127,7 @@ func validateSpan(body, quotedText string, start, end int) error {
 }
 
 func (s *Service) CreateHighlight(ctx context.Context, userID, articleID uuid.UUID, quotedText string, start, end int) (*inbound.ResolvedHighlight, error) {
-	article, err := s.content.AdminGet(ctx, articleID)
+	article, err := s.publishedArticle(ctx, articleID)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +160,7 @@ func (s *Service) DeleteHighlight(ctx context.Context, userID, highlightID uuid.
 }
 
 func (s *Service) ListMyHighlights(ctx context.Context, userID, articleID uuid.UUID) ([]inbound.ResolvedHighlight, error) {
-	article, err := s.content.AdminGet(ctx, articleID)
+	article, err := s.publishedArticle(ctx, articleID)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +181,7 @@ func (s *Service) ListMyHighlights(ctx context.Context, userID, articleID uuid.U
 }
 
 func (s *Service) PopularHighlight(ctx context.Context, articleID uuid.UUID) (*inbound.PopularHighlight, error) {
-	article, err := s.content.AdminGet(ctx, articleID)
+	article, err := s.publishedArticle(ctx, articleID)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +207,7 @@ func (s *Service) CreateComment(ctx context.Context, userID, articleID uuid.UUID
 	if strings.TrimSpace(body) == "" {
 		return nil, fmt.Errorf("%w: comment body is required", apperrors.ErrValidation)
 	}
-	article, err := s.content.AdminGet(ctx, articleID)
+	article, err := s.publishedArticle(ctx, articleID)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +236,7 @@ func (s *Service) DeleteComment(ctx context.Context, userID, commentID uuid.UUID
 }
 
 func (s *Service) ListComments(ctx context.Context, articleID uuid.UUID) ([]inbound.ResolvedComment, error) {
-	article, err := s.content.AdminGet(ctx, articleID)
+	article, err := s.publishedArticle(ctx, articleID)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +285,7 @@ func (s *Service) ListMyHighlightsAll(ctx context.Context, userID uuid.UUID) ([]
 
 	out := make([]inbound.ActivityHighlight, 0, len(items))
 	for _, h := range items {
-		article, err := s.content.AdminGet(ctx, h.ArticleID)
+		article, err := s.publishedArticle(ctx, h.ArticleID)
 		if err != nil {
 			continue // article was since deleted — skip rather than fail the whole feed
 		}
@@ -291,7 +305,7 @@ func (s *Service) ListMyCommentsAll(ctx context.Context, userID uuid.UUID) ([]in
 
 	out := make([]inbound.ActivityComment, 0, len(items))
 	for _, c := range items {
-		article, err := s.content.AdminGet(ctx, c.ArticleID)
+		article, err := s.publishedArticle(ctx, c.ArticleID)
 		if err != nil {
 			continue // article was since deleted — skip rather than fail the whole feed
 		}

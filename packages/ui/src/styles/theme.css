@@ -1,0 +1,245 @@
+/*
+ * Artiv design tokens + type roles. Imported by every app's app.css.
+ * Direction (from the landing page): cream paper, ink text, oxblood accent, ochre on dark.
+ * Fraunces for voice, Inter for reading, JetBrains Mono for labels and metadata.
+ * Hairline borders, small radii, pill CTAs. Emphasis is italic Fraunces, never bold.
+ */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
+	--radius-3xl: calc(var(--radius) + 12px);
+
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-ochre: var(--ochre);
+	--color-indigo-deep: var(--indigo-deep);
+	--color-terracotta: var(--terracotta);
+	--color-cream: var(--cream);
+	--color-ink: var(--ink);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+
+	--font-display: 'Fraunces', Georgia, serif;
+	--font-sans: 'Inter', system-ui, sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+:root {
+	--radius: 0.25rem;
+
+	/* Surfaces */
+	--background: oklch(0.955 0.018 85);
+	--cream: oklch(0.955 0.018 85);
+	--card: oklch(0.935 0.02 80);
+	--card-foreground: oklch(0.2 0.025 45);
+	--muted: oklch(0.91 0.016 78);
+	--muted-foreground: oklch(0.45 0.02 50);
+
+	/* Ink */
+	--foreground: oklch(0.2 0.025 45);
+	--ink: oklch(0.17 0.022 45);
+	--primary: oklch(0.26 0.035 45);
+	--primary-foreground: oklch(0.96 0.015 85);
+
+	/* Accent: oxblood. Ochre is the accent on dark (ink) surfaces only. */
+	--accent: oklch(0.45 0.14 28);
+	--accent-foreground: oklch(0.96 0.015 85);
+	--terracotta: oklch(0.45 0.14 28);
+	--ochre: oklch(0.78 0.14 72);
+
+	--secondary: oklch(0.36 0.12 260);
+	--indigo-deep: oklch(0.36 0.12 260);
+	--secondary-foreground: oklch(0.96 0.015 85);
+
+	/* Status */
+	--destructive: oklch(0.5 0.19 28);
+	--destructive-foreground: oklch(0.96 0.015 85);
+	--success: oklch(0.45 0.09 140);
+	--warning: oklch(0.5 0.11 70);
+
+	--border: oklch(0.86 0.018 75);
+	--input: oklch(0.86 0.018 75);
+	--ring: oklch(0.55 0.12 32);
+}
+
+@layer base {
+	* {
+		border-color: var(--color-border);
+	}
+
+	html,
+	body {
+		background-color: var(--color-background);
+		color: var(--color-foreground);
+		font-family: var(--font-sans);
+		-webkit-font-smoothing: antialiased;
+		font-feature-settings: 'ss01', 'cv11';
+	}
+
+	::selection {
+		background: var(--ochre);
+		color: var(--ink);
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--ring);
+		outline-offset: 2px;
+	}
+}
+
+/*
+ * Type roles — one definition per role so pages can't drift apart.
+ *   t-display  hero statement (Fraunces, largest)
+ *   t-h1       page title
+ *   t-h2       section heading
+ *   t-h3       item title inside a section
+ *   t-lead     intro copy under a heading, capped at a readable measure
+ *   t-body     default reading text
+ *   t-eyebrow  mono kicker / label. Never below 11px.
+ *   t-meta     mono metadata line (dates, dimensions, counts)
+ * Emphasise a word inside a heading with <em class="italic">, not bold.
+ */
+@layer components {
+	.t-display {
+		font-family: var(--font-display);
+		font-weight: 400;
+		font-size: clamp(2.75rem, 1.5rem + 5vw, 5.5rem);
+		line-height: 1;
+		letter-spacing: -0.03em;
+		text-wrap: balance;
+	}
+	.t-h1 {
+		font-family: var(--font-display);
+		font-weight: 400;
+		font-size: clamp(2.25rem, 1.6rem + 2.8vw, 3.75rem);
+		line-height: 1.05;
+		letter-spacing: -0.025em;
+		text-wrap: balance;
+	}
+	.t-h2 {
+		font-family: var(--font-display);
+		font-weight: 400;
+		font-size: clamp(2rem, 1.5rem + 2.4vw, 3.5rem);
+		line-height: 1.05;
+		letter-spacing: -0.02em;
+		text-wrap: balance;
+	}
+	.t-h3 {
+		font-family: var(--font-display);
+		font-weight: 400;
+		font-size: 1.5rem;
+		line-height: 1.2;
+		letter-spacing: -0.01em;
+	}
+	.t-lead {
+		font-size: 1rem;
+		line-height: 1.65;
+		max-width: 62ch;
+	}
+	.t-body {
+		font-size: 0.9375rem;
+		line-height: 1.6;
+	}
+	.t-eyebrow {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		line-height: 1.5;
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+	}
+	.t-meta {
+		font-family: var(--font-mono);
+		font-size: 11px;
+		line-height: 1.5;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+
+	/* Page rhythm: keep gutters and max width identical everywhere. */
+	.container-page {
+		margin-inline: auto;
+		max-width: 1600px;
+		padding-inline: 1.5rem;
+	}
+	@media (min-width: 768px) {
+		.container-page {
+			padding-inline: 2.5rem;
+		}
+	}
+}
+
+@layer utilities {
+	.font-display {
+		font-family: var(--font-display);
+		font-feature-settings: 'ss01';
+	}
+	.grain {
+		position: relative;
+	}
+	.grain::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		opacity: 0.06;
+		mix-blend-mode: multiply;
+		background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>");
+	}
+	.text-balance {
+		text-wrap: balance;
+	}
+
+	.page-enter {
+		animation: page-fade-in 0.4s ease-out;
+	}
+
+	@keyframes page-fade-in {
+		from {
+			opacity: 0;
+			transform: translateY(6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@keyframes marquee {
+		from {
+			transform: translateX(0);
+		}
+		to {
+			transform: translateX(-50%);
+		}
+	}
+
+	.animate-marquee {
+		animation: marquee 45s linear infinite;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.animate-marquee,
+		.page-enter {
+			animation: none;
+		}
+	}
+}

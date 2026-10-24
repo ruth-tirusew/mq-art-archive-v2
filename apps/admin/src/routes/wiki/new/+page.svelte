@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fieldClass as inputClass } from '$ui';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { articlesService } from '$lib/application/articles';
@@ -8,9 +9,6 @@
   import { Card, CardContent } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
-
-  const inputClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
   let title = $state('');
   let body = $state('');
@@ -46,11 +44,11 @@
 </script>
 
 <svelte:head>
-  <title>New article — mq admin</title>
+  <title>New article — Artiv admin</title>
 </svelte:head>
 
 <PageHeader
-  eyebrow="06 — Wiki"
+  eyebrow="Wiki"
   title="New article"
   description="Draft a handbook entry. Publish when it is ready for the public wiki."
 />

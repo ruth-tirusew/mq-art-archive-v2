@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Alert, Button, Field, Input, Textarea, toast } from '$ui';
 	import { eventsService } from '$lib/application/events';
 	import type { Event as DomainEvent } from '$lib/core/domain/events';
 
@@ -14,15 +15,17 @@
 	let submitting = $state(false);
 	let error = $state('');
 	let success = $state('');
+	let fieldErrors = $state<{ title?: string; startsAt?: string }>({});
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
 		error = '';
 		success = '';
-		if (!title.trim() || !startsAt) {
-			error = 'Title and start date are required.';
-			return;
-		}
+		fieldErrors = {
+			title: title.trim() ? undefined : 'Give the event a title.',
+			startsAt: startsAt ? undefined : 'Choose when it starts.'
+		};
+		if (fieldErrors.title || fieldErrors.startsAt) return;
 		submitting = true;
 		try {
 			const created = await eventsService.submit({
@@ -34,7 +37,8 @@
 				source_url: sourceUrl.trim() || undefined,
 				starts_at: new Date(startsAt).toISOString()
 			});
-			success = `Submitted “${created.title}” for review.`;
+			success = `“${created.title}” is with our editors. It appears on the calendar once approved.`;
+			toast.success('Event submitted for review.');
 			title = '';
 			description = '';
 			venue = '';
@@ -48,71 +52,54 @@
 		}
 	}
 
-	const fieldClass =
-		'mt-1.5 w-full rounded-sm border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-foreground focus:outline-none';
-	const labelClass = 'font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground';
 </script>
 
-<form
-	class="max-w-xl space-y-5 rounded-sm border border-border bg-card/40 p-6 md:p-8"
-	onsubmit={submit}
->
+<form class="max-w-xl space-y-5 rounded-sm border border-border bg-card/40 p-6 md:p-8" onsubmit={submit} novalidate>
 	<div>
-		<h2 class="font-display text-2xl text-foreground md:text-3xl">Submit an event</h2>
-		<p class="mt-2 text-sm text-muted-foreground">
-			Share an opening, talk or pop-up. Submissions appear as pending until an editor reviews them.
+		<p class="t-eyebrow text-accent">Community</p>
+		<h2 class="t-h3 mt-3 md:text-3xl">Submit an event</h2>
+		<p class="t-body mt-2 text-muted-foreground">
+			Share an opening, talk or pop-up. Submissions are reviewed by an editor before they appear on the calendar.
 		</p>
 	</div>
 
-	<label class="block">
-		<span class={labelClass}>Title</span>
-		<input class={fieldClass} bind:value={title} required placeholder="Blue Hour opening" />
-	</label>
+	<Field label="Title" required error={fieldErrors.title}>
+		{#snippet children({ id, describedby, invalid })}
+			<Input {id} aria-describedby={describedby} {invalid} bind:value={title} placeholder="Blue Hour opening" />
+		{/snippet}
+	</Field>
 
-	<label class="block">
-		<span class={labelClass}>Starts at</span>
-		<input class={fieldClass} type="datetime-local" bind:value={startsAt} required />
-	</label>
+	<Field label="Starts at" required error={fieldErrors.startsAt}>
+		{#snippet children({ id, describedby, invalid })}
+			<Input {id} aria-describedby={describedby} {invalid} type="datetime-local" bind:value={startsAt} />
+		{/snippet}
+	</Field>
 
 	<div class="grid gap-5 sm:grid-cols-2">
-		<label class="block">
-			<span class={labelClass}>Type</span>
-			<input class={fieldClass} bind:value={eventType} placeholder="Opening" />
-		</label>
-		<label class="block">
-			<span class={labelClass}>City</span>
-			<input class={fieldClass} bind:value={city} placeholder="Addis Ababa" />
-		</label>
+		<Field label="Type">
+			{#snippet children({ id })}<Input {id} bind:value={eventType} placeholder="Opening" />{/snippet}
+		</Field>
+		<Field label="City">
+			{#snippet children({ id })}<Input {id} bind:value={city} placeholder="Addis Ababa" />{/snippet}
+		</Field>
 	</div>
 
-	<label class="block">
-		<span class={labelClass}>Venue</span>
-		<input class={fieldClass} bind:value={venue} placeholder="Addis Fine Arts" />
-	</label>
+	<Field label="Venue">
+		{#snippet children({ id })}<Input {id} bind:value={venue} placeholder="Addis Fine Arts" />{/snippet}
+	</Field>
 
-	<label class="block">
-		<span class={labelClass}>Source URL (optional)</span>
-		<input class={fieldClass} bind:value={sourceUrl} placeholder="https://t.me/…" />
-	</label>
+	<Field label="Source URL" hint="Optional. A Telegram post or event page helps us verify it.">
+		{#snippet children({ id, describedby })}
+			<Input {id} aria-describedby={describedby} type="url" bind:value={sourceUrl} placeholder="https://t.me/…" />
+		{/snippet}
+	</Field>
 
-	<label class="block">
-		<span class={labelClass}>Description</span>
-		<textarea class="{fieldClass} min-h-28" bind:value={description} placeholder="What is it about?"
-		></textarea>
-	</label>
+	<Field label="Description">
+		{#snippet children({ id })}<Textarea {id} bind:value={description} rows={4} placeholder="What is it about?" />{/snippet}
+	</Field>
 
-	{#if error}
-		<p class="text-sm text-destructive">{error}</p>
-	{/if}
-	{#if success}
-		<p class="text-sm text-foreground">{success}</p>
-	{/if}
+	{#if error}<Alert tone="error">{error}</Alert>{/if}
+	{#if success}<Alert tone="success" title="Submitted">{success}</Alert>{/if}
 
-	<button
-		type="submit"
-		disabled={submitting}
-		class="rounded-full bg-foreground px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.2em] text-background transition hover:bg-accent disabled:opacity-60"
-	>
-		{submitting ? 'Submitting…' : 'Submit for review'}
-	</button>
+	<Button type="submit" loading={submitting}>{submitting ? 'Submitting…' : 'Submit for review'}</Button>
 </form>

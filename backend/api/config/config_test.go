@@ -72,3 +72,10 @@ func TestValidateProduction(t *testing.T) {
 		}
 	}
 }
+
+func TestLoad_devModeAuthIsOffByDefault(t *testing.T) {
+	t.Setenv("AUTH_DEV_MODE", "")
+	if Load().AuthDevMode {
+		t.Fatal("AUTH_DEV_MODE must default to false so X-User-ID auth is opt-in")
+	}
+}

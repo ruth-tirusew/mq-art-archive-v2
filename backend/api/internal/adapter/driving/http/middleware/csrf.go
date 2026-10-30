@@ -17,6 +17,8 @@ import (
 //  1. A browser always sends Origin on cross-origin POST/PUT/PATCH/DELETE. If it is present it must
 //     be one of the configured origins. Requests with no Origin (curl, server-to-server, tests)
 //     are not browser-driven cross-site requests, so they are not CSRF and pass through.
+//     When Origin is absent, a browser that still reports Sec-Fetch-Site: cross-site is attacking
+//     from another site, so that is blocked too (covers clients that omit Origin).
 //  2. A request with a body must declare application/json. Otherwise a page can send a "simple"
 //     cross-origin request (text/plain, form-encoded) that skips the CORS preflight entirely and
 //     still has JSON the handler will happily parse.
@@ -40,6 +42,9 @@ func CSRF(origins []string) gin.HandlerFunc {
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "cross-site request blocked"})
 				return
 			}
+		} else if c.GetHeader("Sec-Fetch-Site") == "cross-site" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "cross-site request blocked"})
+			return
 		}
 
 		if hasBody(c.Request) && !isJSON(c.GetHeader("Content-Type")) {

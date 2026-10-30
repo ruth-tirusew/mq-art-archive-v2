@@ -438,3 +438,46 @@ func TestActiveNudge_listsUnansweredAndAutoDismisses(t *testing.T) {
 	assist.ErrorIs(t, err, apperrors.ErrNotFound)
 	assist.Equal(t, true, e.nudges.dismissed[artist])
 }
+
+func TestOutput_resanitisesStoredRichAnswers(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	user := uuid.New()
+	other := q("note", domain.TypeLongText)
+	e.publish(t, domain.ChangeSubstantive, q("bio", domain.TypeLongText), other)
+
+	// Simulate a row that bypassed SaveAnswers (manual edit, script, older policy).
+	dirty := `<p>hi</p><script>alert(1)</script><a href="javascript:alert(2)" onclick="x()">link</a>`
+	rev, _ := e.revs.GetLatestPublished(ctx)
+	e.answers.byUser = map[uuid.UUID]map[string]domain.Answer{user: {
+		"bio":  {UserID: user, QuestionKey: "bio", RevisionID: rev.ID, Body: dirty, Format: domain.FormatRich, Lang: domain.LangEnglish},
+		"note": {UserID: user, QuestionKey: "note", RevisionID: rev.ID, Body: dirty, Format: domain.FormatRich, Lang: domain.LangEnglish},
+	}}
+
+	assertClean := func(where, body string) {
+		t.Helper()
+		for _, bad := range []string{"<script", "alert(", "javascript:", "onclick"} {
+			if strings.Contains(body, bad) {
+				t.Errorf("%s leaked %q: %s", where, bad, body)
+			}
+		}
+		assist.Contains(t, body, "<p>hi</p>")
+	}
+
+	public, err := e.svc.PublicAnswers(ctx, user)
+	assist.NoError(t, err)
+	assist.Len(t, 2, len(public))
+	for _, p := range public {
+		assertClean("PublicAnswers", p.Answer.Body)
+	}
+	form, err := e.svc.GetForm(ctx, user)
+	assist.NoError(t, err)
+	for _, a := range form.Answers {
+		assertClean("GetForm", a.Body)
+	}
+	view, err := e.svc.ReviewView(ctx, user, nil)
+	assist.NoError(t, err)
+	for _, it := range view.Items {
+		assertClean("ReviewView", it.Answer.Body)
+	}
+}

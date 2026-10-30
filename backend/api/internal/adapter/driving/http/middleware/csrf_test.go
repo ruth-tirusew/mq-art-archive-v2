@@ -61,6 +61,9 @@ func TestCSRF(t *testing.T) {
 		{"form body rejected", http.MethodPost, "a=1", map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, http.StatusUnsupportedMediaType},
 		{"missing content type with body rejected", http.MethodPost, `{"a":1}`, nil, http.StatusUnsupportedMediaType},
 		{"empty-body post needs no content type", http.MethodPost, "", map[string]string{"Origin": "https://app.example.com"}, http.StatusNoContent},
+		{"cross-site fetch with no origin blocked", http.MethodPost, `{"a":1}`, map[string]string{"Sec-Fetch-Site": "cross-site", "Content-Type": "application/json"}, http.StatusForbidden},
+		{"same-origin fetch with no origin allowed", http.MethodPost, `{"a":1}`, map[string]string{"Sec-Fetch-Site": "same-origin", "Content-Type": "application/json"}, http.StatusNoContent},
+		{"allowed origin wins over sec-fetch-site (web and api are different sites)", http.MethodPost, `{"a":1}`, map[string]string{"Origin": "https://app.example.com", "Sec-Fetch-Site": "cross-site", "Content-Type": "application/json"}, http.StatusNoContent},
 		{"reads are never blocked", http.MethodGet, "", map[string]string{"Origin": "https://evil.example"}, http.StatusNoContent},
 	}
 	for _, tc := range cases {

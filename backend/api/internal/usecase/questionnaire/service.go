@@ -211,7 +211,7 @@ func (s *Service) GetForm(ctx context.Context, userID uuid.UUID) (*inbound.Form,
 	if err != nil {
 		return nil, err
 	}
-	return &inbound.Form{Revision: *rev, Answers: answers, Locked: locked}, nil
+	return &inbound.Form{Revision: *rev, Answers: s.cleanAnswers(answers), Locked: locked}, nil
 }
 
 func (s *Service) SaveAnswers(ctx context.Context, userID uuid.UUID, in []inbound.AnswerInput) error {
@@ -308,7 +308,7 @@ func (s *Service) PublicAnswers(ctx context.Context, userID uuid.UUID) ([]inboun
 	if err != nil {
 		return nil, err
 	}
-	byKey := indexAnswers(answers)
+	byKey := indexAnswers(s.cleanAnswers(answers))
 
 	// Only questions in the latest revision are shown, in its order: a question an admin has since
 	// removed, or marked private, disappears from the public page without touching stored answers.
@@ -338,6 +338,7 @@ func (s *Service) ReviewView(ctx context.Context, userID uuid.UUID, revisionID *
 	if err != nil {
 		return nil, err
 	}
+	answers = s.cleanAnswers(answers)
 	byKey := indexAnswers(answers)
 
 	view := &inbound.ReviewView{Revision: *rev, Items: []inbound.ReviewItem{}, Other: []domain.Answer{}}
@@ -357,6 +358,20 @@ func (s *Service) ReviewView(ctx context.Context, userID uuid.UUID, revisionID *
 		}
 	}
 	return view, nil
+}
+
+// cleanAnswers re-sanitises rich answers on the way out. They were sanitised when written, but
+// output is the last line of defence: a row edited by hand, loaded by a script, or saved under an
+// older, looser policy must never reach a browser as unsanitised HTML.
+func (s *Service) cleanAnswers(answers []domain.Answer) []domain.Answer {
+	out := make([]domain.Answer, len(answers))
+	for i, a := range answers {
+		if a.Format == domain.FormatRich {
+			a.Body, _ = s.sanitizer.Sanitize(a.Body)
+		}
+		out[i] = a
+	}
+	return out
 }
 
 func indexAnswers(answers []domain.Answer) map[string]domain.Answer {

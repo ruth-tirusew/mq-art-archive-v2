@@ -18,8 +18,11 @@ func TestSanitize(t *testing.T) {
 		{"data url removed", `<a href="data:text/html;base64,AAAA">x</a>`, nil, []string{"data:"}},
 		{"img removed", `<img src=x onerror=alert(1)>`, nil, []string{"img", "onerror"}},
 		{"style and class removed", `<p style="x" class="y">hi</p>`, []string{"<p>hi</p>"}, []string{"style", "class"}},
-		{"safe link kept and hardened", `<a href="https://example.com">x</a>`, []string{`href="https://example.com"`, "nofollow", "noreferrer"}, nil},
+		{"safe link kept and hardened", `<a href="https://example.com">x</a>`, []string{`href="https://example.com"`, "nofollow", "noreferrer", "noopener", `target="_blank"`}, nil},
 		{"mailto allowed", `<a href="mailto:a@b.co">x</a>`, []string{"mailto:a@b.co"}, nil},
+		{"iframe and form removed", `<iframe src="https://evil"></iframe><form action="/x"><input></form>`, nil, []string{"iframe", "form", "input"}},
+		{"svg and math removed", `<svg onload=alert(1)></svg><math><mi xlink:href="javascript:alert(1)"></mi></math>`, nil, []string{"svg", "onload", "math"}},
+		{"unclosed and nested tricks", `<p><a href="https://ok.example">x<script>alert(1)</script></a>`, []string{"ok.example"}, []string{"script", "alert"}},
 		{"amharic preserved", `<p>ሰላም ዓለም</p>`, []string{"ሰላም ዓለም"}, nil},
 	}
 	for _, c := range cases {

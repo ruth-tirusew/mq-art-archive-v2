@@ -32,6 +32,12 @@ type OnboardingApplication struct {
 	Status          ApprovalStatus
 	ReviewedBy      *uuid.UUID
 	ReviewedAt      *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// QuestionnaireRevisionID is the revision the applicant answered, so a reviewer sees their
+	// answers beside the wording they responded to. Nil for applications made before the
+	// questionnaire existed.
+	QuestionnaireRevisionID *uuid.UUID
+	// InviteID is set when the applicant arrived through an invite link.
+	InviteID  *uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

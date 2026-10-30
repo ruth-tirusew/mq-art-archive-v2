@@ -4,8 +4,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/mq/api/internal/domain/apperrors"
 )
 
 func q(key string, pos int, t QuestionType) Question {
@@ -38,8 +36,8 @@ func TestRevisionValidate(t *testing.T) {
 		if (err == nil) != tc.ok {
 			t.Errorf("%s: err=%v, want ok=%v", tc.name, err, tc.ok)
 		}
-		if err != nil && !errors.Is(err, apperrors.ErrValidation) {
-			t.Errorf("%s: error should wrap ErrValidation: %v", tc.name, err)
+		if err != nil && !errors.Is(err, ErrInvalid) {
+			t.Errorf("%s: error should wrap ErrInvalid: %v", tc.name, err)
 		}
 	}
 }

@@ -3,6 +3,7 @@
 package questionnaire
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/mq/api/internal/domain/apperrors"
 )
 
 type RevisionStatus string
@@ -120,8 +120,18 @@ type Nudge struct {
 
 var keyPattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
 
+// ErrInvalid is matched (errors.Is) by every validation failure in this package. The domain does
+// not depend on apperrors; the use-case and adapter layers translate it to apperrors.ErrValidation.
+var ErrInvalid = errors.New("invalid questionnaire input")
+
+// ValidationError carries a message safe to show to the admin or artist who caused it.
+type ValidationError struct{ Msg string }
+
+func (e *ValidationError) Error() string        { return e.Msg }
+func (e *ValidationError) Is(target error) bool { return target == ErrInvalid }
+
 func invalid(format string, args ...any) error {
-	return fmt.Errorf("%w: %s", apperrors.ErrValidation, fmt.Sprintf(format, args...))
+	return &ValidationError{Msg: fmt.Sprintf(format, args...)}
 }
 
 // DefaultMaxLength is applied when an admin leaves the limit blank.

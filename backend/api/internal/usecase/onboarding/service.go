@@ -16,12 +16,15 @@ import (
 )
 
 type Service struct {
-	applications outbound.OnboardingRepository
-	users        outbound.UserRepository
-	profiles     outbound.ProfileRepository
-	institutions outbound.InstitutionRepository
-	mailer       outbound.Mailer
-	webAppURL    string
+	applications  outbound.OnboardingRepository
+	users         outbound.UserRepository
+	profiles      outbound.ProfileRepository
+	institutions  outbound.InstitutionRepository
+	mailer        outbound.Mailer
+	webAppURL     string
+	invites       outbound.InviteRepository
+	questionnaire inbound.ApplicationQuestionnaireGate
+	now           func() time.Time
 }
 
 // Option customises optional collaborators of the onboarding Service.
@@ -35,18 +38,31 @@ func WithMailer(mailer outbound.Mailer, webAppURL string) Option {
 	}
 }
 
+// WithInvites enables artist invite links, and makes handle checks respect handles that
+// live invites have reserved.
+func WithInvites(invites outbound.InviteRepository) Option {
+	return func(s *Service) { s.invites = invites }
+}
+
+// WithQuestionnaire requires artist applicants to have completed the published questionnaire
+// before they can apply. Without it (or before a questionnaire is published) applying works as before.
+func WithQuestionnaire(gate inbound.ApplicationQuestionnaireGate) Option {
+	return func(s *Service) { s.questionnaire = gate }
+}
+
 func NewService(
 	applications outbound.OnboardingRepository,
 	users outbound.UserRepository,
 	profiles outbound.ProfileRepository,
 	institutions outbound.InstitutionRepository,
 	opts ...Option,
-) inbound.OnboardingService {
+) *Service {
 	s := &Service{
 		applications: applications,
 		users:        users,
 		profiles:     profiles,
 		institutions: institutions,
+		now:          func() time.Time { return time.Now().UTC() },
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -80,6 +96,23 @@ func (s *Service) SubmitWithHandle(
 	applicantType domain.ApplicantType,
 	displayName, requestedHandle, notes string,
 ) (*domain.OnboardingApplication, error) {
+	app, err := s.prepareApplication(ctx, applicantID, applicantType, displayName, requestedHandle, notes, nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.applications.Save(ctx, *app)
+}
+
+// prepareApplication validates a submission and builds the pending application without saving it.
+// exceptInvite, when set, is the invite the applicant is claiming: the handle it reserved counts
+// as available to them.
+func (s *Service) prepareApplication(
+	ctx context.Context,
+	applicantID uuid.UUID,
+	applicantType domain.ApplicantType,
+	displayName, requestedHandle, notes string,
+	exceptInvite *uuid.UUID,
+) (*domain.OnboardingApplication, error) {
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "display_name is required")
@@ -110,7 +143,7 @@ func (s *Service) SubmitWithHandle(
 		return nil, apperrors.ErrConflict
 	}
 	if applicantType == domain.ApplicantTypeArtist {
-		available, err := s.CheckHandleAvailable(ctx, requestedHandle)
+		available, err := s.handleAvailable(ctx, requestedHandle, exceptInvite)
 		if err != nil {
 			return nil, err
 		}
@@ -119,19 +152,27 @@ func (s *Service) SubmitWithHandle(
 		}
 	}
 
-	now := time.Now().UTC()
-	app := domain.OnboardingApplication{
-		ID:              uuid.New(),
-		ApplicantID:     applicantID,
-		ApplicantType:   applicantType,
-		DisplayName:     displayName,
-		RequestedHandle: requestedHandle,
-		Notes:           notes,
-		Status:          domain.ApprovalStatusPending,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+	var revisionID *uuid.UUID
+	if applicantType == domain.ApplicantTypeArtist && s.questionnaire != nil {
+		revisionID, err = s.questionnaire.CheckComplete(ctx, applicantID)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return s.applications.Save(ctx, app)
+
+	now := s.now()
+	return &domain.OnboardingApplication{
+		ID:                      uuid.New(),
+		ApplicantID:             applicantID,
+		ApplicantType:           applicantType,
+		DisplayName:             displayName,
+		RequestedHandle:         requestedHandle,
+		Notes:                   notes,
+		Status:                  domain.ApprovalStatusPending,
+		QuestionnaireRevisionID: revisionID,
+		CreatedAt:               now,
+		UpdatedAt:               now,
+	}, nil
 }
 
 func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID, status domain.ApprovalStatus, notes string) (*domain.OnboardingApplication, error) {
@@ -249,6 +290,10 @@ var handlePattern = regexp.MustCompile(`^[a-z0-9_]{3,30}$`)
 func validHandle(handle string) bool { return handlePattern.MatchString(handle) }
 
 func (s *Service) CheckHandleAvailable(ctx context.Context, handle string) (bool, error) {
+	return s.handleAvailable(ctx, handle, nil)
+}
+
+func (s *Service) handleAvailable(ctx context.Context, handle string, exceptInvite *uuid.UUID) (bool, error) {
 	handle = strings.ToLower(strings.TrimSpace(handle))
 	if !validHandle(handle) {
 		return false, nil
@@ -265,6 +310,17 @@ func (s *Service) CheckHandleAvailable(ctx context.Context, handle string) (bool
 	for _, app := range pending {
 		if strings.EqualFold(app.RequestedHandle, handle) {
 			return false, nil
+		}
+	}
+	if s.invites != nil {
+		held, err := s.invites.GetLiveByHandle(ctx, handle, s.now())
+		switch {
+		case err == nil:
+			if exceptInvite == nil || held.ID != *exceptInvite {
+				return false, nil
+			}
+		case !errors.Is(err, apperrors.ErrNotFound):
+			return false, err
 		}
 	}
 	return true, nil

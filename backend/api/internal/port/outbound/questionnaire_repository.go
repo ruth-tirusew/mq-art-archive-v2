@@ -37,6 +37,9 @@ type QuestionnaireAnswerRepository interface {
 	ListByUsers(ctx context.Context, userIDs []uuid.UUID) ([]questionnaire.Answer, error)
 	// Upsert writes the answers atomically (all or none), keyed by user and question key.
 	Upsert(ctx context.Context, answers []questionnaire.Answer) error
+	// IsLockedForReview reports whether the user's latest onboarding application is pending, during
+	// which their answers are frozen so the reviewer sees what was submitted.
+	IsLockedForReview(ctx context.Context, userID uuid.UUID) (bool, error)
 }
 
 // QuestionnaireNudgeRepository tracks optional, admin-triggered nudges.

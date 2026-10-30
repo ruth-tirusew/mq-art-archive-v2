@@ -291,3 +291,41 @@ func TestInviteRepository_integration(t *testing.T) {
 	assist.Equal(t, rev.ID, *got.QuestionnaireRevisionID)
 	assist.Equal(t, a.ID, *got.InviteID)
 }
+
+func TestQuestionnaireAnswerRepository_isLockedForReview(t *testing.T) {
+	pool := integration.SetupPostgresPool(t)
+	answers := postgres.NewQuestionnaireAnswerRepository(pool)
+	apps := postgres.NewOnboardingRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	user := uuid.New()
+	integration.InsertUser(t, pool, user, identity.RolePublic)
+
+	locked, err := answers.IsLockedForReview(ctx, user)
+	assist.NoError(t, err)
+	assist.Equal(t, false, locked) // never applied
+
+	app, err := apps.Save(ctx, onboarding.OnboardingApplication{
+		ID: uuid.New(), ApplicantID: user, ApplicantType: onboarding.ApplicantTypeArtist, DisplayName: "Ada",
+		Status: onboarding.ApprovalStatusPending, CreatedAt: now, UpdatedAt: now,
+	})
+	assist.NoError(t, err)
+	locked, _ = answers.IsLockedForReview(ctx, user)
+	assist.Equal(t, true, locked) // pending: frozen for the reviewer
+
+	app.Status = onboarding.ApprovalStatusRejected
+	_, err = apps.Save(ctx, *app)
+	assist.NoError(t, err)
+	locked, _ = answers.IsLockedForReview(ctx, user)
+	assist.Equal(t, false, locked) // rejected: they may edit and resubmit
+
+	// Only the LATEST application counts.
+	_, err = apps.Save(ctx, onboarding.OnboardingApplication{
+		ID: uuid.New(), ApplicantID: user, ApplicantType: onboarding.ApplicantTypeArtist, DisplayName: "Ada",
+		Status: onboarding.ApprovalStatusPending, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),
+	})
+	assist.NoError(t, err)
+	locked, _ = answers.IsLockedForReview(ctx, user)
+	assist.Equal(t, true, locked)
+}

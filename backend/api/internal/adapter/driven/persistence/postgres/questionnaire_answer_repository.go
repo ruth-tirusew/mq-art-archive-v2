@@ -78,3 +78,17 @@ func (r *QuestionnaireAnswerRepository) Upsert(ctx context.Context, answers []qu
 	}
 	return nil
 }
+
+func (r *QuestionnaireAnswerRepository) IsLockedForReview(ctx context.Context, userID uuid.UUID) (bool, error) {
+	var locked bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT COALESCE((
+			SELECT status = 'pending' FROM onboarding_applications
+			WHERE applicant_id = $1 ORDER BY created_at DESC LIMIT 1
+		), false)
+	`, userID).Scan(&locked)
+	if err != nil {
+		return false, fmt.Errorf("check review lock: %w", err)
+	}
+	return locked, nil
+}

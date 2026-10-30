@@ -28,16 +28,17 @@ var repositoryFileToContext = map[string]string{
 }
 
 var usecaseDirToContext = map[string]string{
-	"art":         "art",
-	"content":     "content",
-	"identity":    "identity",
-	"auth":        "identity",
-	"institution": "institution",
-	"onboarding":  "onboarding",
-	"profile":     "profile",
-	"events":      "events",
-	"search":      "content",
-	"settings":    "settings",
+	"art":           "art",
+	"content":       "content",
+	"identity":      "identity",
+	"auth":          "identity",
+	"institution":   "institution",
+	"onboarding":    "onboarding",
+	"questionnaire": "questionnaire",
+	"profile":       "profile",
+	"events":        "events",
+	"search":        "content",
+	"settings":      "settings",
 }
 
 type layer int

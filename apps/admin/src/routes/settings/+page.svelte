@@ -1,6 +1,9 @@
 <script lang="ts">
-  import { fieldClass as inputClass } from '$ui';
+  import { ConfirmDialog, createConfirm, fieldClass as inputClass, toast } from '$ui';
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { replaceState } from '$app/navigation';
+  import { googleLinkUrl } from '$lib/core/domain/auth';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { authService } from '$lib/application/auth';
   import { settingsService } from '$lib/application/settings';
@@ -42,6 +45,54 @@
   let passwordSaving = $state(false);
   let passwordMessage = $state('');
   let passwordError = $state('');
+
+  // Connected accounts
+  const confirm = createConfirm();
+  let googleLinked = $state(data.user?.google_linked ?? false);
+  const googleReasons: Record<string, string> = {
+    already_linked: 'That Google account is already connected to a different Artiv account, or this account already has one connected.',
+    not_verified: 'Google did not confirm that email address, so it can’t be connected.',
+    failed: 'Something went wrong connecting Google. Please try again.'
+  };
+
+  // Back from Google: the API redirects here with ?google=linked or ?google=error&reason=…
+  onMount(() => {
+    const result = $page.url.searchParams.get('google');
+    if (!result) return;
+    const reason = $page.url.searchParams.get('reason') ?? 'failed';
+    const url = new URL($page.url);
+    url.searchParams.delete('google');
+    url.searchParams.delete('reason');
+    replaceState(url.pathname + url.search + url.hash, {});
+    if (result === 'linked') {
+      googleLinked = true;
+      toast.success('Google connected. You can now sign in with it.');
+    } else {
+      toast.error(googleReasons[reason] ?? googleReasons.failed);
+    }
+  });
+
+  function connectGoogle() {
+    window.location.href = googleLinkUrl(window.location.origin);
+  }
+
+  function askDisconnect() {
+    confirm.ask({
+      title: 'Disconnect Google?',
+      description: 'You will sign in with your email and password from now on.',
+      confirmLabel: 'Disconnect',
+      destructive: true,
+      run: async () => {
+        try {
+          await authService.unlinkGoogle();
+          googleLinked = false;
+          toast.success('Google disconnected.');
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'Could not disconnect Google.');
+        }
+      }
+    });
+  }
 
   // Notifications
   let emailOnNewApplication = $state(data.notifications.email_on_new_application);
@@ -287,6 +338,37 @@
 
     <Card>
       <CardHeader>
+        <CardTitle>Connected accounts</CardTitle>
+      </CardHeader>
+      <CardContent class="space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-4 rounded-md border border-border/70 p-4">
+          <div>
+            <p class="text-sm font-medium text-foreground">Google</p>
+            <p class="mt-1 text-xs text-muted-foreground">
+              {#if googleLinked}
+                Connected. You can sign in with Google or with your email and password.
+              {:else}
+                Connect Google to sign in with one click. You choose when; nothing is linked automatically.
+              {/if}
+            </p>
+          </div>
+          {#if googleLinked}
+            <Button variant="outline" size="sm" onclick={askDisconnect} disabled={!data.user?.has_password}>Disconnect</Button>
+          {:else}
+            <Button variant="outline" size="sm" onclick={connectGoogle}>Connect Google</Button>
+          {/if}
+        </div>
+        {#if googleLinked && !data.user?.has_password}
+          <p class="text-xs text-muted-foreground">
+            Google is the only way into this account, so it can’t be disconnected yet. Set a password first with
+            “Forgot password” on the main Artiv sign-in page.
+          </p>
+        {/if}
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
         <CardTitle>Change password</CardTitle>
       </CardHeader>
       <CardContent>
@@ -520,3 +602,5 @@
     </div>
   </form>
 {/if}
+
+<ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

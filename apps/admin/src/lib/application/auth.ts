@@ -41,6 +41,10 @@ export const authService = {
     return user;
   },
 
+  async unlinkGoogle(): Promise<void> {
+    await api.unlinkGoogle();
+  },
+
   async logout(): Promise<void> {
     await api.logout();
     currentUser.set(null);

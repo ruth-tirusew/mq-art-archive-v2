@@ -1,5 +1,7 @@
 export { cn } from './cn';
 export { fieldClass } from './components/fieldClass';
+export { createPager } from './components/pager.svelte';
+export type { PagerOptions } from './components/pager.svelte';
 export { createConfirm } from './components/confirm.svelte';
 export { toast } from './components/toast.svelte';
 export { default as Alert } from './components/Alert.svelte';
@@ -14,6 +16,7 @@ export { default as EmptyState } from './components/EmptyState.svelte';
 export { default as ErrorState } from './components/ErrorState.svelte';
 export { default as Field } from './components/Field.svelte';
 export { default as Input } from './components/Input.svelte';
+export { default as ListFooter } from './components/ListFooter.svelte';
 export { default as NavProgress } from './components/NavProgress.svelte';
 export { default as PageHeader } from './components/PageHeader.svelte';
 export { default as Select } from './components/Select.svelte';

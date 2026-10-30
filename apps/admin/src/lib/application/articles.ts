@@ -1,4 +1,6 @@
 import { ArticlesApi } from '$lib/adapters/api/articlesApi';
+import { fetchAll } from '$lib/adapters/api/pageQuery';
+import type { PageParams } from '$lib/adapters/api/pageQuery';
 import type {
   Article,
   ArticlePatch,
@@ -10,8 +12,12 @@ import type {
 const api = new ArticlesApi();
 
 export const articlesService = {
-  list(status?: ArticleStatus): Promise<Article[]> {
-    return api.list(status);
+  list(status?: ArticleStatus, page?: PageParams): Promise<Article[]> {
+    return api.list(status, page);
+  },
+  /** Every row, fetched in pages. For dashboards that count rather than browse. */
+  listAll(status?: ArticleStatus): Promise<Article[]> {
+    return fetchAll((page) => api.list(status, page));
   },
   getById(id: string): Promise<Article> {
     return api.getById(id);

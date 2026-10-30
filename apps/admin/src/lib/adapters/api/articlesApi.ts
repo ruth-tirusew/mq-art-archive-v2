@@ -1,4 +1,5 @@
 import { apiFetch } from '$lib/adapters/api/client';
+import { pageQuery, type PageParams } from '$lib/adapters/api/pageQuery';
 import type {
   Article,
   ArticlePatch,
@@ -9,9 +10,8 @@ import type {
 import type { ArticlesPort } from '$lib/core/ports/articles';
 
 export class ArticlesApi implements ArticlesPort {
-  list(status?: ArticleStatus): Promise<Article[]> {
-    const q = status ? `?status=${status}` : '';
-    return apiFetch<Article[]>(`/admin/v1/articles${q}`);
+  list(status?: ArticleStatus, page?: PageParams): Promise<Article[]> {
+    return apiFetch<Article[]>(`/admin/v1/articles${pageQuery(status, page)}`);
   }
 
   getById(id: string): Promise<Article> {

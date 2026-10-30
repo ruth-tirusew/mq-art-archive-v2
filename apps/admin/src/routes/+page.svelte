@@ -43,8 +43,8 @@
     loading = true;
     try {
       const [artistList, postList, apps, evts, viewSummary] = await Promise.all([
-        artistsService.list(),
-        postsService.list(),
+        artistsService.listAll(),
+        postsService.listAll(),
         onboardingService.listPending(),
         eventsService.listPending(),
         getAnalyticsSummary().catch(() => null)

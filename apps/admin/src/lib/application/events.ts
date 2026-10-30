@@ -1,11 +1,12 @@
 import { EventsApi } from '$lib/adapters/api/eventsApi';
+import type { PageParams } from '$lib/adapters/api/pageQuery';
 import type { EventStatus, EventWrite, ReviewStatus } from '$lib/core/domain/event';
 
 const api = new EventsApi();
 
 export const eventsService = {
-  list(status?: EventStatus | 'all') {
-    return api.list(status);
+  list(status?: EventStatus | 'all', page?: PageParams) {
+    return api.list(status, page);
   },
   listPending() {
     return api.list('pending');

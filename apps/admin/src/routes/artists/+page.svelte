@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { Input, ListFooter, createPager } from '$ui';
+  import { PAGE_SIZE } from '$lib/utils/paging';
+  import { artistsService } from '$lib/application/artists';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -14,6 +17,23 @@
   } from '$lib/components/ui/table';
 
   let { data } = $props();
+
+  const pager = createPager({
+    initial: data.artists,
+    pageSize: PAGE_SIZE,
+    fetchPage: (offset, limit) => artistsService.list(data.status === 'all' ? undefined : (data.status as never), { limit, offset })
+  });
+  // The status filter lives in the URL, so a new filter arrives as new loader data.
+  $effect(() => pager.reset(data.artists));
+
+  let query = $state('');
+  const visible = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return pager.items;
+    return pager.items.filter((artist) =>
+      [artist.display_name, artist.handle, artist.slug].some((field) => (field ?? '').toString().toLowerCase().includes(q))
+    );
+  });
 </script>
 
 <svelte:head>
@@ -31,7 +51,7 @@
   <Button href="/artists/new" class="mt-1 shrink-0">New artist</Button>
 </div>
 
-{#if data.artists.length === 0}
+{#if pager.items.length === 0}
   <EmptyState
     title="No artists in this view"
     description="Try another filter, or add an artist profile manually."
@@ -39,6 +59,9 @@
     actionHref="/artists/new"
   />
 {:else}
+  <div class="mb-3 max-w-sm">
+    <Input type="search" bind:value={query} placeholder="Search by name or handle" aria-label="Search artists" />
+  </div>
   <Table>
     <TableHeader>
       <TableRow>
@@ -49,7 +72,7 @@
       </TableRow>
     </TableHeader>
     <TableBody>
-      {#each data.artists as artist}
+      {#each visible as artist}
         <TableRow data-testid="admin-artist-row">
           <TableCell>
             <a
@@ -66,4 +89,17 @@
       {/each}
     </TableBody>
   </Table>
+  {#if visible.length === 0}
+    <p class="mt-6 text-sm text-muted-foreground">No loaded artists match “{query}”.</p>
+  {/if}
+  <ListFooter
+    shown={visible.length}
+    loaded={pager.items.length}
+    hasMore={pager.hasMore}
+    loading={pager.loading}
+    error={pager.error}
+    searching={query.trim() !== ''}
+    noun="artists"
+    onmore={() => pager.loadMore()}
+  />
 {/if}

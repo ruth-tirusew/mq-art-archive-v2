@@ -12,6 +12,10 @@ export interface OnboardingApplication {
   status: ApprovalStatus;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
+  /** The questionnaire revision the applicant answered, if any. */
+  questionnaire_revision_id?: string;
+  /** Set when the applicant arrived through an invite link. */
+  invite_id?: string;
   created_at?: string;
   updated_at?: string;
 }

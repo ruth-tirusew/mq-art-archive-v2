@@ -39,8 +39,8 @@
 	--color-input: var(--input);
 	--color-ring: var(--ring);
 
-	--font-display: 'Fraunces', Georgia, serif;
-	--font-sans: 'Inter', system-ui, sans-serif;
+	--font-display: 'Fraunces', 'Noto Sans Ethiopic', Georgia, serif;
+	--font-sans: 'Inter', 'Noto Sans Ethiopic', system-ui, sans-serif;
 	--font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 

@@ -46,3 +46,12 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
   return (await response.json()) as T;
 }
+
+/** RequestInit for a JSON body. The API requires application/json on every request that has a body. */
+export function jsonRequest(method: 'POST' | 'PUT' | 'PATCH', body?: unknown): RequestInit {
+  return {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  };
+}

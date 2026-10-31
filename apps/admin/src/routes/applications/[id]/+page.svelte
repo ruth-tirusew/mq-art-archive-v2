@@ -10,6 +10,7 @@
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
+  import ApplicationAnswers from '$lib/components/questionnaire/ApplicationAnswers.svelte';
 
   let { data } = $props();
 
@@ -83,6 +84,7 @@
     <div class="flex flex-wrap items-center gap-2">
       <Badge variant="secondary">{data.application.applicant_type}</Badge>
       <StatusBadge status={data.application.status} />
+      {#if data.application.invite_id}<Badge variant="success">Invited</Badge>{/if}
     </div>
     <CardTitle class="pt-2">{data.application.display_name}</CardTitle>
   </CardHeader>
@@ -151,4 +153,9 @@
     {/if}
   </CardContent>
 </Card>
+
+{#if data.answers}
+  <ApplicationAnswers view={data.answers} />
+{/if}
+
 <ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

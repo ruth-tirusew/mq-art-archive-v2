@@ -1,5 +1,8 @@
 <script lang="ts">
   import '../app.css';
+  // Amharic (Ethiopic) glyphs for questionnaire answers. unicode-range keeps it unloaded until needed.
+  import '@fontsource/noto-sans-ethiopic/400.css';
+  import '@fontsource/noto-sans-ethiopic/600.css';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -47,8 +50,21 @@
       label: 'Applications',
       icon: ClipboardCheck,
       title: 'Applications',
-      match: (pathname) => pathname === '/applications' || pathname.startsWith('/applications/'),
-      groups: []
+      match: (pathname) =>
+        pathname === '/applications' ||
+        pathname.startsWith('/applications/') ||
+        pathname === '/invites' ||
+        pathname === '/questionnaire',
+      groups: [
+        {
+          heading: 'Onboarding',
+          items: [
+            { href: '/applications', label: 'Pending' },
+            { href: '/invites', label: 'Invites' },
+            { href: '/questionnaire', label: 'Questionnaire' }
+          ]
+        }
+      ]
     },
     {
       id: 'artists',

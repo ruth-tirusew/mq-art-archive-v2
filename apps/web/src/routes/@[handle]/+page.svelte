@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
+	import ArtistAnswers from '$lib/components/artist/ArtistAnswers.svelte';
 	import ShareableProfile from '$lib/components/ShareableProfile.svelte';
+	import { artistName } from '$lib/utils/fields';
 	import { recordPageView } from '$lib/application/analytics';
 
 	let { data }: { data: PageData } = $props();
@@ -25,6 +27,7 @@
 
 <main class="mx-auto max-w-lg px-6 py-12">
 	<ShareableProfile artist={data.artist} works={data.posts} demo={isDemo} showHeader={false} />
+	<ArtistAnswers answers={data.answers} artistName={artistName(data.artist)} compact />
 </main>
 
 <footer class="border-t border-border/60 py-6 text-center">

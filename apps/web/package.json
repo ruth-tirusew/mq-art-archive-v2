@@ -19,6 +19,7 @@
 		"test:e2e:smoke": "playwright test --grep @smoke"
 	},
 	"devDependencies": {
+		"@fontsource/noto-sans-ethiopic": "^5.2.5",
 		"@playwright/test": "^1.61.1",
 		"@sveltejs/adapter-vercel": "^6.3.4",
 		"@sveltejs/kit": "^2.63.0",

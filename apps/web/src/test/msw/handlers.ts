@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { PUBLIC_API_URL } from '$env/static/public';
 import { fixtureArtists } from '../fixtures/artists';
 import { fixturePosts, fixturePost } from '../fixtures/posts';
+import { fixturePublicAnswers } from '../fixtures/answers';
 
 const base = PUBLIC_API_URL.replace(/\/$/, '');
 
@@ -21,6 +22,11 @@ export const handlers = [
 		}
 		return HttpResponse.json(fixturePost);
 	}),
+	http.get(`${base}/api/v1/artists/:slug/answers`, ({ params }) =>
+		params.slug === 'selamawit-tesfaye'
+			? HttpResponse.json(fixturePublicAnswers)
+			: HttpResponse.json({ error: 'not found' }, { status: 404 })
+	),
 	http.get(`${base}/api/v1/artists/:slug/posts`, () => HttpResponse.json(fixturePosts)),
 	http.get(`${base}/api/v1/handles/:handle/available`, ({ params }) =>
 		HttpResponse.json({ handle: params.handle, available: params.handle !== 'taken' })

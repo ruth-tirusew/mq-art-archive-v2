@@ -267,6 +267,13 @@ func (s *Service) SaveAnswers(ctx context.Context, userID uuid.UUID, in []inboun
 		if err := q.CheckAnswer(measured, format, lang); err != nil {
 			return validation(err)
 		}
+		// A link answer ends up as an href on a public page, so it must be a real http(s) address:
+		// never javascript:, data: or the like.
+		if q.Type == domain.TypeLink && body != "" {
+			if err := apperrors.ValidateWebURL(body); err != nil {
+				return err
+			}
+		}
 		out = append(out, domain.Answer{
 			UserID: userID, QuestionKey: a.Key, RevisionID: rev.ID, Body: body,
 			Format: format, Lang: lang, CreatedAt: now, UpdatedAt: now,
@@ -316,6 +323,11 @@ func (s *Service) PublicAnswers(ctx context.Context, userID uuid.UUID) ([]inboun
 	for _, q := range rev.Questions {
 		a, ok := byKey[q.Key]
 		if !ok || !q.IsPublic || strings.TrimSpace(a.Body) == "" {
+			continue
+		}
+		// Output-side guard, like cleanAnswers: a link row that predates validation or was written
+		// by hand must not become a javascript: href.
+		if q.Type == domain.TypeLink && !apperrors.IsWebURL(a.Body) {
 			continue
 		}
 		out = append(out, inbound.PublicAnswer{Question: q, Answer: a})

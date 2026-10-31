@@ -481,3 +481,47 @@ func TestOutput_resanitisesStoredRichAnswers(t *testing.T) {
 		assertClean("ReviewView", it.Answer.Body)
 	}
 }
+
+func TestLinkAnswers_mustBeWebURLs(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	user := uuid.New()
+	e.publish(t, domain.ChangeSubstantive, q("website", domain.TypeLink), q("bio", domain.TypeShortText))
+
+	for _, bad := range []string{
+		"javascript:alert(1)", "JaVaScRiPt:alert(1)", "data:text/html,<script>alert(1)</script>",
+		"vbscript:x", "file:///etc/passwd", "//evil.example/x", "example.com", "https://user:pw@example.com",
+		"https:///nohost", "  javascript:alert(1)",
+	} {
+		err := e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{{Key: "website", Body: bad}})
+		if err == nil {
+			t.Errorf("%q should be rejected", bad)
+			continue
+		}
+		assist.ErrorIs(t, err, apperrors.ErrValidation)
+	}
+	for _, good := range []string{"https://example.com", "http://example.com/a?b=c#d", ""} {
+		assist.NoError(t, e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{{Key: "website", Body: good}}))
+	}
+}
+
+func TestPublicAnswers_dropsUnsafeLinkRows(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	user := uuid.New()
+	rev := e.publish(t, domain.ChangeSubstantive, q("website", domain.TypeLink), q("bio", domain.TypeShortText))
+
+	// A row that bypassed SaveAnswers (script, manual edit, older code).
+	e.answers.byUser = map[uuid.UUID]map[string]domain.Answer{user: {
+		"website": {UserID: user, QuestionKey: "website", RevisionID: rev.ID, Body: "javascript:alert(1)", Format: domain.FormatPlain, Lang: domain.LangEnglish},
+		"bio":     {UserID: user, QuestionKey: "bio", RevisionID: rev.ID, Body: "hello", Format: domain.FormatPlain, Lang: domain.LangEnglish},
+	}}
+	got, err := e.svc.PublicAnswers(ctx, user)
+	assist.NoError(t, err)
+	assist.Len(t, 1, len(got))
+	assist.Equal(t, "bio", got[0].Question.Key)
+
+	e.answers.byUser[user]["website"] = domain.Answer{UserID: user, QuestionKey: "website", RevisionID: rev.ID, Body: "https://example.com", Format: domain.FormatPlain, Lang: domain.LangEnglish}
+	got, _ = e.svc.PublicAnswers(ctx, user)
+	assist.Len(t, 2, len(got))
+}

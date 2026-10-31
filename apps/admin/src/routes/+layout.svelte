@@ -1,8 +1,5 @@
 <script lang="ts">
   import '../app.css';
-  // Amharic (Ethiopic) glyphs for questionnaire answers. unicode-range keeps it unloaded until needed.
-  import '@fontsource/noto-sans-ethiopic/400.css';
-  import '@fontsource/noto-sans-ethiopic/600.css';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';

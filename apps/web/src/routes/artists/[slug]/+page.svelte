@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import { recordPageView } from '$lib/application/analytics';
+	import ArtistAnswers from '$lib/components/artist/ArtistAnswers.svelte';
 	import ArtistTimeline from '$lib/components/artist/ArtistTimeline.svelte';
 	import {
 		acquisitionImage,
@@ -111,6 +112,8 @@
 		</div>
 	</div>
 </section>
+
+<ArtistAnswers answers={data.answers} artistName={artistName(artist)} />
 
 {#if timeline.length > 0}
 	<ArtistTimeline entries={timeline} artistName={artistName(artist)} />

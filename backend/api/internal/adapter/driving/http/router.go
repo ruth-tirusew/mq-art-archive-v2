@@ -14,22 +14,24 @@ import (
 )
 
 type Handlers struct {
-	Health      *handler.HealthHandler
-	Article     *handler.ArticleHandler
-	Profile     *handler.ProfileHandler
-	Institution *handler.InstitutionHandler
-	Art         *handler.ArtHandler
-	Event       *handler.EventHandler
-	Search      *handler.SearchHandler
-	Onboarding  *handler.OnboardingHandler
-	Auth        *handler.AuthHandler
-	Settings    *handler.SettingsHandler
-	Media       *handler.MediaHandler
-	Wiki        *handler.WikiHandler
-	Analytics   *handler.AnalyticsHandler
-	UserAdmin   *handler.UserAdminHandler
-	Digest      *handler.DigestHandler
-	Engagement  *handler.EngagementHandler
+	Health        *handler.HealthHandler
+	Article       *handler.ArticleHandler
+	Profile       *handler.ProfileHandler
+	Institution   *handler.InstitutionHandler
+	Art           *handler.ArtHandler
+	Event         *handler.EventHandler
+	Search        *handler.SearchHandler
+	Onboarding    *handler.OnboardingHandler
+	Questionnaire *handler.QuestionnaireHandler
+	Invite        *handler.InviteHandler
+	Auth          *handler.AuthHandler
+	Settings      *handler.SettingsHandler
+	Media         *handler.MediaHandler
+	Wiki          *handler.WikiHandler
+	Analytics     *handler.AnalyticsHandler
+	UserAdmin     *handler.UserAdminHandler
+	Digest        *handler.DigestHandler
+	Engagement    *handler.EngagementHandler
 }
 
 type RouterDeps struct {
@@ -100,6 +102,23 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		v1.POST("/applications", writeLimit, middleware.Authenticate(deps.Auth), handlers.Onboarding.Submit)
 		v1.GET("/applications/me", middleware.Authenticate(deps.Auth), handlers.Onboarding.GetMyApplication)
 
+		// Invites. Preview is public so the claim page can show who the invite is for; both take the
+		// token in the POST body, never the URL. Claiming needs a signed-in, verified-email user.
+		v1.POST("/invites/preview", lookupLimit, handlers.Invite.Preview)
+		v1.POST("/applications/invite", writeLimit, middleware.Authenticate(deps.Auth), handlers.Invite.Claim)
+
+		// Questionnaire. Any signed-in user, not just artists: applicants answer it before approval.
+		// Every route that changes state is POST/PUT, so the global CSRF middleware covers it.
+		v1.GET("/artists/:slug/answers", handlers.Questionnaire.ListPublicAnswers)
+		questionnaire := v1.Group("/me/questionnaire")
+		questionnaire.Use(middleware.Authenticate(deps.Auth))
+		{
+			questionnaire.GET("", handlers.Questionnaire.GetForm)
+			questionnaire.PUT("/answers", writeLimit, handlers.Questionnaire.SaveAnswers)
+			questionnaire.GET("/nudge", handlers.Questionnaire.GetNudge)
+			questionnaire.POST("/nudges/:revisionId/dismiss", writeLimit, handlers.Questionnaire.DismissNudge)
+		}
+
 		me := v1.Group("/me")
 		me.Use(middleware.Authenticate(deps.Auth), middleware.RequireRole("artist"))
 		{
@@ -158,6 +177,22 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		admin.GET("/applications", handlers.Onboarding.ListPending)
 		admin.GET("/applications/:id", handlers.Onboarding.GetByID)
 		admin.PUT("/applications/:id", handlers.Onboarding.Review)
+		admin.GET("/applications/:id/answers", handlers.Questionnaire.ApplicationAnswers)
+
+		admin.GET("/invites", handlers.Invite.List)
+		admin.POST("/invites", handlers.Invite.Create)
+		admin.POST("/invites/:id/resend", handlers.Invite.Resend)
+		admin.DELETE("/invites/:id", handlers.Invite.Revoke)
+
+		admin.GET("/questionnaire/draft", handlers.Questionnaire.GetDraft)
+		admin.POST("/questionnaire/draft", handlers.Questionnaire.StartDraft)
+		admin.PUT("/questionnaire/draft", handlers.Questionnaire.SaveDraft)
+		admin.DELETE("/questionnaire/draft", handlers.Questionnaire.DiscardDraft)
+		admin.POST("/questionnaire/draft/publish", handlers.Questionnaire.Publish)
+		admin.GET("/questionnaire/revisions", handlers.Questionnaire.ListRevisions)
+		admin.GET("/questionnaire/revisions/:id", handlers.Questionnaire.GetRevision)
+		admin.GET("/questionnaire/nudge", handlers.Questionnaire.PreviewNudge)
+		admin.POST("/questionnaire/nudge", handlers.Questionnaire.SendNudge)
 		admin.POST("/media/sign", writeLimit, handlers.Media.Sign)
 		admin.POST("/media/complete", writeLimit, handlers.Media.Complete)
 		admin.GET("/wiki/submissions", handlers.Wiki.ListPending)

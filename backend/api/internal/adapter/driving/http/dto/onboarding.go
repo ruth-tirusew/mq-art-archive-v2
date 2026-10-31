@@ -30,24 +30,29 @@ type OnboardingApplicationResponse struct {
 	Status          string     `json:"status"`
 	ReviewedBy      *uuid.UUID `json:"reviewed_by,omitempty"`
 	ReviewedAt      *time.Time `json:"reviewed_at,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	// QuestionnaireRevisionID is the revision the applicant answered; InviteID is set for invited applicants.
+	QuestionnaireRevisionID *uuid.UUID `json:"questionnaire_revision_id,omitempty"`
+	InviteID                *uuid.UUID `json:"invite_id,omitempty"`
+	CreatedAt               time.Time  `json:"created_at"`
+	UpdatedAt               time.Time  `json:"updated_at"`
 }
 
 func ToOnboardingApplicationResponse(app domain.OnboardingApplication) OnboardingApplicationResponse {
 	return OnboardingApplicationResponse{
-		ID:              app.ID,
-		ApplicantID:     app.ApplicantID,
-		ApplicantType:   string(app.ApplicantType),
-		DisplayName:     app.DisplayName,
-		RequestedHandle: app.RequestedHandle,
-		Notes:           app.Notes,
-		ReviewNotes:     app.ReviewNotes,
-		Status:          string(app.Status),
-		ReviewedBy:      app.ReviewedBy,
-		ReviewedAt:      app.ReviewedAt,
-		CreatedAt:       app.CreatedAt,
-		UpdatedAt:       app.UpdatedAt,
+		ID:                      app.ID,
+		ApplicantID:             app.ApplicantID,
+		ApplicantType:           string(app.ApplicantType),
+		DisplayName:             app.DisplayName,
+		RequestedHandle:         app.RequestedHandle,
+		Notes:                   app.Notes,
+		ReviewNotes:             app.ReviewNotes,
+		Status:                  string(app.Status),
+		ReviewedBy:              app.ReviewedBy,
+		ReviewedAt:              app.ReviewedAt,
+		QuestionnaireRevisionID: app.QuestionnaireRevisionID,
+		InviteID:                app.InviteID,
+		CreatedAt:               app.CreatedAt,
+		UpdatedAt:               app.UpdatedAt,
 	}
 }
 

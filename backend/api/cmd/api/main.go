@@ -19,6 +19,7 @@ import (
 	mediaadapter "github.com/mq/api/internal/adapter/driven/media"
 	oauthadapter "github.com/mq/api/internal/adapter/driven/oauth"
 	"github.com/mq/api/internal/adapter/driven/persistence/postgres"
+	richtextadapter "github.com/mq/api/internal/adapter/driven/richtext"
 	telegramadapter "github.com/mq/api/internal/adapter/driven/telegram"
 	httpadapter "github.com/mq/api/internal/adapter/driving/http"
 	"github.com/mq/api/internal/adapter/driving/http/handler"
@@ -37,6 +38,7 @@ import (
 	mediauc "github.com/mq/api/internal/usecase/media"
 	onboardinguc "github.com/mq/api/internal/usecase/onboarding"
 	profileuc "github.com/mq/api/internal/usecase/profile"
+	questionnaireuc "github.com/mq/api/internal/usecase/questionnaire"
 	searchuc "github.com/mq/api/internal/usecase/search"
 	settingsuc "github.com/mq/api/internal/usecase/settings"
 	wikiuc "github.com/mq/api/internal/usecase/wiki"
@@ -132,7 +134,19 @@ func main() {
 	if cfg.ResendAPIKey != "" {
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}
-	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo, onboardinguc.WithMailer(mailer, cfg.WebAppURL))
+	questionnaireSvc := questionnaireuc.NewService(
+		postgres.NewQuestionnaireRepository(pool),
+		postgres.NewQuestionnaireAnswerRepository(pool),
+		postgres.NewQuestionnaireNudgeRepository(pool),
+		richtextadapter.NewSanitizer(),
+		userRepo,
+		questionnaireuc.WithMailer(mailer, cfg.WebAppURL),
+	)
+	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo,
+		onboardinguc.WithMailer(mailer, cfg.WebAppURL),
+		onboardinguc.WithInvites(postgres.NewInviteRepository(pool)),
+		onboardinguc.WithQuestionnaire(questionnaireSvc),
+	)
 	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
 	// polling goroutine below can reuse this same instance rather than constructing a
 	// second one. telegramNotifier stays a nil interface when the bot isn't configured,
@@ -178,22 +192,24 @@ func main() {
 
 	// HTTP handlers (driving adapters)
 	handlers := httpadapter.Handlers{
-		Health:      handler.NewHealthHandler(),
-		Article:     handler.NewArticleHandler(contentSvc),
-		Profile:     handler.NewProfileHandler(profileSvc),
-		Institution: handler.NewInstitutionHandler(institutionSvc),
-		Art:         handler.NewArtHandler(artSvc, profileSvc),
-		Event:       handler.NewEventHandler(eventsSvc),
-		Search:      handler.NewSearchHandler(searchSvc),
-		Onboarding:  handler.NewOnboardingHandler(onboardingSvc),
-		Auth:        handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
-		Settings:    handler.NewSettingsHandler(settingsSvc),
-		Media:       handler.NewMediaHandler(mediaSvc),
-		Wiki:        handler.NewWikiHandler(wikiSvc),
-		Engagement:  handler.NewEngagementHandler(engagementSvc),
-		Analytics:   handler.NewAnalyticsHandler(analyticsSvc),
-		UserAdmin:   handler.NewUserAdminHandler(authSvc),
-		Digest:      handler.NewDigestHandler(digestSvc, cfg.TelegramBotUsername),
+		Health:        handler.NewHealthHandler(),
+		Article:       handler.NewArticleHandler(contentSvc),
+		Profile:       handler.NewProfileHandler(profileSvc),
+		Institution:   handler.NewInstitutionHandler(institutionSvc),
+		Art:           handler.NewArtHandler(artSvc, profileSvc),
+		Event:         handler.NewEventHandler(eventsSvc),
+		Search:        handler.NewSearchHandler(searchSvc),
+		Onboarding:    handler.NewOnboardingHandler(onboardingSvc),
+		Questionnaire: handler.NewQuestionnaireHandler(questionnaireSvc, questionnaireSvc, profileSvc, onboardingSvc),
+		Invite:        handler.NewInviteHandler(onboardingSvc, cfg.WebAppURL),
+		Auth:          handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
+		Settings:      handler.NewSettingsHandler(settingsSvc),
+		Media:         handler.NewMediaHandler(mediaSvc),
+		Wiki:          handler.NewWikiHandler(wikiSvc),
+		Engagement:    handler.NewEngagementHandler(engagementSvc),
+		Analytics:     handler.NewAnalyticsHandler(analyticsSvc),
+		UserAdmin:     handler.NewUserAdminHandler(authSvc),
+		Digest:        handler.NewDigestHandler(digestSvc, cfg.TelegramBotUsername),
 	}
 
 	router := httpadapter.NewRouter(cfg, handlers, httpadapter.RouterDeps{

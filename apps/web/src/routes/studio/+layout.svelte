@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { authService, currentUser } from '$lib/application/auth';
+	import NudgeBanner from '$lib/components/questionnaire/NudgeBanner.svelte';
 	import PageSkeleton from '$lib/components/PageSkeleton.svelte';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
@@ -14,6 +15,7 @@
 			: [
 					{ href: '/studio', label: 'Overview' },
 					{ href: '/studio/profile', label: 'Profile' },
+					{ href: '/studio/answers', label: 'Questions' },
 					{ href: '/studio/posts', label: 'Posts' },
 					{ href: '/studio/wiki', label: 'Wiki' }
 				]
@@ -84,5 +86,8 @@
 			</nav>
 		</div>
 	</div>
+	{#if $currentUser?.role === 'artist' && $page.url.pathname !== '/studio/answers'}
+		<NudgeBanner />
+	{/if}
 	{@render children()}
 {/if}

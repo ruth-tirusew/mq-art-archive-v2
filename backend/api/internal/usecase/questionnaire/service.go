@@ -476,7 +476,7 @@ func (s *Service) sendNudgeEmail(ctx context.Context, userID uuid.UUID) {
 		return
 	}
 	body := fmt.Sprintf("Hi %s,\n\nWe've added a few new questions to the Artiv artist profile. "+
-		"There's no deadline and your profile stays exactly as it is. If you'd like to answer them, you can do it here:\n%s/studio\n",
+		"There's no deadline and your profile stays exactly as it is. If you'd like to answer them, you can do it here:\n%s/studio/answers\n",
 		user.DisplayName, s.webAppURL)
 	_ = s.mailer.Send(ctx, user.Email, "New questions for your Artiv profile", body)
 }

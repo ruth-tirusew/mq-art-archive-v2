@@ -24,7 +24,8 @@
 	const loginHref = $derived(googleLoginUrl(returnTo, $page.url.origin));
 
 	let mode = $state<Mode>('signin');
-	let email = $state('');
+	// Pre-filled by invite links so the invitee signs in with the address the invite was sent to.
+	let email = $state($page.url.searchParams.get('email') ?? '');
 	let password = $state('');
 	let submitting = $state(false);
 	let error = $state('');

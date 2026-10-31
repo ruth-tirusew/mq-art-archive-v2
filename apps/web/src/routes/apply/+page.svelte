@@ -1,8 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
+  import { page } from "$app/stores";
+  import { authService, currentUser } from "$lib/application/auth";
+  import { inviteService } from "$lib/application/invites";
   import { onboardingService } from "$lib/application/onboarding";
+  import { questionnaireService } from "$lib/application/questionnaire";
   import { ApiError } from "$lib/adapters/api/client";
+  import QuestionnaireForm from "$lib/components/questionnaire/QuestionnaireForm.svelte";
+  import SafeHtml from "$lib/components/SafeHtml.svelte";
+  import type { InvitePreview } from "$lib/core/domain/invite";
+  import type { FormQuestion, QuestionnaireForm as QuestionnaireFormData } from "$lib/core/domain/questionnaire";
+  import { answerText, formatFor, isBlankAnswer, linkLabel, safeHttpUrl } from "$lib/utils/answers";
   import { Alert, Button, Field, Input, PageHeader, Textarea } from "$ui";
 
   // Institutions are not onboarded through this form for now.
@@ -25,6 +34,39 @@
   let attempted = $state(false);
   let handleTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // The questionnaire replaces the free-text "Your work" step once an admin has published one.
+  let form = $state<QuestionnaireFormData | null>(null);
+  let formRef = $state<ReturnType<typeof QuestionnaireForm>>();
+  let reviewValues = $state<Record<string, string>>({});
+  let savingStep = $state(false);
+
+  // Invites arrive as /apply?invite=TOKEN.
+  const inviteToken = $derived($page.url.searchParams.get("invite"));
+  let invite = $state<InvitePreview | null>(null);
+  let inviteMessage = $state("");
+  let resendState = $state<"idle" | "sending" | "sent" | "failed">("idle");
+
+  const inviteLive = $derived(invite?.status === "live");
+  const emailMatches = $derived(
+    !invite || !$currentUser || invite.email.toLowerCase() === $currentUser.email.toLowerCase(),
+  );
+  const needsVerify = $derived(inviteLive && !!$currentUser && !$currentUser.email_verified);
+  // The invite is only claimed when the signed-in account is the invited one and is verified.
+  const usingInvite = $derived(inviteLive && emailMatches && !needsVerify);
+
+  // Fill gaps from the invite the first time it becomes usable. That can be well after load (for
+  // example once the invitee verifies their email), so this is an effect rather than a one-off.
+  // It never overwrites anything the applicant already has or has typed.
+  let prefilledFromInvite = false;
+  $effect(() => {
+    if (!usingInvite || !invite || prefilledFromInvite) return;
+    prefilledFromInvite = true;
+    if (!displayName.trim()) displayName = invite.display_name ?? "";
+    if (!requestedHandle.trim()) requestedHandle = invite.handle ?? "";
+  });
+
+  const stepLabels = $derived(["About you", form ? "Your answers" : "Your work", "Review"]);
+
   const normalizedHandle = $derived(requestedHandle.trim().toLowerCase());
   const validHandle = $derived(/^[a-z0-9_]{3,30}$/.test(normalizedHandle));
 
@@ -35,6 +77,11 @@
     handleCheckFailed = false;
     checkingHandle = false;
     if (!validHandle) return;
+    // A live invite reserves its handle for the invitee, so the public check would call it taken.
+    if (usingInvite && invite?.handle === handle) {
+      handleAvailable = true;
+      return;
+    }
 
     handleTimer = setTimeout(async () => {
       checkingHandle = true;
@@ -73,8 +120,47 @@
       .join("\n"),
   );
 
+  const inviteProblems: Record<string, string> = {
+    claimed: "This invitation has already been used. If that was you, check your application status.",
+    expired: "This invitation has expired. Ask the Artiv team for a new link. You can still apply below.",
+    revoked: "This invitation was cancelled. You can still apply below, or ask the team for a new link.",
+  };
+
+  async function loadInvite() {
+    if (!inviteToken) return;
+    try {
+      invite = await inviteService.preview(inviteToken);
+      if (invite.status !== "live") inviteMessage = inviteProblems[invite.status] ?? "";
+    } catch (e) {
+      invite = null;
+      inviteMessage =
+        e instanceof ApiError && e.status === 404
+          ? "We couldn't find that invitation. Check the link, or apply below."
+          : "We couldn't check your invitation just now. You can still apply below.";
+    }
+  }
+
+  async function resendVerification() {
+    resendState = "sending";
+    try {
+      await authService.resendVerification();
+      resendState = "sent";
+    } catch {
+      resendState = "failed";
+    }
+  }
+
+  async function recheckVerification() {
+    await authService.load();
+  }
+
   // Pre-fill when re-applying after a rejection.
   onMount(async () => {
+    void questionnaireService
+      .getForm()
+      .then((f) => (form = f))
+      .catch(() => (form = null));
+    void loadInvite();
     try {
       const previous = await onboardingService.getMyApplication();
       if (previous.status === "pending") {
@@ -109,27 +195,63 @@
   });
   const workError = $derived(attempted && !hasWork ? "Add at least one link, or a few lines about your work." : undefined);
 
-  function next() {
+  async function next() {
     attempted = true;
     if (step === 1 && !step1Ok) return;
-    if (step === 2 && !hasWork) return;
+    if (step === 2 && form) {
+      // Show every problem, then make sure what's on screen is what we've saved.
+      if (!formRef?.validate()) return;
+      savingStep = true;
+      const saved = await formRef.flush();
+      savingStep = false;
+      if (!saved) {
+        error = "We couldn't save your answers just now. Check your connection and try again.";
+        return;
+      }
+      error = "";
+      reviewValues = formRef.current();
+    } else if (step === 2 && !hasWork) {
+      return;
+    }
     attempted = false;
     step += 1;
+  }
+
+  const reviewQuestions = $derived(
+    form ? [...form.revision.questions].sort((a, b) => a.position - b.position) : [],
+  );
+
+  function reviewText(q: FormQuestion): string {
+    const body = reviewValues[q.key] ?? "";
+    return q.type === "choice"
+      ? answerText({ key: q.key, type: q.type, prompt_en: q.prompt_en, options: q.options, body, format: "plain", lang: "en" })
+      : body;
   }
 
   async function submit() {
     submitting = true;
     error = "";
     try {
-      await onboardingService.submit({
-        applicant_type: applicantType,
-        display_name: displayName.trim(),
-        requested_handle: normalizedHandle,
-        notes: notes.trim(),
-      });
+      if (usingInvite && inviteToken) {
+        await inviteService.claim({
+          token: inviteToken,
+          display_name: displayName.trim(),
+          requested_handle: normalizedHandle,
+        });
+      } else {
+        await onboardingService.submit({
+          applicant_type: applicantType,
+          display_name: displayName.trim(),
+          requested_handle: normalizedHandle,
+          // With a questionnaire the answers are the application; the free-text notes only apply to the plain form.
+          notes: form ? "" : notes.trim(),
+        });
+      }
       await goto("/apply/status");
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
+      if (e instanceof ApiError && e.status === 403 && usingInvite) {
+        error = "This invitation was sent to a different email address, or your email isn't verified yet.";
+      } else if (e instanceof ApiError && e.status === 409) {
         error =
           "We couldn't submit this. Either the handle was just taken or you already have an application under review. Check your application status, or try a different handle.";
       } else {
@@ -153,6 +275,34 @@
     {#if reapplying}Apply <em class="italic">again</em>{:else}Join Artiv as an <em class="italic">artist</em>{/if}
   </PageHeader>
 
+  {#if invite && inviteLive}
+    {#if !emailMatches}
+      <Alert tone="warning" class="mt-6">
+        This invitation was sent to <strong>{invite.email}</strong>, but you're signed in as
+        <strong>{$currentUser?.email}</strong>. Sign in with the invited address to use it, or continue below with a regular application.
+      </Alert>
+    {:else if needsVerify}
+      <Alert tone="warning" class="mt-6">
+        <p>
+          Please verify <strong>{$currentUser?.email}</strong> to use your invitation. We sent a link when you signed up.
+        </p>
+        <p class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <button type="button" class="underline underline-offset-4" onclick={resendVerification} disabled={resendState === "sending"}>
+            {resendState === "sent" ? "Link sent. Check your inbox" : resendState === "failed" ? "Couldn't send. Try again" : "Send the link again"}
+          </button>
+          <button type="button" class="underline underline-offset-4" onclick={recheckVerification}>I've verified</button>
+          <span class="text-muted-foreground">Or continue below as a regular application.</span>
+        </p>
+      </Alert>
+    {:else}
+      <Alert tone="success" class="mt-6">
+        You're invited{invite.display_name ? `, ${invite.display_name}` : ""}. Answer a few questions and our team will review your application as usual.
+      </Alert>
+    {/if}
+  {:else if inviteMessage}
+    <Alert tone="warning" class="mt-6">{inviteMessage}</Alert>
+  {/if}
+
   {#if priorCheckFailed}
     <Alert tone="warning" class="mt-6">
       We couldn't check for an earlier application. You can still apply; if you already have one, we'll tell you on submit.
@@ -160,7 +310,7 @@
   {/if}
 
   <ol class="t-eyebrow mt-8 flex items-center gap-3 !text-[10px]" aria-label="Progress">
-    {#each ["About you", "Your work", "Review"] as label, i}
+    {#each stepLabels as label, i}
       <li class="flex items-center gap-3">
         <span
           class="flex h-6 w-6 items-center justify-center rounded-full border {step === i + 1
@@ -183,7 +333,7 @@
     novalidate
     onsubmit={(e) => {
       e.preventDefault();
-      if (step < 3) next();
+      if (step < 3) void next();
       else void submit();
     }}
   >
@@ -212,7 +362,7 @@
           </div>
         {/snippet}
       </Field>
-    {:else if step === 2}
+    {:else if step === 2 && !form}
       <p class="t-body text-muted-foreground">
         Help us see your work. Add at least one of the options below — a link to where your art lives is the quickest way to get approved.
       </p>
@@ -230,16 +380,44 @@
           <Textarea {id} {invalid} aria-describedby={describedby} rows={5} placeholder="What do you make? How long have you been at it?" bind:value={about} />
         {/snippet}
       </Field>
-    {:else}
+    {:else if step === 3}
       <div class="rounded-sm border border-border/70 bg-card/30 p-6 text-sm">
         <p class="t-eyebrow text-muted-foreground">Review your application</p>
         <p class="mt-3 text-foreground">{displayName}</p>
         <p class="t-meta mt-1 text-accent">@{normalizedHandle}</p>
-        <p class="mt-4 whitespace-pre-wrap text-muted-foreground">{notes}</p>
+        {#if form}
+          <dl class="mt-6 space-y-5" data-testid="apply-review">
+            {#each reviewQuestions as q (q.key)}
+              {@const body = reviewValues[q.key] ?? ""}
+              {#if !isBlankAnswer(body, formatFor(q))}
+                <div>
+                  <dt class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{q.prompt_en}</dt>
+                  <dd class="mt-1 text-foreground">
+                    {#if formatFor(q) === "rich"}
+                      <SafeHtml html={body} />
+                    {:else if q.type === "link" && safeHttpUrl(body)}
+                      <span class="break-all">{linkLabel(safeHttpUrl(body) ?? body)}</span>
+                    {:else}
+                      <span class="whitespace-pre-wrap">{reviewText(q)}</span>
+                    {/if}
+                  </dd>
+                </div>
+              {/if}
+            {/each}
+          </dl>
+        {:else}
+          <p class="mt-4 whitespace-pre-wrap text-muted-foreground">{notes}</p>
+        {/if}
       </div>
       <p class="text-xs text-muted-foreground">
         By submitting you confirm this information is accurate. After review you'll get an email, and you can check progress any time on your application status page.
       </p>
+    {/if}
+
+    {#if form}
+      <div class:hidden={step !== 2}>
+        <QuestionnaireForm bind:this={formRef} {form} />
+      </div>
     {/if}
 
     {#if error}<Alert tone="error">{error}</Alert>{/if}
@@ -248,8 +426,8 @@
       {#if step > 1}
         <Button variant="ghost" onclick={() => (step -= 1)}>Back</Button>
       {/if}
-      <Button type="submit" loading={submitting}>
-        {step < 3 ? "Continue" : submitting ? "Submitting…" : "Submit application"}
+      <Button type="submit" loading={submitting || savingStep}>
+        {step < 3 ? (savingStep ? "Saving…" : "Continue") : submitting ? "Submitting…" : "Submit application"}
       </Button>
     </div>
   </form>

@@ -1,5 +1,10 @@
 import { QuestionnaireApi } from '$lib/adapters/api/questionnaireApi';
-import type { PublicAnswer } from '$lib/core/domain/questionnaire';
+import type {
+	AnswerInput,
+	PublicAnswer,
+	QuestionnaireForm,
+	QuestionnaireNudge
+} from '$lib/core/domain/questionnaire';
 
 const api = new QuestionnaireApi();
 
@@ -14,5 +19,24 @@ export const questionnaireService = {
 		} catch {
 			return [];
 		}
+	},
+
+	/** Null means no questionnaire has been published yet, so the plain application applies. */
+	getForm(): Promise<QuestionnaireForm | null> {
+		return api.getForm();
+	},
+	saveAnswers(answers: AnswerInput[], options?: { keepalive?: boolean }): Promise<void> {
+		return api.saveAnswers(answers, options);
+	},
+	/** A nudge is a convenience; failing to load one must never get in the artist's way. */
+	async getNudge(): Promise<QuestionnaireNudge | null> {
+		try {
+			return await api.getNudge();
+		} catch {
+			return null;
+		}
+	},
+	dismissNudge(revisionId: string): Promise<void> {
+		return api.dismissNudge(revisionId);
 	}
 };

@@ -54,7 +54,7 @@ func TestCheckAnswer(t *testing.T) {
 		t.Error("expected 7-rune answer to exceed max 5")
 	}
 	if err := long.CheckAnswer("ሰላም", FormatPlain, LangAmharic); err != nil {
-		t.Errorf("4 Amharic runes (12 bytes) should fit max 5: %v", err)
+		t.Errorf("3 Amharic runes (9 bytes) should fit max 5: %v", err)
 	}
 	if err := short.CheckAnswer("x", FormatRich, LangEnglish); err == nil {
 		t.Error("rich text on a short_text question should be rejected")

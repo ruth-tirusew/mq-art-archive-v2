@@ -35,7 +35,10 @@
   let handleTimer: ReturnType<typeof setTimeout> | undefined;
 
   // The questionnaire replaces the free-text "Your work" step once an admin has published one.
+  // "none" means no questionnaire is published yet (the plain form applies). "error" means we
+  // couldn't find out, and applying on the plain form then would just fail at submit.
   let form = $state<QuestionnaireFormData | null>(null);
+  let formState = $state<"loading" | "ready" | "none" | "error">("loading");
   let formRef = $state<ReturnType<typeof QuestionnaireForm>>();
   let reviewValues = $state<Record<string, string>>({});
   let savingStep = $state(false);
@@ -65,7 +68,7 @@
     if (!requestedHandle.trim()) requestedHandle = invite.handle ?? "";
   });
 
-  const stepLabels = $derived(["About you", form ? "Your answers" : "Your work", "Review"]);
+  const stepLabels = $derived(["About you", formState === "none" ? "Your work" : "Your answers", "Review"]);
 
   const normalizedHandle = $derived(requestedHandle.trim().toLowerCase());
   const validHandle = $derived(/^[a-z0-9_]{3,30}$/.test(normalizedHandle));
@@ -140,6 +143,17 @@
     }
   }
 
+  async function loadForm() {
+    formState = "loading";
+    try {
+      form = await questionnaireService.getForm();
+      formState = form ? "ready" : "none";
+    } catch {
+      form = null;
+      formState = "error";
+    }
+  }
+
   async function resendVerification() {
     resendState = "sending";
     try {
@@ -156,10 +170,7 @@
 
   // Pre-fill when re-applying after a rejection.
   onMount(async () => {
-    void questionnaireService
-      .getForm()
-      .then((f) => (form = f))
-      .catch(() => (form = null));
+    void loadForm();
     void loadInvite();
     try {
       const previous = await onboardingService.getMyApplication();
@@ -198,6 +209,8 @@
   async function next() {
     attempted = true;
     if (step === 1 && !step1Ok) return;
+    // Don't move past step 2 until we know which form applies.
+    if (step === 2 && (formState === "loading" || formState === "error")) return;
     if (step === 2 && form) {
       // Show every problem, then make sure what's on screen is what we've saved.
       if (!formRef?.validate()) return;
@@ -237,6 +250,8 @@
           token: inviteToken,
           display_name: displayName.trim(),
           requested_handle: normalizedHandle,
+          // Same rule as below: with a questionnaire the answers are the application.
+          notes: form ? "" : notes.trim(),
         });
       } else {
         await onboardingService.submit({
@@ -362,7 +377,16 @@
           </div>
         {/snippet}
       </Field>
-    {:else if step === 2 && !form}
+    {:else if step === 2 && formState === "loading"}
+      <p class="t-body text-muted-foreground" role="status">Loading the application form…</p>
+    {:else if step === 2 && formState === "error"}
+      <Alert tone="error">
+        <p>We couldn't load the application form. Check your connection and try again.</p>
+        <p class="mt-2">
+          <button type="button" class="underline underline-offset-4" onclick={loadForm}>Try again</button>
+        </p>
+      </Alert>
+    {:else if step === 2 && formState === "none"}
       <p class="t-body text-muted-foreground">
         Help us see your work. Add at least one of the options below — a link to where your art lives is the quickest way to get approved.
       </p>
@@ -426,7 +450,11 @@
       {#if step > 1}
         <Button variant="ghost" onclick={() => (step -= 1)}>Back</Button>
       {/if}
-      <Button type="submit" loading={submitting || savingStep}>
+      <Button
+        type="submit"
+        loading={submitting || savingStep}
+        disabled={step === 2 && (formState === "loading" || formState === "error")}
+      >
         {step < 3 ? (savingStep ? "Saving…" : "Continue") : submitting ? "Submitting…" : "Submit application"}
       </Button>
     </div>

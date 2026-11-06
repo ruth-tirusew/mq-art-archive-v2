@@ -154,4 +154,16 @@ describe('InviteApi (MSW)', () => {
 		expect(app).toMatchObject({ status: 'pending', invite_id: 'inv-1' });
 		await expect(api.claim({ token: 'used' })).rejects.toMatchObject({ status: 409 });
 	});
+
+	it('sends the applicant’s notes with the claim', async () => {
+		let sent: Record<string, unknown> = {};
+		server.use(
+			http.post(`${base}/api/v1/applications/invite`, async ({ request }) => {
+				sent = (await request.json()) as Record<string, unknown>;
+				return HttpResponse.json({ id: 'app-1', status: 'pending' }, { status: 201 });
+			})
+		);
+		await api.claim({ token: 'good', requested_handle: 'ada_1', notes: 'Instagram: @ada' });
+		expect(sent).toMatchObject({ token: 'good', notes: 'Instagram: @ada' });
+	});
 });

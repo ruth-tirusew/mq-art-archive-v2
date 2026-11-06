@@ -32,7 +32,7 @@ func TestInviteRepository_Reopen_restoresRevokedAndClaimedInvites(t *testing.T) 
 	assist.NoError(t, err)
 	assist.Equal(t, onboarding.InviteLive, got.Status(now))
 
-	_, err = repo.Claim(ctx, inv.ID, uuid.New(), now)
+	_, err = repo.Claim(ctx, inv.ID, integration.InsertAdminUser(t, pool), now)
 	assist.NoError(t, err)
 	assist.NoError(t, repo.Reopen(ctx, inv.ID))
 	got, err = repo.GetByID(ctx, inv.ID)

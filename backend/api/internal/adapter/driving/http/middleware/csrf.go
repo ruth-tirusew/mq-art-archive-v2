@@ -8,22 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CSRF blocks cross-site request forgery against cookie-authenticated, state-changing routes.
-//
-// The session cookie is SameSite=None in production (the web apps and the API sit on different
-// sites), so the browser attaches it to requests made from any page. Two checks stop a hostile
-// page from using that:
-//
-//  1. A browser always sends Origin on cross-origin POST/PUT/PATCH/DELETE. If it is present it must
-//     be one of the configured origins. Requests with no Origin (curl, server-to-server, tests)
-//     are not browser-driven cross-site requests, so they are not CSRF and pass through.
-//     When Origin is absent, a browser that still reports Sec-Fetch-Site: cross-site is attacking
-//     from another site, so that is blocked too (covers clients that omit Origin).
-//  2. A request with a body must declare application/json. Otherwise a page can send a "simple"
-//     cross-origin request (text/plain, form-encoded) that skips the CORS preflight entirely and
-//     still has JSON the handler will happily parse.
-//
-// Safe methods (GET, HEAD, OPTIONS) are never blocked; OPTIONS is the CORS preflight.
 func CSRF(origins []string) gin.HandlerFunc {
 	allowed := make(map[string]struct{}, len(origins))
 	for _, o := range origins {

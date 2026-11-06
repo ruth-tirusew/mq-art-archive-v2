@@ -157,7 +157,7 @@ func TestOnboardingService_integration(t *testing.T) {
 	reviewed, err := app.Onboarding.Review(ctx, appID, reviewerID, onboarding.ApprovalStatusApproved, "looks good")
 	assist.NoError(t, err)
 	assist.Equal(t, onboarding.ApprovalStatusApproved, reviewed.Status)
-	assist.Equal(t, "looks good", reviewed.Notes)
+	assist.Equal(t, "looks good", reviewed.ReviewNotes)
 	assist.NotNil(t, reviewed.ReviewedBy)
 	assist.Equal(t, reviewerID, *reviewed.ReviewedBy)
 

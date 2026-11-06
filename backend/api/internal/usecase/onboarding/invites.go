@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
@@ -94,13 +95,26 @@ func (s *Service) ResendInvite(ctx context.Context, adminID, inviteID uuid.UUID)
 	if old.ClaimedAt != nil {
 		return nil, fmt.Errorf("%w: this invite was already used", apperrors.ErrConflict)
 	}
+	// Keep the lifetime the admin originally chose.
+	ttl := min(max(old.ExpiresAt.Sub(old.CreatedAt), time.Hour), maxInviteTTL)
 	// Revoke first so the old link dies and its handle reservation is released for the new one.
 	if err := s.invites.Revoke(ctx, inviteID, s.now()); err != nil {
 		return nil, err
 	}
-	return s.CreateInvite(ctx, adminID, inbound.CreateInviteInput{
-		Email: old.Email, DisplayName: old.DisplayName, Handle: old.RequestedHandle,
+	created, err := s.CreateInvite(ctx, adminID, inbound.CreateInviteInput{
+		Email: old.Email, DisplayName: old.DisplayName, Handle: old.RequestedHandle, TTL: ttl,
 	})
+	if err != nil {
+		// Don't leave the invitee with a dead link and no replacement. An invite that was already
+		// revoked before the resend stays revoked.
+		if old.RevokedAt == nil {
+			if reopenErr := s.invites.Reopen(context.WithoutCancel(ctx), inviteID); reopenErr != nil {
+				return nil, errors.Join(err, fmt.Errorf("restore invite after failed resend: %w", reopenErr))
+			}
+		}
+		return nil, err
+	}
+	return created, nil
 }
 
 func (s *Service) RevokeInvite(ctx context.Context, inviteID uuid.UUID) error {
@@ -188,11 +202,19 @@ func (s *Service) SubmitWithInvite(
 	app.InviteID = &inv.ID
 
 	// Everything that can reasonably fail has been checked, so claim (the single-use step) last
-	// before saving. A failure on Save after this leaves the invite spent; the admin can resend.
+	// before saving. If Save then fails, the invite is reopened below.
 	if _, err := s.invites.Claim(ctx, inv.ID, applicantID, now); err != nil {
 		return nil, err
 	}
-	return s.applications.Save(ctx, *app)
+	saved, err := s.applications.Save(ctx, *app)
+	if err != nil {
+		// The invite was spent but no application exists: give the link back.
+		if reopenErr := s.invites.Reopen(context.WithoutCancel(ctx), inv.ID); reopenErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("restore invite after failed submit: %w", reopenErr))
+		}
+		return nil, err
+	}
+	return saved, nil
 }
 
 // sendInviteEmail is best-effort, like decision emails: the admin also gets the link back from

@@ -176,9 +176,15 @@ func (s *Service) prepareApplication(
 }
 
 func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID, status domain.ApprovalStatus, notes string) (*domain.OnboardingApplication, error) {
+	if status != domain.ApprovalStatusApproved && status != domain.ApprovalStatusRejected {
+		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "status must be approved or rejected")
+	}
 	app, err := s.applications.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if app.Status != domain.ApprovalStatusPending {
+		return nil, fmt.Errorf("%w: this application was already %s", apperrors.ErrConflict, app.Status)
 	}
 
 	reviewNotes := strings.TrimSpace(notes)
@@ -186,36 +192,45 @@ func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "a reason is required when rejecting an application")
 	}
 
-	now := time.Now().UTC()
-	app.Status = status
-	app.ReviewNotes = reviewNotes
-	app.ReviewedBy = &reviewerID
-	app.ReviewedAt = &now
-	app.UpdatedAt = now
+	now := s.now()
+	decided := *app
+	decided.Status = status
+	decided.ReviewNotes = reviewNotes
+	decided.ReviewedBy = &reviewerID
+	decided.ReviewedAt = &now
+	decided.UpdatedAt = now
 
-	if status == domain.ApprovalStatusApproved {
-		switch app.ApplicantType {
-		case domain.ApplicantTypeArtist:
-			if err := s.provisionArtist(ctx, app); err != nil {
-				return nil, err
-			}
-		case domain.ApplicantTypeInstitution:
-			if err := s.provisionInstitution(ctx, app); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	saved, err := s.applications.Save(ctx, *app)
+	// Take the decision first, conditioned on the application still being pending. Of two admins
+	// deciding at once only one gets past this point, so only one provisions.
+	saved, err := s.applications.Transition(ctx, decided, domain.ApprovalStatusPending)
 	if err != nil {
 		return nil, err
 	}
+
+	if status == domain.ApprovalStatusApproved {
+		var provisionErr error
+		switch app.ApplicantType {
+		case domain.ApplicantTypeArtist:
+			provisionErr = s.provisionArtist(ctx, app)
+		case domain.ApplicantTypeInstitution:
+			provisionErr = s.provisionInstitution(ctx, app)
+		}
+		if provisionErr != nil {
+			// Put the application back to pending so the admin can retry; provisioning is safe to repeat.
+			revert := *app
+			revert.Status = domain.ApprovalStatusPending
+			revert.UpdatedAt = s.now()
+			if _, revErr := s.applications.Transition(context.WithoutCancel(ctx), revert, domain.ApprovalStatusApproved); revErr != nil {
+				return nil, errors.Join(provisionErr, fmt.Errorf("reopen application after failed approval: %w", revErr))
+			}
+			return nil, provisionErr
+		}
+	}
+
 	s.notifyDecision(ctx, saved)
 	return saved, nil
 }
 
-// notifyDecision emails the applicant about the outcome. Failures are ignored: the
-// review itself has already been saved and must not fail because of a mail outage.
 func (s *Service) notifyDecision(ctx context.Context, app *domain.OnboardingApplication) {
 	if s.mailer == nil {
 		return
@@ -247,27 +262,25 @@ func decisionEmail(app *domain.OnboardingApplication, webAppURL string) (string,
 	return "Update on your Artiv application", b.String()
 }
 
+// provisionArtist is safe to repeat: a retry after a partial failure finishes the remaining steps,
+// including applying the requested handle to a draft profile an earlier attempt already created.
+// The role is promoted last so a failure never leaves an artist without their profile.
 func (s *Service) provisionArtist(ctx context.Context, app *domain.OnboardingApplication) error {
-	if err := s.users.PromoteToArtist(ctx, app.ApplicantID); err != nil {
-		return err
+	draft, err := s.profiles.GetArtistByUserID(ctx, app.ApplicantID)
+	if errors.Is(err, apperrors.ErrNotFound) {
+		draft, err = s.profiles.CreateDraftForUser(ctx, app.ApplicantID, app.DisplayName)
 	}
-
-	if _, err := s.profiles.GetArtistByUserID(ctx, app.ApplicantID); err == nil {
-		return nil
-	} else if !errors.Is(err, apperrors.ErrNotFound) {
-		return err
-	}
-
-	draft, err := s.profiles.CreateDraftForUser(ctx, app.ApplicantID, app.DisplayName)
 	if err != nil {
 		return err
 	}
-	if app.RequestedHandle != "" {
+	if app.RequestedHandle != "" && draft.Handle != app.RequestedHandle {
 		draft.Handle = app.RequestedHandle
 		draft.Slug = app.RequestedHandle
-		_, err = s.profiles.SaveArtist(ctx, *draft)
+		if _, err := s.profiles.SaveArtist(ctx, *draft); err != nil {
+			return err
+		}
 	}
-	return err
+	return s.users.PromoteToArtist(ctx, app.ApplicantID)
 }
 
 func (s *Service) provisionInstitution(ctx context.Context, app *domain.OnboardingApplication) error {

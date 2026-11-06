@@ -26,4 +26,7 @@ type InviteRepository interface {
 	Claim(ctx context.Context, id, userID uuid.UUID, now time.Time) (*onboarding.Invite, error)
 	// Revoke invalidates an unclaimed invite. ErrConflict if it was already claimed.
 	Revoke(ctx context.Context, id uuid.UUID, now time.Time) error
+	// Reopen clears the revoked and claimed marks. It only compensates for a step that failed after
+	// the invite was revoked or claimed, so the invitee is not left without a working link.
+	Reopen(ctx context.Context, id uuid.UUID) error
 }

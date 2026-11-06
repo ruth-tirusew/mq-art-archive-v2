@@ -86,6 +86,14 @@ func (f *fakeInvites) Claim(ctx context.Context, id, userID uuid.UUID, now time.
 	c := *i
 	return &c, nil
 }
+func (f *fakeInvites) Reopen(ctx context.Context, id uuid.UUID) error {
+	i, ok := f.byID[id]
+	if !ok {
+		return apperrors.ErrNotFound
+	}
+	i.RevokedAt, i.ClaimedAt, i.ClaimedBy = nil, nil, nil
+	return nil
+}
 func (f *fakeInvites) Revoke(ctx context.Context, id uuid.UUID, now time.Time) error {
 	i, ok := f.byID[id]
 	if !ok {
@@ -126,6 +134,7 @@ type inviteEnv struct {
 	svc     *Service
 	invites *fakeInvites
 	saved   []domain.OnboardingApplication
+	saveErr error
 	user    *identity.User
 	now     time.Time
 }
@@ -140,6 +149,9 @@ func newInviteEnv(t *testing.T, gate inbound.ApplicationQuestionnaireGate) *invi
 	}
 	apps := &mockOnboardingRepo{
 		save: func(ctx context.Context, app domain.OnboardingApplication) (*domain.OnboardingApplication, error) {
+			if env.saveErr != nil {
+				return nil, env.saveErr
+			}
 			env.saved = append(env.saved, app)
 			return &app, nil
 		},
@@ -361,4 +373,43 @@ func TestLiveInviteEmail(t *testing.T) {
 		_, err = env.svc.LiveInviteEmail(ctx, expiring.Token)
 		assist.ErrorIs(t, err, apperrors.ErrConflict)
 	})
+}
+
+func TestResendInvite_keepsOriginalLifetime(t *testing.T) {
+	env := newInviteEnv(t, nil)
+	first, err := env.svc.CreateInvite(context.Background(), uuid.New(), inbound.CreateInviteInput{
+		Email: "ada@example.com", TTL: 3 * 24 * time.Hour,
+	})
+	assist.NoError(t, err)
+
+	second, err := env.svc.ResendInvite(context.Background(), uuid.New(), first.Invite.ID)
+	assist.NoError(t, err)
+	assist.Equal(t, 3*24*time.Hour, second.Invite.ExpiresAt.Sub(second.Invite.CreatedAt))
+}
+
+func TestResendInvite_failedCreateKeepsOldLinkWorking(t *testing.T) {
+	env := newInviteEnv(t, nil)
+	// An invite whose address can no longer pass validation makes the replacement fail.
+	bad := &domain.Invite{
+		ID: uuid.New(), TokenHash: "h", Email: "not-an-email",
+		ExpiresAt: env.now.Add(24 * time.Hour), CreatedAt: env.now,
+	}
+	env.invites.byID[bad.ID] = bad
+
+	_, err := env.svc.ResendInvite(context.Background(), uuid.New(), bad.ID)
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+	assist.Equal(t, domain.InviteLive, bad.Status(env.now)) // not left revoked
+}
+
+func TestSubmitWithInvite_failedSaveGivesTheInviteBack(t *testing.T) {
+	env := newInviteEnv(t, nil)
+	inv := env.invite(t, "ada_1")
+	env.saveErr = apperrors.ErrConflict
+
+	_, err := env.svc.SubmitWithInvite(context.Background(), env.user.ID, inv.Token, "", "", "")
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+
+	env.saveErr = nil
+	_, err = env.svc.SubmitWithInvite(context.Background(), env.user.ID, inv.Token, "", "", "")
+	assist.NoError(t, err) // the same link still works
 }

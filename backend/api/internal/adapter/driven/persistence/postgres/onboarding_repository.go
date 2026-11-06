@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mq/api/internal/domain/onboarding"
 	"github.com/mq/api/internal/port/outbound"
 )
@@ -114,7 +115,36 @@ func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.Onboardi
 
 	saved, err := scanOnboardingApplication(row)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, fmt.Errorf("save onboarding application: %w", ErrConflict)
+		}
 		return nil, fmt.Errorf("save onboarding application: %w", err)
+	}
+	return &saved, nil
+}
+
+func (r *OnboardingRepository) Transition(ctx context.Context, app onboarding.OnboardingApplication, from onboarding.ApprovalStatus) (*onboarding.OnboardingApplication, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE onboarding_applications SET
+			status = $3, review_notes = $4, reviewed_by = $5, reviewed_at = $6, updated_at = $7
+		WHERE id = $1 AND status = $2
+		RETURNING `+onboardingColumns,
+		app.ID, string(from), string(app.Status), app.ReviewNotes, app.ReviewedBy, app.ReviewedAt, app.UpdatedAt,
+	)
+	saved, err := scanOnboardingApplication(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			if _, getErr := r.GetByID(ctx, app.ID); getErr != nil {
+				return nil, getErr
+			}
+			return nil, fmt.Errorf("transition onboarding application: %w", ErrConflict)
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, fmt.Errorf("transition onboarding application: %w", ErrConflict)
+		}
+		return nil, fmt.Errorf("transition onboarding application: %w", err)
 	}
 	return &saved, nil
 }

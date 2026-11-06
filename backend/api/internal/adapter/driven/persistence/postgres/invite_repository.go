@@ -140,6 +140,20 @@ func (r *InviteRepository) Revoke(ctx context.Context, id uuid.UUID, now time.Ti
 	return nil
 }
 
+func (r *InviteRepository) Reopen(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE artist_invites SET revoked_at = NULL, claimed_by = NULL, claimed_at = NULL
+		WHERE id = $1
+	`, id)
+	if err != nil {
+		return fmt.Errorf("reopen invite: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func scanInvite(row scannable) (onboarding.Invite, error) {
 	var inv onboarding.Invite
 	err := row.Scan(&inv.ID, &inv.TokenHash, &inv.Email, &inv.DisplayName, &inv.RequestedHandle, &inv.CreatedBy,

@@ -6,9 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SecurityHeaders hardens every response. This API only serves JSON, so it can be strict: nothing
-// may frame it, content types are not sniffed, and no resource may load from it.
-// hsts should be true when the API is served over HTTPS (production), where it pins browsers to it.
 func SecurityHeaders(hsts bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h := c.Writer.Header()
@@ -22,9 +19,6 @@ func SecurityHeaders(hsts bool) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// BodyLimit caps request bodies. Unbounded bodies let one client tie up memory (JSON binding reads
-// the whole thing); handlers see a normal bind error when the cap is exceeded.
 func BodyLimit(maxBytes int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Body != nil {

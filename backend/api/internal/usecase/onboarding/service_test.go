@@ -19,6 +19,8 @@ type mockOnboardingRepo struct {
 	getByID                func(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error)
 	getLatestByApplicantID func(ctx context.Context, applicantID uuid.UUID) (*domain.OnboardingApplication, error)
 	save                   func(ctx context.Context, app domain.OnboardingApplication) (*domain.OnboardingApplication, error)
+	// transition defaults to save, so tests that only care about the stored result need set just one hook.
+	transition func(ctx context.Context, app domain.OnboardingApplication, from domain.ApprovalStatus) (*domain.OnboardingApplication, error)
 }
 
 func (m *mockOnboardingRepo) ListPending(ctx context.Context) ([]domain.OnboardingApplication, error) {
@@ -40,6 +42,13 @@ func (m *mockOnboardingRepo) GetLatestByApplicantID(ctx context.Context, applica
 }
 
 func (m *mockOnboardingRepo) Save(ctx context.Context, app domain.OnboardingApplication) (*domain.OnboardingApplication, error) {
+	return m.save(ctx, app)
+}
+
+func (m *mockOnboardingRepo) Transition(ctx context.Context, app domain.OnboardingApplication, from domain.ApprovalStatus) (*domain.OnboardingApplication, error) {
+	if m.transition != nil {
+		return m.transition(ctx, app, from)
+	}
 	return m.save(ctx, app)
 }
 
@@ -317,4 +326,125 @@ func TestDecisionEmail(t *testing.T) {
 	subject, body = decisionEmail(approved, "https://artiv.example")
 	assist.Contains(t, subject, "approved")
 	assist.Contains(t, body, "https://artiv.example/studio")
+}
+
+func pendingArtistApp(handle string) *domain.OnboardingApplication {
+	return &domain.OnboardingApplication{
+		ID: uuid.New(), ApplicantID: uuid.New(), ApplicantType: domain.ApplicantTypeArtist,
+		DisplayName: "Studio X", RequestedHandle: handle, Status: domain.ApprovalStatusPending,
+	}
+}
+
+func TestService_Review_rejectsAlreadyDecidedApplication(t *testing.T) {
+	for _, status := range []domain.ApprovalStatus{domain.ApprovalStatusApproved, domain.ApprovalStatusRejected} {
+		app := pendingArtistApp("studio_x")
+		app.Status = status
+		promoted := false
+		repo := &mockOnboardingRepo{
+			getByID: func(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error) { return app, nil },
+			transition: func(ctx context.Context, a domain.OnboardingApplication, from domain.ApprovalStatus) (*domain.OnboardingApplication, error) {
+				t.Fatal("a decided application must not be written again")
+				return nil, nil
+			},
+		}
+		users := &mockUserRepo{updateRole: func(ctx context.Context, id uuid.UUID, role identity.Role) error {
+			promoted = true
+			return nil
+		}}
+		svc := NewService(repo, users, &mockProfileRepo{}, &mockInstitutionRepo{})
+
+		_, err := svc.Review(context.Background(), app.ID, uuid.New(), domain.ApprovalStatusApproved, "")
+		assist.ErrorIs(t, err, apperrors.ErrConflict)
+		if promoted {
+			t.Fatal("re-review must not provision")
+		}
+	}
+}
+
+func TestService_Review_losingTheRaceDoesNotProvision(t *testing.T) {
+	app := pendingArtistApp("studio_x")
+	promoted := false
+	repo := &mockOnboardingRepo{
+		getByID: func(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error) {
+			c := *app
+			return &c, nil
+		},
+		transition: func(ctx context.Context, a domain.OnboardingApplication, from domain.ApprovalStatus) (*domain.OnboardingApplication, error) {
+			return nil, apperrors.ErrConflict // another admin decided between our read and write
+		},
+	}
+	users := &mockUserRepo{updateRole: func(ctx context.Context, id uuid.UUID, role identity.Role) error {
+		promoted = true
+		return nil
+	}}
+	svc := NewService(repo, users, &mockProfileRepo{}, &mockInstitutionRepo{})
+
+	_, err := svc.Review(context.Background(), app.ID, uuid.New(), domain.ApprovalStatusApproved, "")
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	if promoted {
+		t.Fatal("the losing admin must not provision")
+	}
+}
+
+func TestService_Review_rejectsInvalidTargetStatus(t *testing.T) {
+	svc := NewService(&mockOnboardingRepo{}, &mockUserRepo{}, &mockProfileRepo{}, &mockInstitutionRepo{})
+	_, err := svc.Review(context.Background(), uuid.New(), uuid.New(), domain.ApprovalStatusPending, "")
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+}
+
+func TestService_Review_failedProvisioningReopensApplicationAndRetryAppliesHandle(t *testing.T) {
+	app := pendingArtistApp("studio_x")
+	stored := *app
+	repo := &mockOnboardingRepo{
+		getByID: func(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error) {
+			c := stored
+			return &c, nil
+		},
+		transition: func(ctx context.Context, a domain.OnboardingApplication, from domain.ApprovalStatus) (*domain.OnboardingApplication, error) {
+			if stored.Status != from {
+				return nil, apperrors.ErrConflict
+			}
+			stored.Status = a.Status
+			c := stored
+			return &c, nil
+		},
+	}
+	var profile *profiledomain.ArtistProfile
+	saveFails := true
+	role := identity.RolePublic
+	users := &mockUserRepo{updateRole: func(ctx context.Context, id uuid.UUID, r identity.Role) error { role = r; return nil }}
+	profiles := &mockProfileRepo{
+		getByUserID: func(ctx context.Context, userID uuid.UUID) (*profiledomain.ArtistProfile, error) {
+			if profile == nil {
+				return nil, apperrors.ErrNotFound
+			}
+			c := *profile
+			return &c, nil
+		},
+		createDraftForUser: func(ctx context.Context, userID uuid.UUID, displayName string) (*profiledomain.ArtistProfile, error) {
+			profile = &profiledomain.ArtistProfile{UserID: userID, Handle: "draft-1", Slug: "draft-1"}
+			c := *profile
+			return &c, nil
+		},
+		save: func(ctx context.Context, p profiledomain.ArtistProfile) (*profiledomain.ArtistProfile, error) {
+			if saveFails {
+				return nil, apperrors.ErrConflict // handle taken in the meantime
+			}
+			profile = &p
+			return &p, nil
+		},
+	}
+	svc := NewService(repo, users, profiles, &mockInstitutionRepo{})
+
+	_, err := svc.Review(context.Background(), app.ID, uuid.New(), domain.ApprovalStatusApproved, "")
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	assist.Equal(t, domain.ApprovalStatusPending, stored.Status)
+	assist.Equal(t, identity.RolePublic, role) // never promoted without a finished profile
+
+	saveFails = false
+	got, err := svc.Review(context.Background(), app.ID, uuid.New(), domain.ApprovalStatusApproved, "")
+	assist.NoError(t, err)
+	assist.Equal(t, domain.ApprovalStatusApproved, got.Status)
+	assist.Equal(t, "studio_x", profile.Handle) // the retry still applied the requested handle
+	assist.Equal(t, identity.RoleArtist, role)
 }

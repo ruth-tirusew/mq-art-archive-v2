@@ -258,7 +258,7 @@ func TestHTTP_reviewApplication_integration(t *testing.T) {
 	got, err := app.Onboarding.GetByID(ctx, appID)
 	assist.NoError(t, err)
 	assist.Equal(t, onboarding.ApprovalStatusApproved, got.Status)
-	assist.Equal(t, "welcome aboard", got.Notes)
+	assist.Equal(t, "welcome aboard", got.ReviewNotes)
 }
 
 func TestHTTP_eventsAndSearch_integration(t *testing.T) {

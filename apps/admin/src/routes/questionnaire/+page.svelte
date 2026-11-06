@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Alert as FormAlert, ConfirmDialog, Textarea, createConfirm, toast } from '$ui';
+  import { Alert as FormAlert, ConfirmDialog, createConfirm, toast } from '$ui';
   import { beforeNavigate, invalidateAll } from '$app/navigation';
   import Plus from 'lucide-svelte/icons/plus';
+  import AutoTextarea from '$lib/components/AutoTextarea.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import QuestionEditor from '$lib/components/questionnaire/QuestionEditor.svelte';
@@ -324,7 +325,7 @@
 
         <div class="space-y-2">
           <Label for="note">Note for the team (optional)</Label>
-          <Textarea id="note" rows={2} maxlength={1000} bind:value={note} placeholder="e.g. Added a question about influences." />
+          <AutoTextarea id="note" rows={2} maxlength={1000} bind:value={note} placeholder="e.g. Added a question about influences." />
         </div>
 
         <div class="flex flex-wrap items-center gap-3">

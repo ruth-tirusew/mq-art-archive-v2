@@ -365,3 +365,134 @@ func TestHTTP_questionnaireSecurity_integration(t *testing.T) {
 		expect(t, c.do("POST", "/api/v1/applications/invite", matching, map[string]any{"token": token}), http.StatusConflict)
 	})
 }
+
+func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
+	t.Helper()
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "mq_access_token" {
+			return c
+		}
+	}
+	t.Fatalf("no session cookie was set; headers: %v", rec.Header())
+	return nil
+}
+
+func TestHTTP_inviteRegistrationForSomeoneWithNoAccount_integration(t *testing.T) {
+	app := integration.NewApp(t)
+	c := caller{t, app.Router()} // used for admin setup
+	admin := integration.InsertAdminUser(t, app.Pool).String()
+
+	expect(t, c.do("PUT", "/admin/v1/questionnaire/draft", admin, questionPayload(false)), http.StatusOK)
+	expect(t, c.do("POST", "/admin/v1/questionnaire/draft/publish", admin, nil), http.StatusOK)
+	invite := func(email, handle string) (token, id string) {
+		rec := c.do("POST", "/admin/v1/invites", admin, map[string]any{"email": email, "display_name": "Ada Lovelace", "handle": handle})
+		expect(t, rec, http.StatusCreated)
+		out := decode[struct {
+			Invite struct{ ID string } `json:"invite"`
+			Token  string              `json:"token"`
+		}](t, rec)
+		return out.Token, out.Invite.ID
+	}
+
+	t.Run("the link alone is enough to create an account, sign in and apply", func(t *testing.T) {
+		c := caller{t, app.Router()} // fresh router: its own rate limiter
+		token, _ := invite("ada@example.com", "ada_1")
+
+		// No account, no cookie, no X-User-ID: just the token and a password. The body even tries to
+		// name a different email; it must be ignored, because the address comes from the invite.
+		rec := c.do("POST", "/api/v1/invites/register", "", map[string]any{
+			"token": token, "password": "correct-horse-9", "email": "victim@example.com",
+		}, "Origin", allowedOrigin)
+		expect(t, rec, http.StatusCreated)
+		user := decode[map[string]any](t, rec)
+		assist.Equal(t, "ada@example.com", user["email"].(string))
+		assist.Equal(t, true, user["email_verified"].(bool))
+		assist.Equal(t, "public", user["role"].(string)) // an invite grants no role; an admin's approval does
+
+		cookie := sessionCookie(t, rec)
+		assist.Equal(t, true, cookie.HttpOnly)
+		var victims int
+		assist.NoError(t, app.Pool.QueryRow(context.Background(), `SELECT count(*) FROM users WHERE email = 'victim@example.com'`).Scan(&victims))
+		assist.Equal(t, 0, victims)
+
+		// Signed in by that cookie alone: answer the questions and claim the invite, no verification step.
+		as := []string{"Cookie", cookie.Name + "=" + cookie.Value, "Origin", allowedOrigin}
+		expect(t, c.do("GET", "/api/v1/me/questionnaire", "", nil, as...), http.StatusOK)
+		expect(t, c.do("PUT", "/api/v1/me/questionnaire/answers", "", map[string]any{"answers": []map[string]any{
+			{"key": "bio", "body": "hello"}, {"key": "city", "body": "Addis Ababa"}}}, as...), http.StatusNoContent)
+		claimed := c.do("POST", "/api/v1/applications/invite", "", map[string]any{"token": token}, as...)
+		expect(t, claimed, http.StatusCreated)
+		application := decode[map[string]any](t, claimed)
+		assist.Equal(t, "pending", application["status"].(string)) // still awaits an admin
+		assist.Equal(t, "ada_1", application["requested_handle"].(string))
+
+		// The link is spent: it can't create another account.
+		expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": token, "password": "another-pass-1"}), http.StatusConflict)
+	})
+
+	t.Run("unknown, revoked and expired links create nothing", func(t *testing.T) {
+		c := caller{t, app.Router()} // fresh router: its own rate limiter
+		expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": "not-a-token", "password": "correct-horse-9"}), http.StatusNotFound)
+
+		revokedToken, revokedID := invite("revoked@example.com", "")
+		expect(t, c.do("DELETE", "/admin/v1/invites/"+revokedID, admin, nil), http.StatusNoContent)
+		expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": revokedToken, "password": "correct-horse-9"}), http.StatusConflict)
+
+		expiredToken, expiredID := invite("expired@example.com", "")
+		_, err := app.Pool.Exec(context.Background(), `UPDATE artist_invites SET expires_at = now() - interval '1 minute' WHERE id = $1`, expiredID)
+		assist.NoError(t, err)
+		expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": expiredToken, "password": "correct-horse-9"}), http.StatusConflict)
+
+		var n int
+		assist.NoError(t, app.Pool.QueryRow(context.Background(), `SELECT count(*) FROM users WHERE email IN ('revoked@example.com','expired@example.com')`).Scan(&n))
+		assist.Equal(t, 0, n)
+	})
+
+	t.Run("an address that already has an account cannot be taken over through an invite", func(t *testing.T) {
+		c := caller{t, app.Router()} // fresh router: its own rate limiter
+		token, _ := invite("existing@example.com", "")
+		existing := insertVerifiedUser(t, app, "existing@example.com", false) // unverified, with its own password
+		rec := c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": token, "password": "attacker-pass-1"})
+		expect(t, rec, http.StatusConflict)
+		if len(rec.Result().Cookies()) != 0 {
+			t.Error("a refused registration must not set a session")
+		}
+		var verified bool
+		assist.NoError(t, app.Pool.QueryRow(context.Background(), `SELECT email_verified_at IS NOT NULL FROM users WHERE id = $1`, existing).Scan(&verified))
+		assist.Equal(t, false, verified) // the invite must not verify someone else's existing account
+	})
+
+	t.Run("bad requests", func(t *testing.T) {
+		c := caller{t, app.Router()} // fresh router: its own rate limiter
+		token, _ := invite("short@example.com", "")
+		expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": token, "password": "short"}), http.StatusBadRequest)
+		expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"password": "correct-horse-9"}), http.StatusBadRequest)
+		expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": token}), http.StatusBadRequest)
+		var n int
+		assist.NoError(t, app.Pool.QueryRow(context.Background(), `SELECT count(*) FROM users WHERE email = 'short@example.com'`).Scan(&n))
+		assist.Equal(t, 0, n) // a rejected password leaves no account, and the invite stays usable
+		expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": token, "password": "long-enough-1"}), http.StatusCreated)
+	})
+
+	t.Run("csrf and method rules apply", func(t *testing.T) {
+		c := caller{t, app.Router()} // fresh router: its own rate limiter
+		token, _ := invite("csrf@example.com", "")
+		body := map[string]any{"token": token, "password": "correct-horse-9"}
+		expect(t, c.do("POST", "/api/v1/invites/register", "", body, "Origin", "https://evil.example"), http.StatusForbidden)
+		expect(t, c.do("POST", "/api/v1/invites/register", "", body, "Sec-Fetch-Site", "cross-site"), http.StatusForbidden)
+		if rec := c.do("GET", "/api/v1/invites/register?token="+token, "", nil); rec.Code != http.StatusNotFound && rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("GET register should not exist, got %d", rec.Code)
+		}
+		expect(t, c.do("POST", "/api/v1/invites/register", "", body, "Origin", allowedOrigin), http.StatusCreated)
+	})
+
+	t.Run("account creation is rate limited", func(t *testing.T) {
+		c := caller{t, app.Router()}
+		codes := []int{}
+		for i := 0; i < 7; i++ {
+			codes = append(codes, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": "guess-" + string(rune('a'+i)), "password": "correct-horse-9"}).Code)
+		}
+		assist.Equal(t, http.StatusNotFound, codes[0])
+		assist.Equal(t, http.StatusTooManyRequests, codes[6]) // guessing tokens is throttled
+	})
+}

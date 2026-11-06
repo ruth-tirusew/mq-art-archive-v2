@@ -50,6 +50,10 @@ func (m *mockAuth) Register(ctx context.Context, email, password string) (string
 	return m.register(ctx, email, password)
 }
 
+func (m *mockAuth) RegisterInvited(ctx context.Context, email, password string) (string, *identity.User, error) {
+	return m.register(ctx, email, password)
+}
+
 func (m *mockAuth) Login(ctx context.Context, email, password string) (string, *identity.User, error) {
 	return m.login(ctx, email, password)
 }

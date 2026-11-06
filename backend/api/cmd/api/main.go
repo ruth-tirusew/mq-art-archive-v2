@@ -201,7 +201,7 @@ func main() {
 		Search:        handler.NewSearchHandler(searchSvc),
 		Onboarding:    handler.NewOnboardingHandler(onboardingSvc),
 		Questionnaire: handler.NewQuestionnaireHandler(questionnaireSvc, questionnaireSvc, profileSvc, onboardingSvc),
-		Invite:        handler.NewInviteHandler(onboardingSvc, cfg.WebAppURL),
+		Invite:        handler.NewInviteHandler(onboardingSvc, authSvc, cfg.AuthCookieName, cfg.WebAppURL),
 		Auth:          handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
 		Settings:      handler.NewSettingsHandler(settingsSvc),
 		Media:         handler.NewMediaHandler(mediaSvc),

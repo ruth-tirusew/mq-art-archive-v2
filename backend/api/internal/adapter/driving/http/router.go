@@ -105,6 +105,9 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		// Invites. Preview is public so the claim page can show who the invite is for; both take the
 		// token in the POST body, never the URL. Claiming needs a signed-in, verified-email user.
 		v1.POST("/invites/preview", lookupLimit, handlers.Invite.Preview)
+		// Creates the invitee's (pre-verified) account from the invite itself, so someone with no
+		// account can join straight from the link. Account creation is rate limited like register.
+		v1.POST("/invites/register", registerLimit, handlers.Invite.Register)
 		v1.POST("/applications/invite", writeLimit, middleware.Authenticate(deps.Auth), handlers.Invite.Claim)
 
 		// Questionnaire. Any signed-in user, not just artists: applicants answer it before approval.

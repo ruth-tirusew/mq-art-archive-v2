@@ -245,6 +245,24 @@ func (s *Service) UnlinkOAuth(ctx context.Context, userID uuid.UUID, provider st
 }
 
 func (s *Service) Register(ctx context.Context, email, password string) (string, *identity.User, error) {
+	return s.register(ctx, email, password, false)
+}
+
+// RegisterInvited creates a password account whose email is already verified, and signs it in.
+//
+// It exists for artist invites: the invite link was delivered only to that address, so holding the
+// token proves control of the inbox and a separate verification email adds nothing. The caller MUST
+// have taken the email from a live invite on the server; it must never be reachable with an email
+// the requester typed.
+func (s *Service) RegisterInvited(ctx context.Context, email, password string) (string, *identity.User, error) {
+	if s.verifiedUsers == nil {
+		// Without this the account would be created unverified and the invite could not be claimed.
+		return "", nil, apperrors.ErrNotImplemented
+	}
+	return s.register(ctx, email, password, true)
+}
+
+func (s *Service) register(ctx context.Context, email, password string, verified bool) (string, *identity.User, error) {
 	normalized, err := normalizeEmail(email)
 	if err != nil {
 		return "", nil, err
@@ -274,7 +292,13 @@ func (s *Service) Register(ctx context.Context, email, password string) (string,
 	if err := s.users.CreateWithPassword(ctx, user, hash); err != nil {
 		return "", nil, err
 	}
-	if err := s.sendEmailVerification(ctx, user); err != nil {
+	if verified {
+		now := time.Now().UTC()
+		if err := s.verifiedUsers.MarkEmailVerified(ctx, user.ID, now); err != nil {
+			return "", nil, err
+		}
+		user.EmailVerifiedAt = &now
+	} else if err := s.sendEmailVerification(ctx, user); err != nil {
 		return "", nil, err
 	}
 

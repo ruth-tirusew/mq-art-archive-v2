@@ -48,6 +48,10 @@ type InviteService interface {
 	ListInvites(ctx context.Context) ([]onboarding.Invite, error)
 	// PreviewInvite looks an invite up by its raw token. ErrNotFound for an unknown token.
 	PreviewInvite(ctx context.Context, rawToken string) (*InvitePreview, error)
+	// LiveInviteEmail returns the address a live invite was sent to. ErrNotFound for an unknown
+	// token, ErrConflict if it was already used, revoked or has expired. Registering from an invite
+	// uses this so the account's email always comes from the invite, not from the request.
+	LiveInviteEmail(ctx context.Context, rawToken string) (string, error)
 	// SubmitWithInvite claims the invite and submits the application in one step. The signed-in
 	// user's verified email must match the invite's.
 	SubmitWithInvite(ctx context.Context, applicantID uuid.UUID, rawToken, displayName, requestedHandle, notes string) (*onboarding.OnboardingApplication, error)

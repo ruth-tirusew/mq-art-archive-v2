@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { Checkbox, Field, Input, Select, Textarea } from '$ui';
+  import { Checkbox, Field, Input, Select } from '$ui';
   import ArrowDown from 'lucide-svelte/icons/arrow-down';
   import ArrowUp from 'lucide-svelte/icons/arrow-up';
   import Plus from 'lucide-svelte/icons/plus';
   import Trash2 from 'lucide-svelte/icons/trash-2';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
+  import AutoTextarea from '$lib/components/AutoTextarea.svelte';
   import { Card, CardContent } from '$lib/components/ui/card';
   import { questionTypeLabels, type QuestionType } from '$lib/core/domain/questionnaire';
   import { suggestKey, type EditableQuestion } from '$lib/utils/questionnaireDraft';
@@ -48,6 +49,10 @@
 
   const types = Object.entries(questionTypeLabels) as [QuestionType, string][];
   const invalid = $derived(problems.length > 0);
+  // Problems are only passed in once the admin has tried to save or publish. A blank title is the one
+  // problem that belongs to a specific field, so mark that field (red border, aria-invalid) as well as
+  // listing the message at the bottom of the card.
+  const titleInvalid = $derived(invalid && !question.prompt_en.trim());
 </script>
 
 <Card class={invalid ? 'border-destructive/60' : undefined}>
@@ -76,22 +81,22 @@
     <div class="grid gap-4 md:grid-cols-2">
       <Field label="Question (English)" required>
         {#snippet children({ id, describedby, invalid: isInvalid })}
-          <Input {id} aria-describedby={describedby} invalid={isInvalid} bind:value={question.prompt_en} oninput={onPromptInput} maxlength={500} />
+          <AutoTextarea {id} rows={1} singleLine aria-describedby={describedby} invalid={isInvalid || titleInvalid} bind:value={question.prompt_en} oninput={onPromptInput} maxlength={500} />
         {/snippet}
       </Field>
       <Field label="Question (Amharic)" hint="Optional. Shown to artists next to the English text.">
         {#snippet children({ id, describedby })}
-          <Input {id} lang="am" aria-describedby={describedby} bind:value={question.prompt_am} maxlength={500} />
+          <AutoTextarea {id} rows={1} singleLine lang="am" aria-describedby={describedby} bind:value={question.prompt_am} maxlength={500} />
         {/snippet}
       </Field>
-      <Field label="Help text (English)" hint="Optional. A short hint under the question.">
+      <Field label="Help text (English)" hint="Optional. Guidance shown under the question.">
         {#snippet children({ id, describedby })}
-          <Input {id} aria-describedby={describedby} bind:value={question.help_en} maxlength={1000} />
+          <AutoTextarea {id} rows={2} aria-describedby={describedby} bind:value={question.help_en} maxlength={1000} />
         {/snippet}
       </Field>
       <Field label="Help text (Amharic)">
         {#snippet children({ id, describedby })}
-          <Input {id} lang="am" aria-describedby={describedby} bind:value={question.help_am} maxlength={1000} />
+          <AutoTextarea {id} rows={2} lang="am" aria-describedby={describedby} bind:value={question.help_am} maxlength={1000} />
         {/snippet}
       </Field>
     </div>

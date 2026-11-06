@@ -50,6 +50,19 @@ export const handlers = [
 			? HttpResponse.json({ email: 'ada@example.com', display_name: 'Ada', handle: 'ada_1', status: 'live' })
 			: HttpResponse.json({ error: 'not found' }, { status: 404 });
 	}),
+	http.post(`${base}/api/v1/invites/register`, async ({ request }) => {
+		if (!request.headers.get('content-type')?.startsWith('application/json')) {
+			return HttpResponse.json({ error: 'content type must be application/json' }, { status: 415 });
+		}
+		const body = (await request.json()) as { token: string; password: string; email?: string };
+		if (body.token === 'taken') return HttpResponse.json({ error: 'conflict' }, { status: 409 });
+		if (body.token !== 'good') return HttpResponse.json({ error: 'not found' }, { status: 404 });
+		if (body.password.length < 8) {
+			return HttpResponse.json({ error: 'validation failed: password must be at least 8 characters' }, { status: 400 });
+		}
+		// like the real API: the account's email is the invite's, whatever the body says
+		return HttpResponse.json({ id: 'u-1', email: 'ada@example.com', role: 'public', email_verified: true }, { status: 201 });
+	}),
 	http.post(`${base}/api/v1/applications/invite`, async ({ request }) => {
 		const body = (await request.json()) as { token: string };
 		return body.token === 'good'

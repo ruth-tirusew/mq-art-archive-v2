@@ -130,6 +130,20 @@ func (s *Service) PreviewInvite(ctx context.Context, rawToken string) (*inbound.
 	}, nil
 }
 
+func (s *Service) LiveInviteEmail(ctx context.Context, rawToken string) (string, error) {
+	if err := s.requireInvites(); err != nil {
+		return "", err
+	}
+	inv, err := s.invites.GetByTokenHash(ctx, domain.HashInviteToken(strings.TrimSpace(rawToken)))
+	if err != nil {
+		return "", err
+	}
+	if status := inv.Status(s.now()); status != domain.InviteLive {
+		return "", fmt.Errorf("%w: this invite is %s", apperrors.ErrConflict, status)
+	}
+	return inv.Email, nil
+}
+
 func (s *Service) SubmitWithInvite(
 	ctx context.Context,
 	applicantID uuid.UUID,
@@ -193,8 +207,8 @@ func (s *Service) sendInviteEmail(ctx context.Context, inv *domain.Invite, token
 		name = "there"
 	}
 	fmt.Fprintf(&b, "Hi %s,\n\nYou've been invited to join Artiv as an artist.\n\n", name)
-	fmt.Fprintf(&b, "Open this link, sign in with this email address (%s), and answer a few questions about your work:\n%s/apply?invite=%s\n\n",
-		inv.Email, s.webAppURL, token)
+	fmt.Fprintf(&b, "Open this link to create your account and tell us about your work:\n%s/apply?invite=%s\n\n", s.webAppURL, token)
+	fmt.Fprintf(&b, "You'll set a password for %s, answer a few questions, and our team will review your application.\n\n", inv.Email)
 	fmt.Fprintf(&b, "The link works once and expires on %s.\n", inv.ExpiresAt.UTC().Format("2 January 2006"))
 	_ = s.mailer.Send(ctx, inv.Email, "You're invited to Artiv", b.String())
 }

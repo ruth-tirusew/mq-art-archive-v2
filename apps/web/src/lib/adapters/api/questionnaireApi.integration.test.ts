@@ -123,6 +123,32 @@ describe('InviteApi (MSW)', () => {
 		expect(url).not.toContain('secret-token-value');
 	});
 
+	it('registers an account from the invite with just a token and a password', async () => {
+		const user = await api.register('good', 'correct-horse-9');
+		expect(user).toMatchObject({ email: 'ada@example.com', email_verified: true, role: 'public' });
+	});
+
+	it('sends only a token and a password: the address is the invite’s, not the caller’s', async () => {
+		let body: Record<string, unknown> = {};
+		server.use(
+			http.post(`${base}/api/v1/invites/register`, async ({ request }) => {
+				body = (await request.json()) as Record<string, unknown>;
+				return HttpResponse.json({ id: 'u', email: 'a@b.co', role: 'public', email_verified: true }, { status: 201 });
+			})
+		);
+		await api.register('good', 'correct-horse-9');
+		expect(Object.keys(body).sort()).toEqual(['password', 'token']);
+	});
+
+	it('surfaces registration refusals', async () => {
+		await expect(api.register('taken', 'correct-horse-9')).rejects.toMatchObject({ status: 409 });
+		await expect(api.register('nope', 'correct-horse-9')).rejects.toMatchObject({ status: 404 });
+		await expect(api.register('good', 'short')).rejects.toMatchObject({
+			status: 400,
+			message: expect.stringContaining('at least 8')
+		});
+	});
+
 	it('claims an invite and returns the pending application', async () => {
 		const app = await api.claim({ token: 'good', display_name: 'Ada', requested_handle: 'ada_1' });
 		expect(app).toMatchObject({ status: 'pending', invite_id: 'inv-1' });

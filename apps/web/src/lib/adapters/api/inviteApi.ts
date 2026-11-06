@@ -1,4 +1,5 @@
 import { apiFetch } from '$lib/adapters/api/client';
+import type { User } from '$lib/core/domain/auth';
 import type { ClaimInviteInput, InvitePreview } from '$lib/core/domain/invite';
 import type { OnboardingApplication } from '$lib/core/domain/onboarding';
 
@@ -12,6 +13,15 @@ export class InviteApi {
 	/** The token goes in the body, never the URL, so it stays out of logs and history. */
 	preview(token: string): Promise<InvitePreview> {
 		return apiFetch<InvitePreview>('/api/v1/invites/preview', jsonPost({ token }));
+	}
+
+	/**
+	 * Creates the invitee's account straight from the invite and signs them in (sets the session
+	 * cookie). Only the token and a password are sent: the account's email is the invite's, decided
+	 * by the server. It is created already verified, since the link was sent only to that inbox.
+	 */
+	register(token: string, password: string): Promise<User> {
+		return apiFetch<User>('/api/v1/invites/register', jsonPost({ token, password }));
 	}
 
 	/** Claims the invite and submits the application in one step. */

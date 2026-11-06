@@ -311,3 +311,9 @@ type ClaimInviteRequest struct {
 	RequestedHandle string `json:"requested_handle" binding:"max=30"`
 	Notes           string `json:"notes" binding:"max=5000"`
 }
+
+// InviteRegisterRequest carries no email on purpose: the address comes from the invite.
+type InviteRegisterRequest struct {
+	Token    string `json:"token" binding:"required,max=200"`
+	Password string `json:"password" binding:"required,max=200"`
+}

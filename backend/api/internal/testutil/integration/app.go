@@ -155,7 +155,7 @@ func (a *App) Router() *gin.Engine {
 		Search:        handler.NewSearchHandler(a.Search),
 		Onboarding:    handler.NewOnboardingHandler(a.Onboarding),
 		Questionnaire: handler.NewQuestionnaireHandler(a.Questionnaire, a.Questionnaire, a.Profile, a.Onboarding),
-		Invite:        handler.NewInviteHandler(a.Onboarding, "http://localhost:5173"),
+		Invite:        handler.NewInviteHandler(a.Onboarding, a.Auth, cfg.AuthCookieName, "http://localhost:5173"),
 		Auth:          handler.NewAuthHandler(a.Auth, cfg.AuthCookieName),
 		Settings:      handler.NewSettingsHandler(a.Settings),
 	}

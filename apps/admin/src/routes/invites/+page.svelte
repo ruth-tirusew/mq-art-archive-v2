@@ -129,7 +129,7 @@
 <PageHeader
   eyebrow="Onboarding"
   title="Artist invites"
-  description="Invite artists you already know. They answer the questionnaire and apply as usual; you still approve every application."
+  description="Invite artists you already know. They join straight from the link, with no account needed, then answer the questionnaire. You still approve every application."
 />
 
 {#if errorMessage}
@@ -145,7 +145,7 @@
     <CardContent class="space-y-3">
       <p class="text-sm text-muted-foreground">
         This is the only time the link is shown. We also emailed it, but if mail isn't set up, copy it now and send it yourself.
-        They must sign in with <strong>{created.invite.email}</strong> and have verified that address.
+        They don't need an account: the link lets <strong>{created.invite.email}</strong> create one and apply in a minute.
       </p>
       <div class="flex flex-col gap-2 sm:flex-row">
         <input
@@ -169,7 +169,7 @@
   </CardHeader>
   <CardContent>
     <form class="grid gap-4 md:grid-cols-2" onsubmit={create} novalidate>
-      <Field label="Email" required error={fieldErrors.email} hint="The address the invite is for. Only this account can claim it.">
+      <Field label="Email" required error={fieldErrors.email} hint="Where the link is sent. The account they create will use this address.">
         {#snippet children({ id, describedby, invalid })}
           <Input {id} type="email" autocomplete="off" aria-describedby={describedby} {invalid} bind:value={email} maxlength={254} />
         {/snippet}

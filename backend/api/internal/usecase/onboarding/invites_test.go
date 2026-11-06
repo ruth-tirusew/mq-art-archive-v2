@@ -327,3 +327,38 @@ func TestSubmit_requiresCompleteQuestionnaireForArtistsOnly(t *testing.T) {
 	_, err = env.svc.SubmitWithHandle(context.Background(), uuid.New(), domain.ApplicantTypeInstitution, "Museum", "", "")
 	assist.NoError(t, err) // institutions don't answer the artist questionnaire
 }
+
+func TestLiveInviteEmail(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns the address a live invite was sent to", func(t *testing.T) {
+		env := newInviteEnv(t, nil)
+		inv := env.invite(t, "ada_1")
+		email, err := env.svc.LiveInviteEmail(ctx, "  "+inv.Token+"  ")
+		assist.NoError(t, err)
+		assist.Equal(t, "ada@example.com", email)
+	})
+	t.Run("unknown token", func(t *testing.T) {
+		env := newInviteEnv(t, nil)
+		_, err := env.svc.LiveInviteEmail(ctx, "nope")
+		assist.ErrorIs(t, err, apperrors.ErrNotFound)
+	})
+	t.Run("revoked, expired and claimed invites cannot start a registration", func(t *testing.T) {
+		env := newInviteEnv(t, nil)
+		revoked := env.invite(t, "")
+		assist.NoError(t, env.svc.RevokeInvite(ctx, revoked.Invite.ID))
+		_, err := env.svc.LiveInviteEmail(ctx, revoked.Token)
+		assist.ErrorIs(t, err, apperrors.ErrConflict)
+
+		claimed := env.invite(t, "")
+		_, err = env.invites.Claim(ctx, claimed.Invite.ID, env.user.ID, env.now)
+		assist.NoError(t, err)
+		_, err = env.svc.LiveInviteEmail(ctx, claimed.Token)
+		assist.ErrorIs(t, err, apperrors.ErrConflict)
+
+		expiring := env.invite(t, "")
+		env.now = env.now.Add(15 * 24 * time.Hour)
+		_, err = env.svc.LiveInviteEmail(ctx, expiring.Token)
+		assist.ErrorIs(t, err, apperrors.ErrConflict)
+	})
+}

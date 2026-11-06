@@ -11,16 +11,20 @@ import (
 )
 
 type InviteHandler struct {
-	invites   inbound.InviteService
-	webAppURL string
-	now       func() time.Time
+	invites    inbound.InviteService
+	auth       inbound.AuthService
+	cookieName string
+	webAppURL  string
+	now        func() time.Time
 }
 
-func NewInviteHandler(invites inbound.InviteService, webAppURL string) *InviteHandler {
+func NewInviteHandler(invites inbound.InviteService, auth inbound.AuthService, cookieName, webAppURL string) *InviteHandler {
 	return &InviteHandler{
-		invites:   invites,
-		webAppURL: strings.TrimRight(webAppURL, "/"),
-		now:       func() time.Time { return time.Now().UTC() },
+		invites:    invites,
+		auth:       auth,
+		cookieName: cookieName,
+		webAppURL:  strings.TrimRight(webAppURL, "/"),
+		now:        func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -123,4 +127,26 @@ func (h *InviteHandler) Claim(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, dto.ToOnboardingApplicationResponse(*app))
+}
+
+// Register creates the invitee's account from the invite and signs them in. The account's email is
+// read from the invite on the server, so the request carries only the token and a password and can
+// never be used to create a verified account for an address the requester merely typed.
+func (h *InviteHandler) Register(c *gin.Context) {
+	var req dto.InviteRegisterRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	email, err := h.invites.LiveInviteEmail(c.Request.Context(), req.Token)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	token, user, err := h.auth.RegisterInvited(c.Request.Context(), email, req.Password)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	writeAuthCookie(c, h.cookieName, token)
+	c.JSON(http.StatusCreated, toUserResponse(user))
 }

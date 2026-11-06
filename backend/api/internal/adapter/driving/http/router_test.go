@@ -318,6 +318,9 @@ func (stubAuth) CompleteOAuth(_ context.Context, _, _, _ string) (string, *ident
 func (stubAuth) Register(_ context.Context, email, _ string) (string, *identity.User, error) {
 	return "token", &identity.User{ID: uuid.New(), Email: email, Role: identity.RolePublic}, nil
 }
+func (stubAuth) RegisterInvited(_ context.Context, email, _ string) (string, *identity.User, error) {
+	return "token", &identity.User{ID: uuid.New(), Email: email, Role: identity.RolePublic}, nil
+}
 func (stubAuth) Login(_ context.Context, email, _ string) (string, *identity.User, error) {
 	return "token", &identity.User{ID: uuid.New(), Email: email, Role: identity.RolePublic}, nil
 }

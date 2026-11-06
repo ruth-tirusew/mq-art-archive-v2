@@ -312,7 +312,8 @@
       </header>
 
       <!-- Main content -->
-      <main class="page-enter min-h-0 flex-1 overflow-y-auto px-6 py-8 md:px-8 lg:px-10">
+      <!-- The only scroll area in the app shell. `relative` contains absolutely-positioned children (see sidebar-provider). -->
+      <main class="page-enter relative min-h-0 flex-1 overflow-y-auto px-6 py-8 md:px-8 lg:px-10">
         <ErrorBoundary>
           <!-- Remount per path so edit forms never keep the previous record's values. -->
           {#key $page.url.pathname}

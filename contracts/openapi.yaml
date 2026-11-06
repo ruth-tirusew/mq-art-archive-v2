@@ -2145,6 +2145,50 @@ paths:
           $ref: "#/components/responses/InternalError"
 
 
+  /api/v1/invites/register:
+    post:
+      tags: [onboarding]
+      summary: Create an account from an artist invite
+      operationId: registerFromInvite
+      description: |
+        Lets someone with no account join straight from their invite link. Public; rate limited like
+        registration. The request carries only the invite token and a password. The account's email is
+        taken from the invite on the server, never from the request (any `email` sent is ignored).
+
+        Because the link was delivered only to that address, the account is created **already verified**
+        and signed in (sets the auth cookie). The role stays `public`: the application the invitee then
+        submits is still approved by an admin.
+
+        409 if the invite was already used, revoked or has expired, or if that email already has an account
+        (the invite never verifies or takes over an existing account; the person should sign in instead).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteRegisterRequest"
+      responses:
+        "201":
+          description: Account created and signed in; sets auth cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/applications/invite:
     post:
       tags: [onboarding]
@@ -2152,7 +2196,7 @@ paths:
       operationId: claimInvite
       description: |
         Claims the invite and submits the application in one step; the application is still reviewed by an admin.
-        Requires a **verified** email that matches the invite. The invite is only consumed if the application is accepted
+        Requires a **verified** email that matches the invite (accounts created through `registerFromInvite` already are). The invite is only consumed if the application is accepted
         (e.g. 400 if required questions are unanswered, 409 if the invite is used, expired or revoked, 403 for the wrong or unverified email).
       security:
         - bearerAuth: []
@@ -3633,3 +3677,11 @@ components:
         display_name: {type: string, maxLength: 100, description: Defaults to the invite's name.}
         requested_handle: {type: string, pattern: "^[a-z0-9_]{3,30}$", description: Defaults to the invite's reserved handle.}
         notes: {type: string, maxLength: 5000}
+
+    InviteRegisterRequest:
+      type: object
+      required: [token, password]
+      description: No email field on purpose. The address comes from the invite.
+      properties:
+        token: {type: string, maxLength: 200}
+        password: {type: string, minLength: 8, maxLength: 200}

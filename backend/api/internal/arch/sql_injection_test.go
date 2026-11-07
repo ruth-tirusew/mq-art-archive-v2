@@ -11,25 +11,11 @@ import (
 	"testing"
 )
 
-// SQL injection is prevented by always sending user input as bind parameters ($1, $2, ...), never
-// by building the query text from it. This test is a tripwire for the two ways that rule is
-// usually broken in Go, applied to every non-test file in the Postgres adapter:
-//
-//  1. fmt.Sprintf with a SQL-looking format string and any verb other than %d (%s, %v, %q ... all
-//     splice text into the query; %d is allowed for building "$1, $2" placeholder numbers).
-//  2. Concatenating a function parameter (or other caller-controlled string) into the query text
-//     passed to Query/QueryRow/Exec.
-//
-// Fragments built from constants (column lists, "WHERE role=$1") are fine.
-
 var sqlKeyword = regexp.MustCompile(`(?i)\b(select|insert|update|delete|where|order by|limit|offset|from|set)\b`)
 var nonIntVerb = regexp.MustCompile(`%[^%d]`)
 
 var sqlExecMethods = map[string]bool{"Query": true, "QueryRow": true, "Exec": true}
 
-// sqlHelpers take SQL text (or a fragment of it) as a parameter and forward it to the driver. That
-// is allowed only because every call to them is also checked: the SQL argument (at the index given
-// here) must be built from literals and constants, never from the caller's own parameters.
 var sqlHelpers = map[string]int{"getOne": 1, "list": 1, "queryEvents": 1}
 
 func TestPostgresAdapterUsesBindParameters(t *testing.T) {

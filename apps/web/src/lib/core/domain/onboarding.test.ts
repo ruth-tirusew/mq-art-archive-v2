@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+import { ApiError } from '$lib/adapters/api/client';
+import { errorKind, kindForStatus } from '$lib/core/domain/errors';
+import { composeLinkNotes, isValidHandle, normalizeHandle } from '$lib/core/domain/onboarding';
+
+describe('handles', () => {
+	it('normalizes case and whitespace before validating', () => {
+		expect(normalizeHandle('  Ada_1 ')).toBe('ada_1');
+		expect(isValidHandle(normalizeHandle(' Ada_1 '))).toBe(true);
+	});
+	it('enforces 3–30 lowercase letters, digits and underscores', () => {
+		for (const bad of ['ab', 'a'.repeat(31), 'has space', 'dash-ed', 'UPPER', '']) expect(isValidHandle(bad)).toBe(false);
+		for (const ok of ['abc', 'a'.repeat(30), 'a_1']) expect(isValidHandle(ok)).toBe(true);
+	});
+});
+
+describe('composeLinkNotes', () => {
+	it('keeps only the filled fields, labelled, in a stable order', () => {
+		expect(composeLinkNotes({ instagram: ' @ada ', website: '', telegram: '', about: ' I paint ' })).toBe(
+			'Instagram: @ada\nAbout my practice:\nI paint'
+		);
+		expect(composeLinkNotes({ instagram: '', website: '', telegram: '', about: '' })).toBe('');
+	});
+});
+
+describe('error kinds', () => {
+	it('maps HTTP statuses to kinds', () => {
+		expect(kindForStatus(404)).toBe('not_found');
+		expect(kindForStatus(409)).toBe('conflict');
+		expect(kindForStatus(403)).toBe('forbidden');
+		expect(kindForStatus(429)).toBe('rate_limited');
+		expect(kindForStatus(400)).toBe('invalid');
+		expect(kindForStatus(500)).toBe('unknown');
+	});
+	it('lets screens branch on kind without knowing about HTTP', () => {
+		expect(errorKind(new ApiError('nope', 409))).toBe('conflict');
+		expect(errorKind(new Error('plain'))).toBe('unknown');
+		expect(errorKind('weird')).toBe('unknown');
+	});
+});

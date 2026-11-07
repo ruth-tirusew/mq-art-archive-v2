@@ -9,7 +9,16 @@
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '$lib/components/ui/table';
   import { invitesService } from '$lib/composition';
-  import type { Invite, InviteCreated, InviteStatus } from '$lib/core/domain/invite';
+  import {
+    canResendInvite,
+    canRevokeInvite,
+    inviteStatusLabel,
+    normalizeInviteHandle,
+    validateInviteForm,
+    type Invite,
+    type InviteCreated,
+    type InviteStatus
+  } from '$lib/core/domain/invite';
 
   let { data } = $props();
 
@@ -31,15 +40,6 @@
     expired: 'muted',
     revoked: 'destructive'
   };
-  const statusLabel: Record<InviteStatus, string> = {
-    live: 'Waiting',
-    claimed: 'Claimed',
-    expired: 'Expired',
-    revoked: 'Revoked'
-  };
-
-  const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const HANDLE = /^[a-z0-9_]{3,30}$/;
 
   function formatDate(value?: string) {
     if (!value) return '—';
@@ -47,10 +47,7 @@
   }
 
   function validate(): boolean {
-    fieldErrors = {};
-    if (!EMAIL.test(email.trim())) fieldErrors.email = 'Enter a valid email address.';
-    const h = handle.trim();
-    if (h && !HANDLE.test(h)) fieldErrors.handle = 'Use 3–30 lowercase letters, numbers or underscores.';
+    fieldErrors = validateInviteForm({ email, handle });
     return Object.keys(fieldErrors).length === 0;
   }
 
@@ -63,7 +60,7 @@
       created = await invitesService.create({
         email: email.trim(),
         display_name: displayName.trim() || undefined,
-        handle: handle.trim() || undefined,
+        handle: normalizeInviteHandle(handle) || undefined,
         ttl_days: Number(ttlDays)
       });
       email = displayName = handle = '';
@@ -224,13 +221,13 @@
           <TableCell class="font-mono text-xs text-muted-foreground">
             {invite.requested_handle ? `@${invite.requested_handle}` : '—'}
           </TableCell>
-          <TableCell><Badge variant={statusVariant[invite.status]}>{statusLabel[invite.status]}</Badge></TableCell>
+          <TableCell><Badge variant={statusVariant[invite.status]}>{inviteStatusLabel[invite.status]}</Badge></TableCell>
           <TableCell class="text-muted-foreground">{formatDate(invite.expires_at)}</TableCell>
           <TableCell class="text-right">
-            {#if invite.status !== 'claimed'}
+            {#if canResendInvite(invite)}
               <div class="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onclick={() => askResend(invite)}>Resend</Button>
-                {#if invite.status === 'live'}
+                {#if canRevokeInvite(invite)}
                   <Button variant="ghost" size="sm" onclick={() => askRevoke(invite)}>Revoke</Button>
                 {/if}
               </div>

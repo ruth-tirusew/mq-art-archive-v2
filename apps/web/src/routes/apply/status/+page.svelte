@@ -3,7 +3,7 @@
 	import { onboardingService } from '$lib/composition';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { OnboardingApplication } from '$lib/core/domain/onboarding';
-	import { ApiError } from '$lib/adapters/api/client';
+	import { isErrorKind } from '$lib/core/domain/errors';
 	import { Badge, Button, EmptyState, ErrorState, PageHeader } from '$ui';
 
 	let application = $state<OnboardingApplication | null>(null);
@@ -27,7 +27,7 @@
 		try {
 			application = await onboardingService.getMyApplication();
 		} catch (e) {
-			if (e instanceof ApiError && e.status === 404) {
+			if (isErrorKind(e, 'not_found')) {
 				notFound = true;
 			} else {
 				error = e instanceof Error ? e.message : 'Could not load application';

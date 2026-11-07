@@ -2,7 +2,8 @@
 	import { page } from '$app/stores';
 	import { authService } from '$lib/application/auth';
 	import { inviteService } from '$lib/composition';
-	import { ApiError } from '$lib/adapters/api/client';
+	import { errorKind } from '$lib/core/domain/errors';
+	import { MIN_PASSWORD_LENGTH } from '$lib/core/domain/onboarding';
 	import type { InvitePreview } from '$lib/core/domain/invite';
 	import { Alert, Button, Field, Input, PageHeader } from '$ui';
 
@@ -26,7 +27,7 @@
 		`/login?intent=artist&email=${encodeURIComponent(invite.email)}&return_to=${encodeURIComponent(here)}`
 	);
 	const googleHref = $derived(authService.googleLoginUrl(here, $page.url.origin));
-	const passwordError = $derived(attempted && password.length < 8 ? 'Use at least 8 characters.' : undefined);
+	const passwordError = $derived(attempted && password.length < MIN_PASSWORD_LENGTH ? `Use at least ${MIN_PASSWORD_LENGTH} characters.` : undefined);
 	const firstName = $derived(invite.display_name?.trim().split(/\s+/)[0] ?? '');
 
 	async function create(event: Event) {
@@ -34,19 +35,20 @@
 		attempted = true;
 		error = '';
 		accountExists = false;
-		if (password.length < 8) return;
+		if (password.length < MIN_PASSWORD_LENGTH) return;
 		submitting = true;
 		try {
 			await inviteService.register(token, password);
 			await authService.load(); // picks up the new session
 			onregistered();
 		} catch (e) {
-			if (e instanceof ApiError && e.status === 409) {
+			const kind = errorKind(e);
+			if (kind === 'conflict') {
 				// Either this address already has an account, or the invite was just used or cancelled.
 				accountExists = true;
-			} else if (e instanceof ApiError && e.status === 429) {
+			} else if (kind === 'rate_limited') {
 				error = 'Too many attempts. Please wait a minute and try again.';
-			} else if (e instanceof ApiError && e.status === 400) {
+			} else if (kind === 'invalid' && e instanceof Error) {
 				error = e.message.replace(/^validation failed:\s*/i, '');
 			} else {
 				error = 'We couldn’t create your account just now. Please try again.';
@@ -72,7 +74,7 @@
 			<p class="mt-1 text-xs text-muted-foreground">The address your invitation was sent to.</p>
 		</div>
 
-		<Field label="Choose a password" required error={passwordError} hint="At least 8 characters.">
+		<Field label="Choose a password" required error={passwordError} hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}>
 			{#snippet children({ id, describedby, invalid, required })}
 				<Input
 					{id}

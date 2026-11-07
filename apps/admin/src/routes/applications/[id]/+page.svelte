@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { reviewBlocker } from '$lib/core/domain/onboarding';
   import { ConfirmDialog, createConfirm, toast } from '$ui';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
@@ -32,8 +33,9 @@
 
   function askReview(status: 'approved' | 'rejected') {
     errorMessage = '';
-    if (status === 'rejected' && !notes.trim()) {
-      errorMessage = 'Add a reason before rejecting. The applicant will see it.';
+    const blocker = reviewBlocker(status, notes);
+    if (blocker) {
+      errorMessage = blocker;
       return;
     }
     confirm.ask(

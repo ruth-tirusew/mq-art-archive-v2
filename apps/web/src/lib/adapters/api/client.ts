@@ -1,11 +1,13 @@
+import { DomainError, kindForStatus } from '$lib/core/domain/errors';
 import { getApiBaseUrl } from '$lib/config/dataSource';
 
-export class ApiError extends Error {
+/** The HTTP transport's failure. Callers outside the adapters should use `DomainError`'s `kind`. */
+export class ApiError extends DomainError {
   constructor(
     message: string,
     readonly status: number
   ) {
-    super(message);
+    super(message, kindForStatus(status));
     this.name = 'ApiError';
   }
 }

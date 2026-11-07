@@ -19,3 +19,10 @@ export interface OnboardingApplication {
   created_at?: string;
   updated_at?: string;
 }
+
+export const REJECTION_NOTE_REQUIRED = 'Add a reason before rejecting. The applicant will see it.';
+
+/** The reason a decision can't be sent yet, or null when it can. */
+export function reviewBlocker(status: Exclude<ApprovalStatus, 'pending'>, notes: string): string | null {
+  return status === 'rejected' && !notes.trim() ? REJECTION_NOTE_REQUIRED : null;
+}

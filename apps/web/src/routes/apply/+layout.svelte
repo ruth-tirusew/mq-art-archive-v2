@@ -4,7 +4,7 @@
 	import { page } from '$app/stores';
 	import { authService } from '$lib/application/auth';
 	import { inviteService } from '$lib/composition';
-	import { ApiError } from '$lib/adapters/api/client';
+	import { isErrorKind } from '$lib/core/domain/errors';
 	import InviteLanding from '$lib/components/InviteLanding.svelte';
 	import InviteProblem, { type InviteProblemKind } from '$lib/components/InviteProblem.svelte';
 	import PageSkeleton from '$lib/components/PageSkeleton.svelte';
@@ -31,7 +31,7 @@
 				problem = preview.status;
 			}
 		} catch (e) {
-			problem = e instanceof ApiError && e.status === 404 ? 'invalid' : 'unreachable';
+			problem = isErrorKind(e, 'not_found') ? 'invalid' : 'unreachable';
 		}
 	}
 

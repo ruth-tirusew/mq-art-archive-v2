@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { googleLoginUrl, safeReturnPath } from '$lib/core/domain/auth';
 	import { authService, postLoginPath } from '$lib/application/auth';
-	import { ApiError } from '$lib/adapters/api/client';
+	import { DomainError } from '$lib/core/domain/errors';
 
 	type Mode = 'signin' | 'signup';
 
@@ -41,10 +41,10 @@
 					: await authService.login(email, password);
 			await goto(postLoginPath(user, returnTo));
 		} catch (err) {
-			if (err instanceof ApiError) {
-				if (err.status === 409) {
+			if (err instanceof DomainError) {
+				if (err.kind === 'conflict') {
 					error = 'An account with this email already exists.';
-				} else if (err.status === 401) {
+				} else if (err.kind === 'unauthorized') {
 					error = 'Invalid email or password.';
 				} else {
 					error = err.message;

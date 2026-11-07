@@ -6,7 +6,8 @@
   import { inviteService } from "$lib/composition";
   import { onboardingService } from "$lib/composition";
   import { questionnaireService } from "$lib/composition";
-  import { ApiError } from "$lib/adapters/api/client";
+  import { isErrorKind } from "$lib/core/domain/errors";
+  import { composeLinkNotes, isValidHandle, normalizeHandle } from "$lib/core/domain/onboarding";
   import QuestionnaireForm from "$lib/components/questionnaire/QuestionnaireForm.svelte";
   import SafeHtml from "$lib/components/SafeHtml.svelte";
   import type { InvitePreview } from "$lib/core/domain/invite";
@@ -70,8 +71,8 @@
 
   const stepLabels = $derived(["About you", formState === "none" ? "Your work" : "Your answers", "Review"]);
 
-  const normalizedHandle = $derived(requestedHandle.trim().toLowerCase());
-  const validHandle = $derived(/^[a-z0-9_]{3,30}$/.test(normalizedHandle));
+  const normalizedHandle = $derived(normalizeHandle(requestedHandle));
+  const validHandle = $derived(isValidHandle(normalizedHandle));
 
   $effect(() => {
     const handle = normalizedHandle;
@@ -112,16 +113,7 @@
       (handleAvailable === true || handleCheckFailed),
   );
 
-  const notes = $derived(
-    [
-      instagram.trim() && `Instagram: ${instagram.trim()}`,
-      website.trim() && `Website: ${website.trim()}`,
-      telegram.trim() && `Telegram: ${telegram.trim()}`,
-      about.trim() && `About my practice:\n${about.trim()}`,
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  );
+  const notes = $derived(composeLinkNotes({ instagram, website, telegram, about }));
 
   const inviteProblems: Record<string, string> = {
     claimed: "This invitation has already been used. If that was you, check your application status.",
@@ -137,7 +129,7 @@
     } catch (e) {
       invite = null;
       inviteMessage =
-        e instanceof ApiError && e.status === 404
+        isErrorKind(e, "not_found")
           ? "We couldn't find that invitation. Check the link, or apply below."
           : "We couldn't check your invitation just now. You can still apply below.";
     }
@@ -187,7 +179,7 @@
     } catch (e) {
       // 404 means no earlier application: start fresh. Anything else we can still recover from,
       // but say so instead of silently pretending there is no history.
-      if (!(e instanceof ApiError && e.status === 404)) priorCheckFailed = true;
+      if (!isErrorKind(e, "not_found")) priorCheckFailed = true;
     }
   });
 
@@ -264,9 +256,9 @@
       }
       await goto("/apply/status");
     } catch (e) {
-      if (e instanceof ApiError && e.status === 403 && usingInvite) {
+      if (isErrorKind(e, "forbidden") && usingInvite) {
         error = "This invitation was sent to a different email address, or your email isn't verified yet.";
-      } else if (e instanceof ApiError && e.status === 409) {
+      } else if (isErrorKind(e, "conflict")) {
         error =
           "We couldn't submit this. Either the handle was just taken or you already have an application under review. Check your application status, or try a different handle.";
       } else {

@@ -7,6 +7,8 @@ export interface MediaAsset {
   width?: number;
   height?: number;
   sort_order?: number;
+  /** Compact placeholder shown while the image loads. */
+  blurhash?: string;
 }
 
 export interface ArtPost {

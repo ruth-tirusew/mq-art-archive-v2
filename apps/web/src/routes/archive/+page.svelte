@@ -1,8 +1,10 @@
 <script lang="ts">
+	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
 	import {
 		acquisitionArtistName,
 		acquisitionArtistSlug,
+		acquisitionBlurhash,
 		acquisitionImage,
 		acquisitionPalette,
 		acquisitionTitle
@@ -124,9 +126,10 @@
 			<a href="/artists/{acquisitionArtistSlug(w)}" class="group">
 				<div class="grain relative aspect-[4/5] overflow-hidden rounded-sm bg-card">
 					{#if image}
-						<img
+						<BlurhashImage
 							src={image}
 							alt={acquisitionTitle(w)}
+							blurhash={acquisitionBlurhash(w)}
 							loading="lazy"
 							class="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.06]"
 						/>

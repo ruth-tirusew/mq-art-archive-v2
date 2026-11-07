@@ -7,8 +7,17 @@
   import { onboardingService } from "$lib/composition";
   import { questionnaireService } from "$lib/composition";
   import { isErrorKind } from "$lib/core/domain/errors";
-  import { composeLinkNotes, isValidHandle, normalizeHandle, parseLinkNotes } from "$lib/core/domain/onboarding";
+  import {
+    composeLinkNotes,
+    isValidHandle,
+    normalizeHandle,
+    parseLinkNotes,
+    worksShortfall,
+    type ApplicantWork,
+  } from "$lib/core/domain/onboarding";
   import QuestionnaireForm from "$lib/components/questionnaire/QuestionnaireForm.svelte";
+  import ApplicantWorks from "$lib/components/onboarding/ApplicantWorks.svelte";
+  import BlurhashImage from "$lib/components/BlurhashImage.svelte";
   import SafeHtml from "$lib/components/SafeHtml.svelte";
   import type { InvitePreview } from "$lib/core/domain/invite";
   import type { FormQuestion, QuestionnaireForm as QuestionnaireFormData } from "$lib/core/domain/questionnaire";
@@ -18,6 +27,12 @@
   // Institutions are not onboarded through this form for now.
   const applicantType = "artist" as const;
 
+  // The work an applicant shows (at least five pieces). The step lists and edits them itself.
+  let works = $state<ApplicantWork[]>([]);
+  const worksShort = $derived(worksShortfall(works.length));
+
+  // About you, Your work/answers, Your art, Review.
+  const REVIEW_STEP = 4;
   let step = $state(1);
   let instagram = $state("");
   let website = $state("");
@@ -69,7 +84,7 @@
     if (!requestedHandle.trim()) requestedHandle = invite.handle ?? "";
   });
 
-  const stepLabels = $derived(["About you", formState === "none" ? "Your work" : "Your answers", "Review"]);
+  const stepLabels = $derived(["About you", formState === "none" ? "Your work" : "Your answers", "Your art", "Review"]);
 
   const normalizedHandle = $derived(normalizeHandle(requestedHandle));
   const validHandle = $derived(isValidHandle(normalizedHandle));
@@ -218,6 +233,8 @@
     } else if (step === 2 && !hasWork) {
       return;
     }
+    // Step 3: at least five pieces of work.
+    if (step === 3 && worksShort > 0) return;
     attempted = false;
     step += 1;
   }
@@ -340,7 +357,7 @@
     novalidate
     onsubmit={(e) => {
       e.preventDefault();
-      if (step < 3) void next();
+      if (step < REVIEW_STEP) void next();
       else void submit();
     }}
   >
@@ -397,6 +414,8 @@
         {/snippet}
       </Field>
     {:else if step === 3}
+      <ApplicantWorks onchange={(next) => (works = next)} />
+    {:else if step === REVIEW_STEP}
       <div class="rounded-sm border border-border/70 bg-card/30 p-6 text-sm">
         <p class="t-eyebrow text-muted-foreground">Review your application</p>
         <p class="mt-3 text-foreground">{displayName}</p>
@@ -424,6 +443,16 @@
         {:else}
           <p class="mt-4 whitespace-pre-wrap text-muted-foreground">{notes}</p>
         {/if}
+        <div class="mt-6 border-t border-border/60 pt-5" data-testid="apply-review-works">
+          <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your art · {works.length} pieces</p>
+          <ul class="mt-3 flex flex-wrap gap-2">
+            {#each works as work (work.id)}
+              <li class="h-16 w-14 overflow-hidden rounded-sm bg-muted" title={work.title}>
+                <BlurhashImage src={work.url} alt={work.title} blurhash={work.blurhash} width={112} class="h-full w-full object-cover" />
+              </li>
+            {/each}
+          </ul>
+        </div>
       </div>
       <p class="text-xs text-muted-foreground">
         By submitting you confirm this information is accurate. After review you'll get an email, and you can check progress any time on your application status page.
@@ -445,9 +474,9 @@
       <Button
         type="submit"
         loading={submitting || savingStep}
-        disabled={step === 2 && (formState === "loading" || formState === "error")}
+        disabled={(step === 2 && (formState === "loading" || formState === "error")) || (step === 3 && worksShort > 0)}
       >
-        {step < 3 ? (savingStep ? "Saving…" : "Continue") : submitting ? "Submitting…" : "Submit application"}
+        {step < REVIEW_STEP ? (savingStep ? "Saving…" : "Continue") : submitting ? "Submitting…" : "Submit application"}
       </Button>
     </div>
   </form>

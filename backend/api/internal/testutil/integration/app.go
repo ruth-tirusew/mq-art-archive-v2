@@ -118,6 +118,7 @@ func NewApp(t *testing.T) *App {
 			onboardinguc.WithInvites(postgres.NewInviteRepository(pool)),
 			onboardinguc.WithQuestionnaire(questionnaireSvc),
 			onboardinguc.WithInvitedRegistrar(authSvc),
+			onboardinguc.WithApplicantWorks(postgres.NewApplicantWorkRepository(pool)),
 		),
 		Events:   eventsuc.NewService(eventRepo, eventLocationRepo, eventSource),
 		Search:   searchuc.NewService(articleRepo, eventRepo),
@@ -158,6 +159,7 @@ func (a *App) Router() *gin.Engine {
 		Onboarding:    handler.NewOnboardingHandler(a.Onboarding),
 		Questionnaire: handler.NewQuestionnaireHandler(a.Questionnaire, a.Questionnaire),
 		Invite:        handler.NewInviteHandler(a.Onboarding, cfg.AuthCookieName, "http://localhost:5173"),
+		Works:         handler.NewApplicantWorksHandler(a.Onboarding),
 		Auth:          handler.NewAuthHandler(a.Auth, cfg.AuthCookieName),
 		Settings:      handler.NewSettingsHandler(a.Settings),
 	}

@@ -21,6 +21,9 @@ type MediaAsset struct {
 	Width     int
 	Height    int
 	SortOrder int
+	// Blurhash is a compact placeholder for the image. It is read-only here: the repository fills it
+	// from the uploaded asset's record, so callers cannot set a hash that doesn't match the image.
+	Blurhash string
 }
 
 type ArtPost struct {

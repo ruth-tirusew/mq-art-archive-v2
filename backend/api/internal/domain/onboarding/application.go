@@ -39,6 +39,9 @@ type OnboardingApplication struct {
 	// QuestionnaireAnswers is a frozen copy of the answers submitted with the application. It is
 	// opaque here: the questionnaire context writes and reads it. Nil when none was captured.
 	QuestionnaireAnswers []byte
+	// Works are the pieces of work the applicant submitted with the application, frozen at that
+	// moment. Empty for applications made before works were required.
+	Works []ApplicantWork
 	// InviteID is set when the applicant arrived through an invite link.
 	InviteID  *uuid.UUID
 	CreatedAt time.Time

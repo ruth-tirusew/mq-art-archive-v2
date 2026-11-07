@@ -5,6 +5,7 @@ package integration_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	domain "github.com/mq/api/internal/domain/onboarding"
 	"github.com/mq/api/internal/testutil/assist"
 	"github.com/mq/api/internal/testutil/integration"
 )
@@ -82,6 +84,29 @@ func insertVerifiedUser(t *testing.T, app *integration.App, email string, verifi
 	return id.String()
 }
 
+// addWorks gives an applicant n uploaded works through the API, the way the apply flow does: the
+// image rows stand in for finished Cloudinary uploads, and each is then added as a work. Pass
+// session headers in `as` when the applicant is signed in by cookie instead of by user id.
+func addWorks(t *testing.T, app *integration.App, c caller, userID string, n int, as ...string) {
+	t.Helper()
+	user := userID
+	if len(as) > 0 {
+		user = ""
+	}
+	for i := 0; i < n; i++ {
+		assetID := uuid.New()
+		now := time.Now().UTC()
+		_, err := app.Pool.Exec(context.Background(), `
+			INSERT INTO media_assets (id, owner_user_id, public_id, secure_url, resource_type, width, height, bytes, folder, blurhash, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, 'image', 100, 100, 1000, 'mq', 'TESTHASH', $5, $5)
+		`, assetID, userID, "mq/"+assetID.String(), "https://res.cloudinary.com/cloud/image/upload/v1/mq/"+assetID.String()+".webp", now)
+		assist.NoError(t, err)
+		expect(t, c.do("POST", "/api/v1/me/application/works", user, map[string]any{
+			"media_asset_id": assetID.String(), "title": fmt.Sprintf("Work %d", i+1),
+		}, as...), http.StatusCreated)
+	}
+}
+
 func questionPayload(withNew bool) map[string]any {
 	qs := []map[string]any{
 		{"key": "bio", "type": "long_text", "prompt_en": "Tell us about your practice", "prompt_am": "ስለ ስራዎ ይንገሩን", "required": true, "is_public": true, "max_length": 500},
@@ -148,6 +173,7 @@ func TestHTTP_questionnaireInviteLifecycle_integration(t *testing.T) {
 
 	// Required answers are enforced when submitting, and a failed attempt does not burn the invite.
 	claim := map[string]any{"token": inv.Token}
+	addWorks(t, app, c, artist, domain.MinApplicationWorks)
 	rec := c.do("POST", "/api/v1/applications/invite", artist, claim)
 	expect(t, rec, http.StatusBadRequest)
 	assist.Contains(t, rec.Body.String(), "bio")
@@ -345,6 +371,7 @@ func TestHTTP_questionnaireSecurity_integration(t *testing.T) {
 
 	t.Run("plain applications also need the questionnaire once one is published", func(t *testing.T) {
 		applicant := insertVerifiedUser(t, app, "plain@example.com", true)
+		addWorks(t, app, c, applicant, domain.MinApplicationWorks)
 		body := map[string]any{"applicant_type": "artist", "display_name": "Plain Applicant", "requested_handle": "plain_1"}
 		rec := c.do("POST", "/api/v1/applications", applicant, body)
 		expect(t, rec, http.StatusBadRequest)
@@ -409,6 +436,7 @@ func TestHTTP_inviteRegistrationForSomeoneWithNoAccount_integration(t *testing.T
 		assist.Equal(t, true, user["email_verified"].(bool))
 		assist.Equal(t, "public", user["role"].(string)) // an invite grants no role; an admin's approval does
 
+		newUserID := user["id"].(string)
 		cookie := sessionCookie(t, rec)
 		assist.Equal(t, true, cookie.HttpOnly)
 		var victims int
@@ -420,6 +448,7 @@ func TestHTTP_inviteRegistrationForSomeoneWithNoAccount_integration(t *testing.T
 		expect(t, c.do("GET", "/api/v1/me/questionnaire", "", nil, as...), http.StatusOK)
 		expect(t, c.do("PUT", "/api/v1/me/questionnaire/answers", "", map[string]any{"answers": []map[string]any{
 			{"key": "bio", "body": "hello"}, {"key": "city", "body": "Addis Ababa"}}}, as...), http.StatusNoContent)
+		addWorks(t, app, c, newUserID, domain.MinApplicationWorks, as...)
 		claimed := c.do("POST", "/api/v1/applications/invite", "", map[string]any{"token": token}, as...)
 		expect(t, claimed, http.StatusCreated)
 		application := decode[map[string]any](t, claimed)

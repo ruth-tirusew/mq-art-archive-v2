@@ -3,13 +3,16 @@ import {
   IMAGE_MIME_TYPES,
   MAX_IMAGE_BYTES,
   type MediaCompletion,
+  type MediaScope,
   type UploadedMedia
 } from '$lib/core/domain/media';
 
 const api = new MediaApi();
 
 export interface UploadImageOptions {
+  /** Shorthand for scope: 'admin'. */
   admin?: boolean;
+  scope?: MediaScope;
   signal?: AbortSignal;
   onProgress?: (progress: number) => void;
 }
@@ -95,9 +98,10 @@ export async function uploadImage(
   if (validationError) throw new Error(validationError);
 
   options.onProgress?.(0);
-  const signature = await api.sign(options.admin, options.signal);
+  const scope: MediaScope = options.scope ?? (options.admin ? 'admin' : 'artist');
+  const signature = await api.sign(scope, options.signal);
   const completion = await uploadToCloudinary(file, signature, options);
   options.onProgress?.(100);
-  const asset = await api.complete(completion, options.admin, options.signal);
-  return { secure_url: asset.secure_url, id: asset.id };
+  const asset = await api.complete(completion, scope, options.signal);
+  return { secure_url: asset.secure_url, id: asset.id, blurhash: asset.blurhash };
 }

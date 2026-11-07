@@ -1,6 +1,6 @@
 import type { ArtPost } from '$lib/core/domain/art';
 import type { ArtistProfile } from '$lib/core/domain/profile';
-import { postImageUrl, splitDisplayName } from '$lib/utils/display';
+import { postBlurhash, postImageUrl, splitDisplayName } from '$lib/utils/display';
 
 export { postImageUrl, splitDisplayName };
 
@@ -10,6 +10,10 @@ export function artistName(artist: ArtistProfile): string {
 
 export function artistPortrait(artist: ArtistProfile): string | undefined {
 	return artist.portrait_url;
+}
+
+export function artistPortraitBlurhash(artist: ArtistProfile): string | undefined {
+	return artist.portrait_blurhash || undefined;
 }
 
 export function artistLocation(artist: ArtistProfile): string {
@@ -62,6 +66,10 @@ export function acquisitionTitle(item: ArtPost): string {
 
 export function acquisitionImage(item: ArtPost): string | undefined {
 	return postImageUrl(item.media, item.id, item.artist_slug);
+}
+
+export function acquisitionBlurhash(item: ArtPost): string | undefined {
+	return postBlurhash(item.media);
 }
 
 export function acquisitionArtistSlug(item: ArtPost): string {

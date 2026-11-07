@@ -2,7 +2,7 @@
 
 ## Production configuration
 
-Set `APP_ENV=production`, disable `AUTH_DEV_MODE`, use a non-default `JWT_SECRET`, a production `DATABASE_URL`, and HTTPS-only CORS origins. If `CLOUDINARY_ENABLED=true`, all `CLOUDINARY_*` variables and a fixed `CLOUDINARY_FOLDER` are mandatory. Startup fails before connecting to the database when these checks fail.
+Set `APP_ENV=production`, disable `AUTH_DEV_MODE`, use a non-default `JWT_SECRET`, a production `DATABASE_URL`, and HTTPS-only CORS origins. All `CLOUDINARY_*` variables (cloud name, API key, API secret, folder) are mandatory in every environment, not just production. Startup fails before connecting to the database when these checks fail.
 
 `ERROR_MONITOR_DSN` is optional. When set, recovered HTTP panics are captured by the log monitor with the request ID; when empty, the no-op monitor is used. Replace the log adapter with a hosted provider adapter without changing middleware or use cases.
 

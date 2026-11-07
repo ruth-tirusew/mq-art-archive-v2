@@ -124,8 +124,12 @@ func main() {
 	searchSvc := searchuc.NewService(articleRepo, eventRepo, profileRepo, artPostRepo)
 	identitySvc := identityuc.NewService(userRepo)
 	settingsSvc := settingsuc.NewService(scrapeSettingsRepo, eventReloader, cfg.TelegramSessionPath)
-	cloudinary := mediaadapter.NewCloudinary(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret, cfg.CloudinaryFolder, 5*time.Minute)
-	mediaSvc := mediauc.NewService(cloudinary, cloudinary, mediaAssetRepo, cfg.CloudinaryFolder)
+	cloudinary, err := mediaadapter.NewCloudinary(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret, cfg.CloudinaryFolder, 5*time.Minute)
+	if err != nil {
+		log.Fatalf("media: %v", err)
+	}
+	mediaSvc := mediauc.NewService(cloudinary, cloudinary, mediaAssetRepo, cfg.CloudinaryFolder,
+		mediauc.WithBlurhash(cloudinary, mediaadapter.NewBlurhasher()))
 	wikiSvc := wikiuc.NewService(wikiSubmissionRepo, contentSvc)
 	engagementSvc := engagementuc.NewService(favoriteRepo, highlightRepo, commentRepo, contentSvc, identitySvc)
 	analyticsSvc := analyticsuc.NewService(analyticsRepo)
@@ -162,6 +166,7 @@ func main() {
 		onboardinguc.WithInvites(postgres.NewInviteRepository(pool)),
 		onboardinguc.WithQuestionnaire(questionnaireSvc),
 		onboardinguc.WithInvitedRegistrar(authSvc),
+		onboardinguc.WithApplicantWorks(postgres.NewApplicantWorkRepository(pool)),
 	)
 	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
 	// polling goroutine below can reuse this same instance rather than constructing a
@@ -204,6 +209,7 @@ func main() {
 		Onboarding:    handler.NewOnboardingHandler(onboardingSvc),
 		Questionnaire: handler.NewQuestionnaireHandler(questionnaireSvc, questionnaireSvc),
 		Invite:        handler.NewInviteHandler(onboardingSvc, cfg.AuthCookieName, cfg.WebAppURL),
+		Works:         handler.NewApplicantWorksHandler(onboardingSvc),
 		Auth:          handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
 		Settings:      handler.NewSettingsHandler(settingsSvc),
 		Media:         handler.NewMediaHandler(mediaSvc),

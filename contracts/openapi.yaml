@@ -1725,6 +1725,59 @@ paths:
       responses:
         "201": {description: Persisted asset, content: {application/json: {schema: {$ref: "#/components/schemas/MediaAsset"}}}}
         "429": {description: Rate limited}
+  /api/v1/me/application/works:
+    get:
+      tags: [onboarding]
+      summary: List the work the signed-in applicant has uploaded for their application
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Works in order, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/ApplicantWork"}}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    post:
+      tags: [onboarding]
+      summary: Add a piece of work to the application
+      description: |
+        An artist needs at least five works to apply. The image must have been uploaded by the same user
+        through `/me/application/media/sign` and `/complete`. Works are locked (409) while the application is
+        under review.
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AddApplicantWorkRequest"}}}}
+      responses:
+        "201": {description: The stored work, content: {application/json: {schema: {$ref: "#/components/schemas/ApplicantWork"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: The image does not exist or is not the caller's}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {description: Rate limited}
+  /api/v1/me/application/works/{id}:
+    delete:
+      tags: [onboarding]
+      summary: Remove a piece of work from the application
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204": {description: Removed}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: Not one of the caller's works}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/me/application/media/sign:
+    post:
+      tags: [media]
+      summary: Sign an image upload for the signed-in applicant (any role)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Upload signature, content: {application/json: {schema: {$ref: "#/components/schemas/MediaUploadSignature"}}}}
+        "429": {description: Rate limited}
+  /api/v1/me/application/media/complete:
+    post:
+      tags: [media]
+      summary: Validate and persist an applicant's completed upload
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MediaCompletion"}}}}
+      responses:
+        "201": {description: Persisted asset, content: {application/json: {schema: {$ref: "#/components/schemas/MediaAsset"}}}}
+        "429": {description: Rate limited}
   /admin/v1/media/sign:
     post:
       tags: [media]
@@ -2970,6 +3023,9 @@ components:
           type: string
         portrait_url:
           type: string
+        portrait_blurhash:
+          type: string
+          description: Blur hash placeholder for the portrait. Empty until computed.
         featured:
           type: boolean
         influences:
@@ -3326,12 +3382,38 @@ components:
           type: string
           format: uuid
           description: Set when the applicant arrived through an invite.
+        works:
+          type: array
+          description: The work submitted with the application, as it was at submission.
+          items:
+            $ref: "#/components/schemas/ApplicantWork"
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+
+    ApplicantWork:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        media_asset_id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        blurhash: {type: string, description: Placeholder to show while the image loads}
+        title: {type: string}
+        medium: {type: string}
+        year: {type: integer, nullable: true}
+        position: {type: integer}
+
+    AddApplicantWorkRequest:
+      type: object
+      required: [media_asset_id, title]
+      properties:
+        media_asset_id: {type: string, format: uuid}
+        title: {type: string, maxLength: 200}
+        medium: {type: string, maxLength: 100}
+        year: {type: integer, nullable: true}
 
     SubmitApplicationRequest:
       type: object
@@ -3398,6 +3480,9 @@ components:
         height: {type: integer, nullable: true}
         bytes: {type: integer, nullable: true}
         folder: {type: string}
+        blurhash:
+          type: string
+          description: Compact placeholder (https://blurha.sh) to show while the image loads. Empty until computed.
     WikiSubmissionInput:
       type: object
       required: [title, body]

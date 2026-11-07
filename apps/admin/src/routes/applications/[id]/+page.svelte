@@ -12,6 +12,7 @@
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
   import ApplicationAnswers from '$lib/components/questionnaire/ApplicationAnswers.svelte';
+  import ApplicationWorks from '$lib/components/onboarding/ApplicationWorks.svelte';
 
   let { data } = $props();
 
@@ -155,6 +156,10 @@
     {/if}
   </CardContent>
 </Card>
+
+{#if data.application.applicant_type === 'artist'}
+  <ApplicationWorks works={data.application.works ?? []} />
+{/if}
 
 {#if data.answers}
   <ApplicationAnswers view={data.answers} />

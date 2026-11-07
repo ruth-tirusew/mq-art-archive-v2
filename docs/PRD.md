@@ -78,7 +78,7 @@ Built as an `engagement` domain shared across the `content` context:
 
 - Public artist profiles by slug/handle; studio view for the artist to manage their own profile (`/me/profile`).
 - Artwork posts with a publish lifecycle (draft → published), managed from studio, moderated by admin.
-- Cloudinary-backed signed direct uploads for media, gated behind `CLOUDINARY_ENABLED`.
+- Cloudinary-backed signed direct uploads for all media (required in every environment). Originals are stored untouched and delivered losslessly (WebP, quality 100); every image carries a blur hash for placeholders.
 
 ### 5.5 Events
 

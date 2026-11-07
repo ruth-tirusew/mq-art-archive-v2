@@ -48,6 +48,27 @@ type RegisteredInvitee struct {
 	User        *identity.User
 }
 
+// AddWorkInput is what an applicant says about an image they have uploaded.
+type AddWorkInput struct {
+	MediaAssetID uuid.UUID
+	Title        string
+	Medium       string
+	Year         *int
+}
+
+// ApplicantWorksService is the work an applicant uploads to show with their application. An artist
+// must have at least onboarding.MinApplicationWorks of them to apply.
+type ApplicantWorksService interface {
+	// ListWorks returns the applicant's works in order.
+	ListWorks(ctx context.Context, userID uuid.UUID) ([]onboarding.ApplicantWork, error)
+	// AddWork adds one. ErrValidation for a bad title/medium/year or when the limit is reached,
+	// ErrNotFound if the image isn't theirs, ErrConflict if it is already one of their works or the
+	// application is under review (works are locked until it is decided).
+	AddWork(ctx context.Context, userID uuid.UUID, in AddWorkInput) (*onboarding.ApplicantWork, error)
+	// RemoveWork deletes one of the applicant's works, with the same locking as AddWork.
+	RemoveWork(ctx context.Context, userID, workID uuid.UUID) error
+}
+
 type InviteService interface {
 	CreateInvite(ctx context.Context, adminID uuid.UUID, in CreateInviteInput) (*InviteWithToken, error)
 	// ResendInvite revokes the invite and issues a fresh link with the same details.

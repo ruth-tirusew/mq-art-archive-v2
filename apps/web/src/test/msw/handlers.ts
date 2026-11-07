@@ -75,6 +75,22 @@ export const handlers = [
 			? HttpResponse.json({ id: 'app-1', applicant_type: 'artist', display_name: 'Ada', status: 'pending', invite_id: 'inv-1' }, { status: 201 })
 			: HttpResponse.json({ error: 'conflict' }, { status: 409 });
 	}),
+	http.get(`${base}/api/v1/me/application/works`, () =>
+		HttpResponse.json([{ id: 'w-1', media_asset_id: 'a-1', url: 'https://res.cloudinary.com/c/image/upload/mq/a.jpg', blurhash: 'LEHV6nWB2yk8pyo0adR*.7kCMdnj', title: 'First', position: 0 }])
+	),
+	http.post(`${base}/api/v1/me/application/works`, async ({ request }) => {
+		if (!request.headers.get('content-type')?.startsWith('application/json')) {
+			return HttpResponse.json({ error: 'content type must be application/json' }, { status: 415 });
+		}
+		const body = (await request.json()) as { media_asset_id: string; title: string };
+		if (body.media_asset_id === 'locked') {
+			return HttpResponse.json({ error: 'your application is being reviewed' }, { status: 409 });
+		}
+		return HttpResponse.json({ id: 'w-2', media_asset_id: body.media_asset_id, url: 'https://res.cloudinary.com/c/image/upload/mq/b.jpg', title: body.title, position: 1 }, { status: 201 });
+	}),
+	http.delete(`${base}/api/v1/me/application/works/:id`, ({ params }) =>
+		params.id === 'missing' ? HttpResponse.json({ error: 'not found' }, { status: 404 }) : new HttpResponse(null, { status: 204 })
+	),
 	http.get(`${base}/api/v1/artists/:slug/posts`, () => HttpResponse.json(fixturePosts)),
 	http.get(`${base}/api/v1/handles/:handle/available`, ({ params }) =>
 		HttpResponse.json({ handle: params.handle, available: params.handle !== 'taken' })

@@ -34,7 +34,6 @@ type Config struct {
 	// points at the SvelteKit frontend.
 	PublicAPIURL        string
 	ErrorMonitorDSN     string
-	CloudinaryEnabled   bool
 	CloudinaryCloudName string
 	CloudinaryAPIKey    string
 	CloudinaryAPISecret string
@@ -104,11 +103,10 @@ func Load() Config {
 		WebAppURL:           webAppURL,
 		PublicAPIURL:        getEnv("PUBLIC_API_URL", fmt.Sprintf("http://localhost:%d", port)),
 		ErrorMonitorDSN:     getEnv("ERROR_MONITOR_DSN", ""),
-		CloudinaryEnabled:   getEnv("CLOUDINARY_ENABLED", "false") == "true",
 		CloudinaryCloudName: getEnv("CLOUDINARY_CLOUD_NAME", ""),
 		CloudinaryAPIKey:    getEnv("CLOUDINARY_API_KEY", ""),
 		CloudinaryAPISecret: getEnv("CLOUDINARY_API_SECRET", ""),
-		CloudinaryFolder:    getEnv("CLOUDINARY_FOLDER", ""),
+		CloudinaryFolder:    getEnv("CLOUDINARY_FOLDER", "mq"),
 
 		ScrapeEnabled:   getEnv("SCRAPE_ENABLED", "false") == "true",
 		ScrapeSources:   splitCSV(getEnv("SCRAPE_SOURCES", "")),
@@ -133,6 +131,11 @@ func Load() Config {
 }
 
 func (c Config) Validate() error {
+	// Images live in Cloudinary in every environment, so a missing setting stops the API at start
+	// instead of surfacing later as a broken upload.
+	if c.CloudinaryCloudName == "" || c.CloudinaryAPIKey == "" || c.CloudinaryAPISecret == "" || c.CloudinaryFolder == "" {
+		return fmt.Errorf("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET and CLOUDINARY_FOLDER are required")
+	}
 	if strings.ToLower(c.AppEnv) != "production" {
 		return nil
 	}
@@ -147,11 +150,6 @@ func (c Config) Validate() error {
 		lower := strings.ToLower(origin)
 		if origin == "*" || strings.Contains(lower, "localhost") || strings.Contains(lower, "127.0.0.1") {
 			return fmt.Errorf("unsafe CORS origin %q in production", origin)
-		}
-	}
-	if c.CloudinaryEnabled {
-		if c.CloudinaryCloudName == "" || c.CloudinaryAPIKey == "" || c.CloudinaryAPISecret == "" || c.CloudinaryFolder == "" {
-			return fmt.Errorf("all CLOUDINARY_* settings are required when enabled in production")
 		}
 	}
 	if c.AuthDevMode {

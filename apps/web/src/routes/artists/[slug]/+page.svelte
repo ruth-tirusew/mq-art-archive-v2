@@ -4,7 +4,9 @@
 	import { recordPageView } from '$lib/application/analytics';
 	import ArtistAnswers from '$lib/components/artist/ArtistAnswers.svelte';
 	import ArtistTimeline from '$lib/components/artist/ArtistTimeline.svelte';
+	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import {
+		acquisitionBlurhash,
 		acquisitionImage,
 		acquisitionPalette,
 		acquisitionTitle,
@@ -15,6 +17,7 @@
 		artistLocation,
 		artistName,
 		artistPortrait,
+		artistPortraitBlurhash,
 		artistTagline,
 		artistYearsActive
 	} from '$lib/utils/fields';
@@ -26,6 +29,9 @@
 	const others = $derived(data.others);
 	const handle = $derived(artistHandle(artist));
 	const firstWork = $derived(galleryItems[0]);
+	const heroBlurhash = $derived(
+		firstWork && acquisitionImage(firstWork) ? acquisitionBlurhash(firstWork) : artistPortraitBlurhash(artist)
+	);
 	const heroImage = $derived(
 		firstWork ? acquisitionImage(firstWork) ?? artistPortrait(artist) : artistPortrait(artist)
 	);
@@ -90,11 +96,11 @@
 		<div class="col-span-12 md:col-span-5">
 			<div class="grain relative aspect-[4/5] overflow-hidden rounded-sm bg-card">
 				{#if heroImage}
-					<img src={heroImage} alt={artistName(artist)} class="h-full w-full object-cover" />
+					<BlurhashImage src={heroImage} alt={artistName(artist)} blurhash={heroBlurhash} loading="eager" class="h-full w-full object-cover" />
 				{/if}
 				<div class="absolute left-4 top-4 h-16 w-16 overflow-hidden rounded-full ring-2 ring-cream/70">
 					{#if artistPortrait(artist)}
-						<img src={artistPortrait(artist)} alt="" class="h-full w-full object-cover" />
+						<BlurhashImage src={artistPortrait(artist) ?? ""} alt="" blurhash={artistPortraitBlurhash(artist)} width={64} class="h-full w-full object-cover" />
 					{/if}
 				</div>
 			</div>
@@ -150,9 +156,11 @@
 					>
 						<div class="h-16 w-16 shrink-0 overflow-hidden rounded-sm bg-muted">
 							{#if artistPortrait(a)}
-								<img
-									src={artistPortrait(a)}
+								<BlurhashImage
+									src={artistPortrait(a) ?? ''}
 									alt={artistName(a)}
+									blurhash={artistPortraitBlurhash(a)}
+									width={64}
 									loading="lazy"
 									class="h-full w-full object-cover grayscale transition group-hover:grayscale-0"
 								/>

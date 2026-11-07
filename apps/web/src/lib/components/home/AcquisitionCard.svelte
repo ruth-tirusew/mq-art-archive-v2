@@ -1,8 +1,10 @@
 <script lang="ts">
+	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
 	import {
 		acquisitionArtistName,
 		acquisitionArtistSlug,
+		acquisitionBlurhash,
 		acquisitionDimensions,
 		acquisitionFeatured,
 		acquisitionImage,
@@ -42,9 +44,10 @@
 				? 'relative min-h-0 flex-1'
 				: 'aspect-[4/5] shrink-0 md:min-h-0 md:flex-1'}"
 	>
-		<img
+		<BlurhashImage
 			src={acquisitionImage(item) ?? ''}
 			alt={acquisitionTitle(item)}
+			blurhash={acquisitionBlurhash(item)}
 			loading={featured ? 'eager' : 'lazy'}
 			class="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.03]"
 		/>

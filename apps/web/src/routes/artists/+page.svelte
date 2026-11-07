@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
 	import {
+		acquisitionBlurhash,
 		acquisitionImage,
 		acquisitionPalette,
 		artistDiscipline,
@@ -10,6 +12,7 @@
 		artistLocation,
 		artistName,
 		artistPortrait,
+		artistPortraitBlurhash,
 		artistTagline,
 		artistYearsActive
 	} from '$lib/utils/fields';
@@ -37,6 +40,13 @@
 		const works = worksFor(slug);
 		const fromWork = works[0] ? acquisitionImage(works[0]) : undefined;
 		return fromWork ?? artistPortrait(artist);
+	}
+
+	/** The blur hash of whichever image coverFor picked. */
+	function coverBlurhashFor(slug: string, artist: (typeof roster)[number]): string | undefined {
+		const works = worksFor(slug);
+		if (works[0] && acquisitionImage(works[0])) return acquisitionBlurhash(works[0]);
+		return artistPortraitBlurhash(artist);
 	}
 
 	const disciplines = $derived(
@@ -158,9 +168,10 @@
 				class="grain relative aspect-[4/5] max-h-[min(56vh,520px)] overflow-hidden rounded-sm bg-card md:aspect-auto md:h-full md:max-h-none"
 			>
 				{#if featuredCover}
-					<img
+					<BlurhashImage
 						src={featuredCover}
 						alt={artistName(featured)}
+						blurhash={featured ? coverBlurhashFor(featured.slug, featured) : undefined}
 						class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.03]"
 					/>
 				{/if}
@@ -269,9 +280,10 @@
 					<a href="/artists/{a.slug}" class="flex min-h-0 flex-1 flex-col">
 						<div class="relative overflow-hidden {isLarge ? 'flex-1' : 'aspect-[5/3]'} bg-muted">
 							{#if cover}
-								<img
+								<BlurhashImage
 									src={cover}
 									alt={artistName(a)}
+									blurhash={coverBlurhashFor(a.slug, a)}
 									loading="lazy"
 									class="h-full w-full object-cover grayscale transition duration-700 group-hover:scale-[1.04] group-hover:grayscale-0"
 								/>

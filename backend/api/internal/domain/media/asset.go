@@ -18,8 +18,10 @@ type Asset struct {
 	Height       *int      `json:"height,omitempty"`
 	Bytes        *int      `json:"bytes,omitempty"`
 	Folder       string    `json:"folder"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	// Blurhash is a compact placeholder for the image; empty until it has been computed.
+	Blurhash  string    `json:"blurhash"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type UploadOptions struct {

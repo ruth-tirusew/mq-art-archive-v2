@@ -22,7 +22,7 @@ func NewProfileRepository(pool *Pool) outbound.ProfileRepository {
 }
 
 const artistProfileColumns = `
-	id, user_id, slug, COALESCE(handle, '') AS handle, display_name, COALESCE(bio, '') AS bio, born, discipline, tagline, years_active, COALESCE(portrait_url, '') AS portrait_url, featured,
+	id, user_id, slug, COALESCE(handle, '') AS handle, display_name, COALESCE(bio, '') AS bio, born, discipline, tagline, years_active, COALESCE(portrait_url, '') AS portrait_url, portrait_blurhash, featured,
 	COALESCE(influences, '{}') AS influences, in_residence, COALESCE(residency_place, '') AS residency_place, open_for_commission,
 	COALESCE(contact_email, '') AS contact_email, COALESCE(contact_phone, '') AS contact_phone, COALESCE(contact_website, '') AS contact_website, COALESCE(contact_location, '') AS contact_location,
 	COALESCE(social_instagram, '') AS social_instagram, COALESCE(social_twitter, '') AS social_twitter, COALESCE(social_telegram, '') AS social_telegram,
@@ -211,12 +211,12 @@ func (r *ProfileRepository) SaveArtist(ctx context.Context, p profile.ArtistProf
 	}
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO artist_profiles (
-			id, user_id, slug, handle, display_name, bio, born, discipline, tagline, years_active, portrait_url, featured,
+			id, user_id, slug, handle, display_name, bio, born, discipline, tagline, years_active, portrait_url, portrait_blurhash, featured,
 			influences, in_residence, residency_place, open_for_commission,
 			contact_email, contact_phone, contact_website, contact_location,
 			social_instagram, social_twitter, social_telegram,
 			status, approved_at, created_at, updated_at, moderation_hold
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,`+blurhashForArg11+`,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
 		ON CONFLICT (id) DO UPDATE SET
 			slug = EXCLUDED.slug,
 			handle = EXCLUDED.handle,
@@ -227,6 +227,9 @@ func (r *ProfileRepository) SaveArtist(ctx context.Context, p profile.ArtistProf
 			tagline = EXCLUDED.tagline,
 			years_active = EXCLUDED.years_active,
 			portrait_url = EXCLUDED.portrait_url,
+			portrait_blurhash = CASE
+				WHEN artist_profiles.portrait_url = EXCLUDED.portrait_url AND artist_profiles.portrait_blurhash <> ''
+				THEN artist_profiles.portrait_blurhash ELSE EXCLUDED.portrait_blurhash END,
 			featured = EXCLUDED.featured,
 			influences = EXCLUDED.influences,
 			in_residence = EXCLUDED.in_residence,
@@ -288,7 +291,7 @@ func scanArtistProfile(row scannable) (profile.ArtistProfile, error) {
 	var p profile.ArtistProfile
 	var status string
 	err := row.Scan(
-		&p.ID, &p.UserID, &p.Slug, &p.Handle, &p.DisplayName, &p.Bio, &p.Born, &p.Discipline, &p.Tagline, &p.YearsActive, &p.PortraitURL, &p.Featured,
+		&p.ID, &p.UserID, &p.Slug, &p.Handle, &p.DisplayName, &p.Bio, &p.Born, &p.Discipline, &p.Tagline, &p.YearsActive, &p.PortraitURL, &p.PortraitBlurhash, &p.Featured,
 		&p.Influences, &p.InResidence, &p.ResidencyPlace, &p.OpenForCommission,
 		&p.Contact.Email, &p.Contact.Phone, &p.Contact.Website, &p.Contact.Location,
 		&p.Social.Instagram, &p.Social.Twitter, &p.Social.Telegram,

@@ -13,6 +13,10 @@ export function postImageUrl(
 	return media?.[0]?.url;
 }
 
+export function postBlurhash(media?: { blurhash?: string }[]): string | undefined {
+	return media?.[0]?.blurhash || undefined;
+}
+
 export function formatEventDate(iso: string): string {
 	return new Date(iso).toLocaleDateString('en-GB', {
 		day: '2-digit',

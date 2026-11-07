@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -23,7 +24,7 @@ func NewOnboardingRepository(pool *Pool) outbound.OnboardingRepository {
 const onboardingColumns = `
 	id, applicant_id, applicant_type, display_name, COALESCE(requested_handle, ''), notes, review_notes,
 	status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id,
-	questionnaire_answers
+	questionnaire_answers, works
 `
 
 func (r *OnboardingRepository) ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error) {
@@ -135,12 +136,20 @@ func (r *OnboardingRepository) GetLatestByApplicantID(ctx context.Context, appli
 }
 
 func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.OnboardingApplication) (*onboarding.OnboardingApplication, error) {
+	var worksJSON []byte
+	if len(app.Works) > 0 {
+		encoded, err := json.Marshal(app.Works)
+		if err != nil {
+			return nil, fmt.Errorf("save onboarding application: encode works: %w", err)
+		}
+		worksJSON = encoded
+	}
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO onboarding_applications (
 			id, applicant_id, applicant_type, display_name, requested_handle, notes, review_notes,
 			status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id,
-			questionnaire_answers
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+			questionnaire_answers, works
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		ON CONFLICT (id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
 			requested_handle = EXCLUDED.requested_handle,
@@ -152,11 +161,12 @@ func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.Onboardi
 			updated_at = EXCLUDED.updated_at,
 			questionnaire_revision_id = EXCLUDED.questionnaire_revision_id,
 			invite_id = EXCLUDED.invite_id,
-			questionnaire_answers = EXCLUDED.questionnaire_answers
+			questionnaire_answers = EXCLUDED.questionnaire_answers,
+			works = EXCLUDED.works
 		RETURNING `+onboardingColumns,
 		app.ID, app.ApplicantID, string(app.ApplicantType), app.DisplayName, nullableString(app.RequestedHandle), app.Notes, app.ReviewNotes,
 		string(app.Status), app.ReviewedBy, app.ReviewedAt, app.CreatedAt, app.UpdatedAt,
-		app.QuestionnaireRevisionID, app.InviteID, app.QuestionnaireAnswers,
+		app.QuestionnaireRevisionID, app.InviteID, app.QuestionnaireAnswers, worksJSON,
 	)
 
 	saved, err := scanOnboardingApplication(row)
@@ -198,13 +208,19 @@ func (r *OnboardingRepository) Transition(ctx context.Context, app onboarding.On
 func scanOnboardingApplication(row scannable) (onboarding.OnboardingApplication, error) {
 	var app onboarding.OnboardingApplication
 	var applicantType, status string
+	var worksJSON []byte
 	err := row.Scan(
 		&app.ID, &app.ApplicantID, &applicantType, &app.DisplayName, &app.RequestedHandle, &app.Notes, &app.ReviewNotes,
 		&status, &app.ReviewedBy, &app.ReviewedAt, &app.CreatedAt, &app.UpdatedAt,
-		&app.QuestionnaireRevisionID, &app.InviteID, &app.QuestionnaireAnswers,
+		&app.QuestionnaireRevisionID, &app.InviteID, &app.QuestionnaireAnswers, &worksJSON,
 	)
 	if err != nil {
 		return onboarding.OnboardingApplication{}, err
+	}
+	if len(worksJSON) > 0 {
+		if err := json.Unmarshal(worksJSON, &app.Works); err != nil {
+			return onboarding.OnboardingApplication{}, fmt.Errorf("decode application works: %w", err)
+		}
 	}
 	app.ApplicantType = onboarding.ApplicantType(applicantType)
 	app.Status = onboarding.ApprovalStatus(status)

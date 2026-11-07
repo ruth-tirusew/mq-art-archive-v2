@@ -232,8 +232,8 @@ func (r *ArtPostRepository) Create(ctx context.Context, post art.ArtPost) (*art.
 			mediaID = uuid.New()
 		}
 		_, err = tx.Exec(ctx, `
-			INSERT INTO art_post_media (id, art_post_id, url, mime_type, width, height, sort_order)
-			VALUES ($1,$2,$3,$4,$5,$6,$7)
+			INSERT INTO art_post_media (id, art_post_id, url, mime_type, width, height, sort_order, blurhash)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,`+blurhashForArg3+`)
 		`, mediaID, post.ID, m.URL, m.MimeType, m.Width, m.Height, m.SortOrder)
 		if err != nil {
 			return nil, fmt.Errorf("create art post media: %w", err)
@@ -316,13 +316,14 @@ func (r *ArtPostRepository) syncMedia(ctx context.Context, tx pgx.Tx, postID uui
 
 		if existingIDs[m.ID] {
 			_, err = tx.Exec(ctx, `
-				UPDATE art_post_media SET url=$2, mime_type=$3, width=$4, height=$5, sort_order=$6
+				UPDATE art_post_media SET url=$2, mime_type=$3, width=$4, height=$5, sort_order=$6,
+					blurhash = CASE WHEN url = $2 AND blurhash <> '' THEN blurhash ELSE `+blurhashForArg2+` END
 				WHERE id=$1
 			`, m.ID, m.URL, m.MimeType, m.Width, m.Height, m.SortOrder)
 		} else {
 			_, err = tx.Exec(ctx, `
-				INSERT INTO art_post_media (id, art_post_id, url, mime_type, width, height, sort_order)
-				VALUES ($1,$2,$3,$4,$5,$6,$7)
+				INSERT INTO art_post_media (id, art_post_id, url, mime_type, width, height, sort_order, blurhash)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,`+blurhashForArg3+`)
 			`, m.ID, postID, m.URL, m.MimeType, m.Width, m.Height, m.SortOrder)
 		}
 		if err != nil {
@@ -427,7 +428,7 @@ func (r *ArtPostRepository) loadMediaBatch(ctx context.Context, postIDs []uuid.U
 	}
 
 	rows, err := r.pool.Query(ctx, `
-		SELECT art_post_id, id, url, mime_type, width, height, sort_order
+		SELECT art_post_id, id, url, mime_type, width, height, sort_order, blurhash
 		FROM art_post_media
 		WHERE art_post_id = ANY($1)
 		ORDER BY art_post_id, sort_order ASC
@@ -440,7 +441,7 @@ func (r *ArtPostRepository) loadMediaBatch(ctx context.Context, postIDs []uuid.U
 	for rows.Next() {
 		var postID uuid.UUID
 		var m art.MediaAsset
-		if err := rows.Scan(&postID, &m.ID, &m.URL, &m.MimeType, &m.Width, &m.Height, &m.SortOrder); err != nil {
+		if err := rows.Scan(&postID, &m.ID, &m.URL, &m.MimeType, &m.Width, &m.Height, &m.SortOrder, &m.Blurhash); err != nil {
 			return nil, err
 		}
 		mediaByPost[postID] = append(mediaByPost[postID], m)
@@ -458,7 +459,7 @@ func (r *ArtPostRepository) loadMediaBatch(ctx context.Context, postIDs []uuid.U
 
 func (r *ArtPostRepository) loadMedia(ctx context.Context, postID uuid.UUID) ([]art.MediaAsset, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, url, mime_type, width, height, sort_order
+		SELECT id, url, mime_type, width, height, sort_order, blurhash
 		FROM art_post_media
 		WHERE art_post_id = $1
 		ORDER BY sort_order ASC
@@ -471,7 +472,7 @@ func (r *ArtPostRepository) loadMedia(ctx context.Context, postID uuid.UUID) ([]
 	var media []art.MediaAsset
 	for rows.Next() {
 		var m art.MediaAsset
-		if err := rows.Scan(&m.ID, &m.URL, &m.MimeType, &m.Width, &m.Height, &m.SortOrder); err != nil {
+		if err := rows.Scan(&m.ID, &m.URL, &m.MimeType, &m.Width, &m.Height, &m.SortOrder, &m.Blurhash); err != nil {
 			return nil, err
 		}
 		media = append(media, m)

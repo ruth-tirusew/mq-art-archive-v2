@@ -18,6 +18,19 @@ export interface ApplicationPage {
 
 export const APPLICATIONS_PAGE_SIZE = 50;
 
+/** An artist needs at least this many pieces of work to apply. Mirrors the API's rule. */
+export const MIN_APPLICATION_WORKS = 5;
+
+export interface ApplicantWork {
+  id: string;
+  url: string;
+  blurhash?: string;
+  title: string;
+  medium?: string;
+  year?: number | null;
+  position: number;
+}
+
 export interface OnboardingApplication {
   id: string;
   applicant_id?: string;
@@ -33,6 +46,8 @@ export interface OnboardingApplication {
   questionnaire_revision_id?: string;
   /** Set when the applicant arrived through an invite link. */
   invite_id?: string;
+  /** The work submitted with the application, as it was at submission. */
+  works?: ApplicantWork[];
   created_at?: string;
   updated_at?: string;
 }

@@ -1,6 +1,33 @@
 export type ApplicantType = 'artist' | 'institution';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+/** An artist needs at least this many pieces of work to apply. Mirrors the API's rule. */
+export const MIN_APPLICATION_WORKS = 5;
+export const MAX_APPLICATION_WORKS = 20;
+
+export interface ApplicantWork {
+	id: string;
+	media_asset_id: string;
+	url: string;
+	blurhash?: string;
+	title: string;
+	medium?: string;
+	year?: number | null;
+	position: number;
+}
+
+export interface AddWorkInput {
+	media_asset_id: string;
+	title: string;
+	medium?: string;
+	year?: number | null;
+}
+
+/** How many more works are needed before the applicant can submit, or 0. */
+export function worksShortfall(have: number): number {
+	return Math.max(0, MIN_APPLICATION_WORKS - have);
+}
+
 export interface OnboardingApplication {
 	id: string;
 	applicant_id?: string;
@@ -14,6 +41,8 @@ export interface OnboardingApplication {
 	reviewed_at?: string | null;
 	/** Set when the application was submitted with questionnaire answers. */
 	questionnaire_revision_id?: string | null;
+	/** The work submitted with the application, as it was at submission. */
+	works?: ApplicantWork[];
 	created_at?: string;
 	updated_at?: string;
 }

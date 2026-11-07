@@ -14,6 +14,8 @@ type MediaAssetResponse struct {
 	Width     int       `json:"width,omitempty"`
 	Height    int       `json:"height,omitempty"`
 	SortOrder int       `json:"sort_order"`
+	// Blurhash is a compact placeholder to show while the image loads; empty if not computed yet.
+	Blurhash string `json:"blurhash,omitempty"`
 }
 
 type ArtPostResponse struct {
@@ -49,6 +51,7 @@ func ToMediaAssetResponses(media []domain.MediaAsset) []MediaAssetResponse {
 			Width:     m.Width,
 			Height:    m.Height,
 			SortOrder: m.SortOrder,
+			Blurhash:  m.Blurhash,
 		}
 	}
 	return out

@@ -25,6 +25,7 @@ type Service struct {
 	invites       outbound.InviteRepository
 	questionnaire inbound.ApplicationQuestionnaireGate
 	registrar     inbound.InvitedRegistrar
+	works         outbound.ApplicantWorkRepository
 	now           func() time.Time
 }
 
@@ -54,6 +55,12 @@ func WithInvitedRegistrar(r inbound.InvitedRegistrar) Option {
 // before they can apply. Without it (or before a questionnaire is published) applying works as before.
 func WithQuestionnaire(gate inbound.ApplicationQuestionnaireGate) Option {
 	return func(s *Service) { s.questionnaire = gate }
+}
+
+// WithApplicantWorks requires artist applicants to have uploaded at least MinApplicationWorks
+// works before they can apply, and freezes those works onto the application. Without it nothing is required.
+func WithApplicantWorks(works outbound.ApplicantWorkRepository) Option {
+	return func(s *Service) { s.works = works }
 }
 
 func NewService(
@@ -177,6 +184,18 @@ func (s *Service) prepareApplication(
 		revisionID, answers = &submitted.RevisionID, submitted.Answers
 	}
 
+	var works []domain.ApplicantWork
+	if applicantType == domain.ApplicantTypeArtist && s.works != nil {
+		works, err = s.works.ListByUser(ctx, applicantID)
+		if err != nil {
+			return nil, err
+		}
+		if short := domain.WorksShortfall(len(works)); short > 0 {
+			return nil, fmt.Errorf("%w: add at least %d works to apply (you have %d, add %d more)",
+				apperrors.ErrValidation, domain.MinApplicationWorks, len(works), short)
+		}
+	}
+
 	now := s.now()
 	return &domain.OnboardingApplication{
 		ID:                      uuid.New(),
@@ -188,6 +207,7 @@ func (s *Service) prepareApplication(
 		Status:                  domain.ApprovalStatusPending,
 		QuestionnaireRevisionID: revisionID,
 		QuestionnaireAnswers:    answers,
+		Works:                   works,
 		CreatedAt:               now,
 		UpdatedAt:               now,
 	}, nil

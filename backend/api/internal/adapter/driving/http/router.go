@@ -24,6 +24,7 @@ type Handlers struct {
 	Onboarding    *handler.OnboardingHandler
 	Questionnaire *handler.QuestionnaireHandler
 	Invite        *handler.InviteHandler
+	Works         *handler.ApplicantWorksHandler
 	Auth          *handler.AuthHandler
 	Settings      *handler.SettingsHandler
 	Media         *handler.MediaHandler
@@ -109,6 +110,19 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		// account can join straight from the link. Account creation is rate limited like register.
 		v1.POST("/invites/register", registerLimit, handlers.Invite.Register)
 		v1.POST("/applications/invite", writeLimit, middleware.Authenticate(deps.Auth), handlers.Invite.Claim)
+
+		// The work an applicant shows with their application (an artist needs at least five). Any
+		// signed-in user, since applicants aren't artists yet, so uploads get their own sign/complete
+		// pair here instead of the artist-only /me/media routes.
+		application := v1.Group("/me/application")
+		application.Use(middleware.Authenticate(deps.Auth))
+		{
+			application.GET("/works", handlers.Works.List)
+			application.POST("/works", writeLimit, handlers.Works.Add)
+			application.DELETE("/works/:id", writeLimit, handlers.Works.Remove)
+			application.POST("/media/sign", writeLimit, handlers.Media.Sign)
+			application.POST("/media/complete", writeLimit, handlers.Media.Complete)
+		}
 
 		// Questionnaire. Any signed-in user, not just artists: applicants answer it before approval.
 		// Every route that changes state is POST/PUT, so the global CSRF middleware covers it.

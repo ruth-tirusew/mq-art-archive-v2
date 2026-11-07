@@ -1,9 +1,11 @@
 <script lang="ts">
+	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import SectionHeader from '$lib/components/home/SectionHeader.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
 	import {
 		acquisitionArtistName,
 		acquisitionArtistSlug,
+		acquisitionBlurhash,
 		acquisitionImage,
 		acquisitionMedium,
 		acquisitionYear
@@ -43,9 +45,10 @@
 						class="group flex w-[72vw] shrink-0 snap-start flex-col gap-4 sm:w-[44vw] lg:w-[calc((100%-4.5rem)/4)]"
 					>
 						<div class="aspect-[4/5] overflow-hidden rounded-sm bg-muted">
-							<img
+							<BlurhashImage
 								{src}
 								alt={work.title}
+								blurhash={acquisitionBlurhash(work)}
 								loading="lazy"
 								onerror={() => (failed = [...failed, work.id])}
 								class="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.03]"

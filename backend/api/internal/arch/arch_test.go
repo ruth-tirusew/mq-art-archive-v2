@@ -26,6 +26,7 @@ var repositoryFileToContext = map[string]string{
 	"scrape_settings_repository.go":          "settings",
 	"password_reset_repository.go":           "identity",
 	"invite_repository.go":                   "onboarding",
+	"applicant_work_repository.go":           "onboarding",
 	"questionnaire_repository.go":            "questionnaire",
 	"questionnaire_answer_repository.go":     "questionnaire",
 	"questionnaire_nudge_repository.go":      "questionnaire",

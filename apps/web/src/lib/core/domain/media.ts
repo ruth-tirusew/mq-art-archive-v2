@@ -1,6 +1,9 @@
 export const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+/** Who is uploading: artists and admins have their own routes, and so do applicants (not artists yet). */
+export type MediaScope = 'artist' | 'admin' | 'applicant';
+
 export interface MediaUploadSignature {
   timestamp: number;
   signature: string;
@@ -23,9 +26,11 @@ export interface MediaCompletion {
 
 export interface MediaAsset extends MediaCompletion {
   id?: string;
+  blurhash?: string;
 }
 
 export interface UploadedMedia {
   secure_url: string;
   id?: string;
+  blurhash?: string;
 }

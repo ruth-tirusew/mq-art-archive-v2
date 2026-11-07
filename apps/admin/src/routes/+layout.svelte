@@ -56,6 +56,8 @@
           heading: 'Onboarding',
           items: [
             { href: '/applications', label: 'Pending' },
+            { href: '/applications?status=approved', label: 'Approved' },
+            { href: '/applications?status=rejected', label: 'Rejected' },
             { href: '/invites', label: 'Invites' },
             { href: '/questionnaire', label: 'Questionnaire' }
           ]

@@ -36,6 +36,9 @@ type OnboardingApplication struct {
 	// answers beside the wording they responded to. Nil for applications made before the
 	// questionnaire existed.
 	QuestionnaireRevisionID *uuid.UUID
+	// QuestionnaireAnswers is a frozen copy of the answers submitted with the application. It is
+	// opaque here: the questionnaire context writes and reads it. Nil when none was captured.
+	QuestionnaireAnswers []byte
 	// InviteID is set when the applicant arrived through an invite link.
 	InviteID  *uuid.UUID
 	CreatedAt time.Time

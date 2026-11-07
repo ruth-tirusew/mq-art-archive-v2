@@ -181,3 +181,29 @@ func TestOnboardingRepository_List_filtersPagesAndOrders(t *testing.T) {
 	assist.Equal(t, 1, total)
 	assist.Equal(t, late.ID, only[0].ID)
 }
+
+func TestOnboardingRepository_keepsTheSubmittedAnswerSnapshotThroughADecision(t *testing.T) {
+	pool := integration.SetupPostgresPool(t)
+	repo := postgres.NewOnboardingRepository(pool)
+	ctx := context.Background()
+
+	app := newPendingApp(uuid.New(), "snapshot_handle")
+	app.QuestionnaireAnswers = []byte(`[{"key":"bio","body":"as submitted"}]`)
+	saved, err := repo.Save(ctx, app)
+	assist.NoError(t, err)
+	assist.Equal(t, `{"key": "bio", "body": "as submitted"}`, string(saved.QuestionnaireAnswers[1:len(saved.QuestionnaireAnswers)-1]))
+
+	reviewer, at := uuid.New(), time.Now().UTC()
+	decided := *saved
+	decided.Status, decided.ReviewedBy, decided.ReviewedAt, decided.UpdatedAt = onboarding.ApprovalStatusApproved, &reviewer, &at, at
+	decided.QuestionnaireAnswers = nil // Transition must never touch the snapshot
+	got, err := repo.Transition(ctx, decided, onboarding.ApprovalStatusPending)
+	assist.NoError(t, err)
+	assist.Equal(t, len(saved.QuestionnaireAnswers), len(got.QuestionnaireAnswers))
+
+	none, err := repo.Save(ctx, newPendingApp(uuid.New(), "no_snapshot_handle"))
+	assist.NoError(t, err)
+	if none.QuestionnaireAnswers != nil {
+		t.Errorf("an application without answers should read back nil, got %s", none.QuestionnaireAnswers)
+	}
+}

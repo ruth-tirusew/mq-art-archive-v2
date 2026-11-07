@@ -108,8 +108,16 @@ type QuestionnaireAdminService interface {
 // ApplicationQuestionnaireGate lets onboarding require a complete questionnaire without
 // depending on the questionnaire context's types.
 type ApplicationQuestionnaireGate interface {
-	// CheckComplete returns the revision id the applicant has fully answered. It returns
-	// (nil, nil) when no questionnaire has been published, and apperrors.ErrValidation naming the
-	// missing questions when a required one is unanswered.
-	CheckComplete(ctx context.Context, userID uuid.UUID) (*uuid.UUID, error)
+	// CheckComplete returns the revision the applicant has fully answered, with a frozen copy of
+	// their answers to store on the application. It returns (nil, nil) when no questionnaire has
+	// been published, and apperrors.ErrValidation naming the missing questions when a required one
+	// is unanswered.
+	CheckComplete(ctx context.Context, userID uuid.UUID) (*SubmittedQuestionnaire, error)
+}
+
+// SubmittedQuestionnaire is what an application keeps of the questionnaire. Answers is opaque to
+// onboarding and only meaningful to the questionnaire context.
+type SubmittedQuestionnaire struct {
+	RevisionID uuid.UUID
+	Answers    []byte
 }

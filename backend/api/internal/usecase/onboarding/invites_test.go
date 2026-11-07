@@ -122,12 +122,16 @@ func (u *userStub) GetByID(ctx context.Context, id uuid.UUID) (*identity.User, e
 }
 
 type gateStub struct {
-	rev *uuid.UUID
-	err error
+	rev     *uuid.UUID
+	answers []byte
+	err     error
 }
 
-func (g gateStub) CheckComplete(ctx context.Context, userID uuid.UUID) (*uuid.UUID, error) {
-	return g.rev, g.err
+func (g gateStub) CheckComplete(ctx context.Context, userID uuid.UUID) (*inbound.SubmittedQuestionnaire, error) {
+	if g.rev == nil {
+		return nil, g.err
+	}
+	return &inbound.SubmittedQuestionnaire{RevisionID: *g.rev, Answers: g.answers}, g.err
 }
 
 type registrarStub struct {

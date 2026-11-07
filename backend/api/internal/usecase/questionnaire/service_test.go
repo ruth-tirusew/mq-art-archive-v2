@@ -311,9 +311,9 @@ func TestCheckComplete(t *testing.T) {
 	ctx := context.Background()
 	user := uuid.New()
 
-	rev, err := e.svc.CheckComplete(ctx, user)
+	submitted, err := e.svc.CheckComplete(ctx, user)
 	assist.NoError(t, err)
-	if rev != nil {
+	if submitted != nil {
 		t.Error("no published questionnaire should mean no requirement")
 	}
 
@@ -326,9 +326,9 @@ func TestCheckComplete(t *testing.T) {
 	assist.Contains(t, err.Error(), "bio")
 
 	assist.NoError(t, e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{{Key: "bio", Body: "hello"}}))
-	rev, err = e.svc.CheckComplete(ctx, user)
+	submitted, err = e.svc.CheckComplete(ctx, user)
 	assist.NoError(t, err)
-	assist.Equal(t, published.ID, *rev) // optional "city" need not be answered
+	assist.Equal(t, published.ID, submitted.RevisionID) // optional "city" need not be answered
 }
 
 func TestPublicAnswers_onlyPublicNonBlankCurrentQuestions(t *testing.T) {
@@ -593,4 +593,50 @@ func TestApplicationReviewView_resolvesTheApplicant(t *testing.T) {
 
 	_, err = e.svc.ApplicationReviewView(ctx, uuid.New())
 	assist.ErrorIs(t, err, apperrors.ErrNotFound)
+}
+
+func TestApplicationReviewView_showsWhatWasSubmittedNotWhatTheArtistWroteSince(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	user, appID := uuid.New(), uuid.New()
+	e.publish(t, domain.ChangeSubstantive, q("bio", domain.TypeShortText))
+	assist.NoError(t, e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{{Key: "bio", Body: "as submitted"}}))
+
+	submitted, err := e.svc.CheckComplete(ctx, user)
+	assist.NoError(t, err)
+	app := &onboardingdomain.OnboardingApplication{
+		ID: appID, ApplicantID: user, QuestionnaireRevisionID: &submitted.RevisionID, QuestionnaireAnswers: submitted.Answers,
+	}
+	e.svc = NewService(e.revs, e.answers, e.nudges, richtext.NewSanitizer(), &userRepoStub{},
+		WithLookups(nil, applicationsStub{byID: map[uuid.UUID]*onboardingdomain.OnboardingApplication{appID: app}}))
+
+	// The artist edits the live answer after the application was decided.
+	assist.NoError(t, e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{{Key: "bio", Body: "edited later"}}))
+
+	view, err := e.svc.ApplicationReviewView(ctx, appID)
+	assist.NoError(t, err)
+	assist.Equal(t, "as submitted", view.Items[0].Answer.Body)
+	assist.Equal(t, user, view.Items[0].Answer.UserID)
+}
+
+func TestApplicationReviewView_snapshotIsSanitisedOnTheWayOut(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	user, appID := uuid.New(), uuid.New()
+	rev := e.publish(t, domain.ChangeSubstantive, q("bio", domain.TypeLongText))
+	raw, err := encodeSnapshot([]domain.Answer{{
+		QuestionKey: "bio", RevisionID: rev.ID, Format: domain.FormatRich, Lang: domain.LangEnglish,
+		Body: "<p>hi</p><script>alert(1)</script>",
+	}})
+	assist.NoError(t, err)
+	e.svc = NewService(e.revs, e.answers, e.nudges, richtext.NewSanitizer(), &userRepoStub{},
+		WithLookups(nil, applicationsStub{byID: map[uuid.UUID]*onboardingdomain.OnboardingApplication{
+			appID: {ID: appID, ApplicantID: user, QuestionnaireRevisionID: &rev.ID, QuestionnaireAnswers: raw},
+		}}))
+
+	view, err := e.svc.ApplicationReviewView(ctx, appID)
+	assist.NoError(t, err)
+	if strings.Contains(view.Items[0].Answer.Body, "script") {
+		t.Errorf("snapshot html must be re-sanitised, got %q", view.Items[0].Answer.Body)
+	}
 }

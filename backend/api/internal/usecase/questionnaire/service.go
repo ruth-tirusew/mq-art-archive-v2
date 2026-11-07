@@ -4,6 +4,7 @@ package questionnaire
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -290,7 +291,7 @@ func (s *Service) SaveAnswers(ctx context.Context, userID uuid.UUID, in []inboun
 }
 
 // CheckComplete implements inbound.ApplicationQuestionnaireGate.
-func (s *Service) CheckComplete(ctx context.Context, userID uuid.UUID) (*uuid.UUID, error) {
+func (s *Service) CheckComplete(ctx context.Context, userID uuid.UUID) (*inbound.SubmittedQuestionnaire, error) {
 	rev, err := s.revisions.GetLatestPublished(ctx)
 	if errors.Is(err, apperrors.ErrNotFound) {
 		return nil, nil
@@ -305,7 +306,49 @@ func (s *Service) CheckComplete(ctx context.Context, userID uuid.UUID) (*uuid.UU
 	if missing := rev.MissingRequired(answers); len(missing) > 0 {
 		return nil, invalid("please answer the required questions: %s", strings.Join(missing, ", "))
 	}
-	return &rev.ID, nil
+	snapshot, err := encodeSnapshot(s.cleanAnswers(answers))
+	if err != nil {
+		return nil, err
+	}
+	return &inbound.SubmittedQuestionnaire{RevisionID: rev.ID, Answers: snapshot}, nil
+}
+
+// snapshotAnswer is the stored shape of one answer frozen on an application. Keep the json tags
+// stable: stored applications are read back through them.
+type snapshotAnswer struct {
+	Key        string    `json:"key"`
+	Body       string    `json:"body"`
+	Format     string    `json:"format"`
+	Lang       string    `json:"lang"`
+	RevisionID uuid.UUID `json:"revision_id"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+func encodeSnapshot(answers []domain.Answer) ([]byte, error) {
+	out := make([]snapshotAnswer, len(answers))
+	for i, a := range answers {
+		out[i] = snapshotAnswer{a.QuestionKey, a.Body, string(a.Format), string(a.Lang), a.RevisionID, a.UpdatedAt}
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("encode answer snapshot: %w", err)
+	}
+	return b, nil
+}
+
+func decodeSnapshot(userID uuid.UUID, raw []byte) ([]domain.Answer, error) {
+	var in []snapshotAnswer
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, fmt.Errorf("decode answer snapshot: %w", err)
+	}
+	out := make([]domain.Answer, len(in))
+	for i, a := range in {
+		out[i] = domain.Answer{
+			UserID: userID, QuestionKey: a.Key, RevisionID: a.RevisionID, Body: a.Body,
+			Format: domain.Format(a.Format), Lang: domain.Lang(a.Lang), CreatedAt: a.UpdatedAt, UpdatedAt: a.UpdatedAt,
+		}
+	}
+	return out, nil
 }
 
 // ---- Public and review views ----
@@ -328,7 +371,9 @@ func (s *Service) PublicAnswersBySlug(ctx context.Context, slug string) ([]inbou
 }
 
 // ApplicationReviewView shows a reviewer an application's answers, private ones included, against
-// the revision the applicant answered.
+// the revision the applicant answered. It reads the copy frozen at submission, so a decision made
+// last year still shows what the applicant said then; only applications without one fall back to
+// the applicant's current answers.
 func (s *Service) ApplicationReviewView(ctx context.Context, applicationID uuid.UUID) (*inbound.ReviewView, error) {
 	if s.applications == nil {
 		return nil, apperrors.ErrNotImplemented
@@ -337,7 +382,18 @@ func (s *Service) ApplicationReviewView(ctx context.Context, applicationID uuid.
 	if err != nil {
 		return nil, err
 	}
-	return s.ReviewView(ctx, app.ApplicantID, app.QuestionnaireRevisionID)
+	if len(app.QuestionnaireAnswers) == 0 {
+		return s.ReviewView(ctx, app.ApplicantID, app.QuestionnaireRevisionID)
+	}
+	rev, err := s.reviewRevision(ctx, app.QuestionnaireRevisionID)
+	if err != nil {
+		return nil, err
+	}
+	answers, err := decodeSnapshot(app.ApplicantID, app.QuestionnaireAnswers)
+	if err != nil {
+		return nil, err
+	}
+	return buildReviewView(rev, s.cleanAnswers(answers)), nil
 }
 
 func (s *Service) PublicAnswers(ctx context.Context, userID uuid.UUID) ([]inbound.PublicAnswer, error) {
@@ -372,14 +428,15 @@ func (s *Service) PublicAnswers(ctx context.Context, userID uuid.UUID) ([]inboun
 	return out, nil
 }
 
-func (s *Service) ReviewView(ctx context.Context, userID uuid.UUID, revisionID *uuid.UUID) (*inbound.ReviewView, error) {
-	var rev *domain.Revision
-	var err error
+func (s *Service) reviewRevision(ctx context.Context, revisionID *uuid.UUID) (*domain.Revision, error) {
 	if revisionID != nil {
-		rev, err = s.revisions.GetRevision(ctx, *revisionID)
-	} else {
-		rev, err = s.revisions.GetLatestPublished(ctx)
+		return s.revisions.GetRevision(ctx, *revisionID)
 	}
+	return s.revisions.GetLatestPublished(ctx)
+}
+
+func (s *Service) ReviewView(ctx context.Context, userID uuid.UUID, revisionID *uuid.UUID) (*inbound.ReviewView, error) {
+	rev, err := s.reviewRevision(ctx, revisionID)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +444,10 @@ func (s *Service) ReviewView(ctx context.Context, userID uuid.UUID, revisionID *
 	if err != nil {
 		return nil, err
 	}
-	answers = s.cleanAnswers(answers)
+	return buildReviewView(rev, s.cleanAnswers(answers)), nil
+}
+
+func buildReviewView(rev *domain.Revision, answers []domain.Answer) *inbound.ReviewView {
 	byKey := indexAnswers(answers)
 
 	view := &inbound.ReviewView{Revision: *rev, Items: []inbound.ReviewItem{}, Other: []domain.Answer{}}
@@ -406,7 +466,7 @@ func (s *Service) ReviewView(ctx context.Context, userID uuid.UUID, revisionID *
 			view.Other = append(view.Other, a)
 		}
 	}
-	return view, nil
+	return view
 }
 
 // cleanAnswers re-sanitises rich answers on the way out. They were sanitised when written, but

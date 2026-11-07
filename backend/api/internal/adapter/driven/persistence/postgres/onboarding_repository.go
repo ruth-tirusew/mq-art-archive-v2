@@ -22,7 +22,8 @@ func NewOnboardingRepository(pool *Pool) outbound.OnboardingRepository {
 
 const onboardingColumns = `
 	id, applicant_id, applicant_type, display_name, COALESCE(requested_handle, ''), notes, review_notes,
-	status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id
+	status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id,
+	questionnaire_answers
 `
 
 func (r *OnboardingRepository) ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error) {
@@ -137,8 +138,9 @@ func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.Onboardi
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO onboarding_applications (
 			id, applicant_id, applicant_type, display_name, requested_handle, notes, review_notes,
-			status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+			status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id,
+			questionnaire_answers
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		ON CONFLICT (id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
 			requested_handle = EXCLUDED.requested_handle,
@@ -149,11 +151,12 @@ func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.Onboardi
 			reviewed_at = EXCLUDED.reviewed_at,
 			updated_at = EXCLUDED.updated_at,
 			questionnaire_revision_id = EXCLUDED.questionnaire_revision_id,
-			invite_id = EXCLUDED.invite_id
+			invite_id = EXCLUDED.invite_id,
+			questionnaire_answers = EXCLUDED.questionnaire_answers
 		RETURNING `+onboardingColumns,
 		app.ID, app.ApplicantID, string(app.ApplicantType), app.DisplayName, nullableString(app.RequestedHandle), app.Notes, app.ReviewNotes,
 		string(app.Status), app.ReviewedBy, app.ReviewedAt, app.CreatedAt, app.UpdatedAt,
-		app.QuestionnaireRevisionID, app.InviteID,
+		app.QuestionnaireRevisionID, app.InviteID, app.QuestionnaireAnswers,
 	)
 
 	saved, err := scanOnboardingApplication(row)
@@ -198,7 +201,7 @@ func scanOnboardingApplication(row scannable) (onboarding.OnboardingApplication,
 	err := row.Scan(
 		&app.ID, &app.ApplicantID, &applicantType, &app.DisplayName, &app.RequestedHandle, &app.Notes, &app.ReviewNotes,
 		&status, &app.ReviewedBy, &app.ReviewedAt, &app.CreatedAt, &app.UpdatedAt,
-		&app.QuestionnaireRevisionID, &app.InviteID,
+		&app.QuestionnaireRevisionID, &app.InviteID, &app.QuestionnaireAnswers,
 	)
 	if err != nil {
 		return onboarding.OnboardingApplication{}, err

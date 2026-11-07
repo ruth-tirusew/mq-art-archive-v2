@@ -164,12 +164,17 @@ func (s *Service) prepareApplication(
 		}
 	}
 
-	var revisionID *uuid.UUID
+	var submitted *inbound.SubmittedQuestionnaire
 	if applicantType == domain.ApplicantTypeArtist && s.questionnaire != nil {
-		revisionID, err = s.questionnaire.CheckComplete(ctx, applicantID)
+		submitted, err = s.questionnaire.CheckComplete(ctx, applicantID)
 		if err != nil {
 			return nil, err
 		}
+	}
+	var revisionID *uuid.UUID
+	var answers []byte
+	if submitted != nil {
+		revisionID, answers = &submitted.RevisionID, submitted.Answers
 	}
 
 	now := s.now()
@@ -182,6 +187,7 @@ func (s *Service) prepareApplication(
 		Notes:                   notes,
 		Status:                  domain.ApprovalStatusPending,
 		QuestionnaireRevisionID: revisionID,
+		QuestionnaireAnswers:    answers,
 		CreatedAt:               now,
 		UpdatedAt:               now,
 	}, nil

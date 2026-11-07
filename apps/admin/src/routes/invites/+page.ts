@@ -1,4 +1,4 @@
-import { invitesService } from '$lib/application/invites';
+import { invitesService } from '$lib/composition';
 import { requireAdmin } from '$lib/utils/loadGuard';
 import type { PageLoad } from './$types';
 

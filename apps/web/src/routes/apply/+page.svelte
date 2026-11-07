@@ -3,9 +3,9 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { authService, currentUser } from "$lib/application/auth";
-  import { inviteService } from "$lib/application/invites";
-  import { onboardingService } from "$lib/application/onboarding";
-  import { questionnaireService } from "$lib/application/questionnaire";
+  import { inviteService } from "$lib/composition";
+  import { onboardingService } from "$lib/composition";
+  import { questionnaireService } from "$lib/composition";
   import { ApiError } from "$lib/adapters/api/client";
   import QuestionnaireForm from "$lib/components/questionnaire/QuestionnaireForm.svelte";
   import SafeHtml from "$lib/components/SafeHtml.svelte";

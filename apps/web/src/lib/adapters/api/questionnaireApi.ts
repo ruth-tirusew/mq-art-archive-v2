@@ -5,6 +5,7 @@ import type {
 	QuestionnaireForm,
 	QuestionnaireNudge
 } from '$lib/core/domain/questionnaire';
+import type { QuestionnairePort } from '$lib/core/ports/questionnaire';
 
 function json(method: 'PUT' | 'POST', body?: unknown, keepalive = false): RequestInit {
 	return {
@@ -25,7 +26,7 @@ async function orNull<T>(request: Promise<T>): Promise<T | null> {
 	}
 }
 
-export class QuestionnaireApi {
+export class QuestionnaireApi implements QuestionnairePort {
 	/** An artist's visible answers, in question order. 404 unless the profile is public. */
 	listArtistAnswers(slug: string): Promise<PublicAnswer[]> {
 		return apiFetch<PublicAnswer[]>(`/api/v1/artists/${encodeURIComponent(slug)}/answers`);

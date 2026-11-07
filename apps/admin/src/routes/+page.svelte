@@ -6,7 +6,7 @@
   import { onMount } from 'svelte';
   import { artistsService } from '$lib/application/artists';
   import { postsService } from '$lib/application/posts';
-  import { onboardingService } from '$lib/application/onboarding';
+  import { onboardingService } from '$lib/composition';
   import { eventsService } from '$lib/application/events';
   import { getAnalyticsSummary, type AnalyticsSummary } from '$lib/application/analytics';
   import { plural } from '$lib/utils/plural';

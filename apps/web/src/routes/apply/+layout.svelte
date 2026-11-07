@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { authService } from '$lib/application/auth';
-	import { inviteService } from '$lib/application/invites';
+	import { inviteService } from '$lib/composition';
 	import { ApiError } from '$lib/adapters/api/client';
 	import InviteLanding from '$lib/components/InviteLanding.svelte';
 	import InviteProblem, { type InviteProblemKind } from '$lib/components/InviteProblem.svelte';

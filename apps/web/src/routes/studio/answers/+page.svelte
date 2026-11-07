@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { questionnaireService } from '$lib/application/questionnaire';
+	import { questionnaireService } from '$lib/composition';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import QuestionnaireForm from '$lib/components/questionnaire/QuestionnaireForm.svelte';
 	import type { QuestionnaireForm as QuestionnaireFormData } from '$lib/core/domain/questionnaire';

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { onboardingService } from '$lib/application/onboarding';
+	import { onboardingService } from '$lib/composition';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { OnboardingApplication } from '$lib/core/domain/onboarding';
 	import { ApiError } from '$lib/adapters/api/client';

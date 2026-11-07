@@ -1,16 +1,16 @@
-import { OnboardingApi } from '$lib/adapters/api/onboardingApi';
 import type { ApprovalStatus, OnboardingApplication } from '$lib/core/domain/onboarding';
+import type { OnboardingPort } from '$lib/core/ports/onboarding';
 
-const api = new OnboardingApi();
-
-export const onboardingService = {
-  listPending(): Promise<OnboardingApplication[]> {
-    return api.listPending();
-  },
-  getById(id: string): Promise<OnboardingApplication> {
-    return api.getById(id);
-  },
-  review(id: string, status: ApprovalStatus, notes: string): Promise<OnboardingApplication> {
-    return api.review(id, status, notes);
-  }
-};
+export function createOnboardingService(port: OnboardingPort) {
+  return {
+    listPending(): Promise<OnboardingApplication[]> {
+      return port.listPending();
+    },
+    getById(id: string): Promise<OnboardingApplication> {
+      return port.getById(id);
+    },
+    review(id: string, status: ApprovalStatus, notes: string): Promise<OnboardingApplication> {
+      return port.review(id, status, notes);
+    }
+  };
+}

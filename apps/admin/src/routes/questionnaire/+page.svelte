@@ -12,7 +12,7 @@
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '$lib/components/ui/table';
-  import { questionnaireService } from '$lib/application/questionnaire';
+  import { questionnaireService } from '$lib/composition';
   import type { ChangeKind } from '$lib/core/domain/questionnaire';
   import { plural } from '$lib/utils/plural';
   import {

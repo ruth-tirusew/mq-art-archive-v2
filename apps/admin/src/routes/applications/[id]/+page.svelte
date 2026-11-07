@@ -3,7 +3,7 @@
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
-  import { onboardingService } from '$lib/application/onboarding';
+  import { onboardingService } from '$lib/composition';
   import { Alert } from '$lib/components/ui/alert';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';

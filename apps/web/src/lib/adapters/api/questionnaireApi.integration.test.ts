@@ -4,7 +4,7 @@ import { PUBLIC_API_URL } from '$env/static/public';
 import { server } from '../../../test/msw/server';
 import { InviteApi } from '$lib/adapters/api/inviteApi';
 import { QuestionnaireApi } from '$lib/adapters/api/questionnaireApi';
-import { questionnaireService } from '$lib/application/questionnaire';
+import { questionnaireService } from '$lib/composition';
 
 const base = PUBLIC_API_URL.replace(/\/$/, '');
 

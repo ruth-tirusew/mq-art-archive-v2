@@ -2,7 +2,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { Alert, Input } from '$ui';
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
-	import { questionnaireService } from '$lib/application/questionnaire';
+	import { questionnaireService } from '$lib/composition';
 	import type { FormQuestion, QuestionnaireForm } from '$lib/core/domain/questionnaire';
 	import { AnswerAutosave, type SaveStatus } from '$lib/utils/answerAutosave';
 	import {

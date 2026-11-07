@@ -8,7 +8,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '$lib/components/ui/table';
-  import { invitesService } from '$lib/application/invites';
+  import { invitesService } from '$lib/composition';
   import type { Invite, InviteCreated, InviteStatus } from '$lib/core/domain/invite';
 
   let { data } = $props();

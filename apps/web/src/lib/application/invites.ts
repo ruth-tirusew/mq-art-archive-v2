@@ -1,18 +1,20 @@
-import { InviteApi } from '$lib/adapters/api/inviteApi';
 import type { User } from '$lib/core/domain/auth';
 import type { ClaimInviteInput, InvitePreview } from '$lib/core/domain/invite';
 import type { OnboardingApplication } from '$lib/core/domain/onboarding';
+import type { InvitePort } from '$lib/core/ports/invite';
 
-const api = new InviteApi();
+export function createInviteService(port: InvitePort) {
+	return {
+		preview(token: string): Promise<InvitePreview> {
+			return port.preview(token);
+		},
+		register(token: string, password: string): Promise<User> {
+			return port.register(token, password);
+		},
+		claim(input: ClaimInviteInput): Promise<OnboardingApplication> {
+			return port.claim(input);
+		}
+	};
+}
 
-export const inviteService = {
-	preview(token: string): Promise<InvitePreview> {
-		return api.preview(token);
-	},
-	register(token: string, password: string): Promise<User> {
-		return api.register(token, password);
-	},
-	claim(input: ClaimInviteInput): Promise<OnboardingApplication> {
-		return api.claim(input);
-	}
-};
+export type InviteService = ReturnType<typeof createInviteService>;

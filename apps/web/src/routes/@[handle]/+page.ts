@@ -1,6 +1,6 @@
 import { artPostService } from '$lib/application/artPosts';
 import { artistsService } from '$lib/application/artists';
-import { questionnaireService } from '$lib/application/questionnaire';
+import { questionnaireService } from '$lib/composition';
 import { guardLoad } from '$lib/utils/loadGuard';
 import type { PageLoad } from './$types';
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { authService } from '$lib/application/auth';
-	import { inviteService } from '$lib/application/invites';
+	import { inviteService } from '$lib/composition';
 	import { ApiError } from '$lib/adapters/api/client';
 	import type { InvitePreview } from '$lib/core/domain/invite';
 	import { Alert, Button, Field, Input, PageHeader } from '$ui';

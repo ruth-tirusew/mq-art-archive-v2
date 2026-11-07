@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { questionnaireService } from '$lib/application/questionnaire';
+	import { questionnaireService } from '$lib/composition';
 	import type { QuestionnaireNudge } from '$lib/core/domain/questionnaire';
 
 	let nudge = $state<QuestionnaireNudge | null>(null);

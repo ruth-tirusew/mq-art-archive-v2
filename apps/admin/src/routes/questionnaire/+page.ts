@@ -1,4 +1,4 @@
-import { questionnaireService } from '$lib/application/questionnaire';
+import { questionnaireService } from '$lib/composition';
 import { requireAdmin } from '$lib/utils/loadGuard';
 import type { PageLoad } from './$types';
 

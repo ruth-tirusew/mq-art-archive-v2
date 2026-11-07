@@ -194,10 +194,19 @@ func TestHTTP_getPostByID_integration(t *testing.T) {
 	created, err := app.Art.CreateDraft(ctx, artistID, art.ArtPostWrite{Title: "Visible Work", Description: "desc", Medium: "ink"})
 	assist.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+created.ID.String(), nil)
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
+	get := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/posts/"+created.ID.String(), nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
 
+	// Drafts are private to their artist and admins.
+	assist.Equal(t, http.StatusNotFound, get().Code)
+
+	_, err = app.Art.PublishOwned(ctx, artistID, created.ID)
+	assist.NoError(t, err)
+	rec := get()
 	assist.Equal(t, http.StatusOK, rec.Code)
 	assist.Contains(t, rec.Body.String(), "Visible Work")
 	_ = userID

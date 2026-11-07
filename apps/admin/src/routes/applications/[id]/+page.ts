@@ -1,5 +1,5 @@
-import { onboardingService } from '$lib/application/onboarding';
-import { questionnaireService } from '$lib/application/questionnaire';
+import { onboardingService } from '$lib/composition';
+import { questionnaireService } from '$lib/composition';
 import { requireAdmin } from '$lib/utils/loadGuard';
 import type { PageLoad } from './$types';
 

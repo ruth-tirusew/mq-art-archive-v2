@@ -10,7 +10,8 @@ import (
 )
 
 type OnboardingService interface {
-	ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error)
+	// List returns one page of applications and the total number of matches.
+	List(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error)
 	GetMyApplication(ctx context.Context, applicantID uuid.UUID) (*onboarding.OnboardingApplication, error)
 	Submit(ctx context.Context, applicantID uuid.UUID, applicantType onboarding.ApplicantType, displayName, notes string) (*onboarding.OnboardingApplication, error)

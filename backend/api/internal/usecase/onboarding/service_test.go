@@ -30,6 +30,11 @@ func (m *mockOnboardingRepo) ListPending(ctx context.Context) ([]domain.Onboardi
 	return m.listPending(ctx)
 }
 
+func (m *mockOnboardingRepo) List(ctx context.Context, filter domain.ListFilter) ([]domain.OnboardingApplication, int, error) {
+	apps, err := m.ListPending(ctx)
+	return apps, len(apps), err
+}
+
 func (m *mockOnboardingRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error) {
 	return m.getByID(ctx, id)
 }

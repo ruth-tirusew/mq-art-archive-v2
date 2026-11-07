@@ -76,8 +76,14 @@ func NewService(
 	return s
 }
 
-func (s *Service) ListPending(ctx context.Context) ([]domain.OnboardingApplication, error) {
-	return s.applications.ListPending(ctx)
+func (s *Service) List(ctx context.Context, filter domain.ListFilter) ([]domain.OnboardingApplication, int, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 50
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	return s.applications.List(ctx, filter)
 }
 
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error) {

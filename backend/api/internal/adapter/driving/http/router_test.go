@@ -272,8 +272,8 @@ func (stubArt) AdminUpdate(ctx context.Context, postID uuid.UUID, status *art.Ar
 
 type stubOnboarding struct{}
 
-func (stubOnboarding) ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error) {
-	return []onboarding.OnboardingApplication{{ID: uuid.New(), DisplayName: "Applicant", Status: onboarding.ApprovalStatusPending}}, nil
+func (stubOnboarding) List(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error) {
+	return []onboarding.OnboardingApplication{{ID: uuid.New(), DisplayName: "Applicant", Status: onboarding.ApprovalStatusPending}}, 1, nil
 }
 func (stubOnboarding) GetByID(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error) {
 	return &onboarding.OnboardingApplication{ID: id, Status: onboarding.ApprovalStatusPending}, nil

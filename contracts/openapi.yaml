@@ -652,20 +652,46 @@ paths:
   /admin/v1/applications:
     get:
       tags: [onboarding]
-      summary: List pending onboarding applications
-      operationId: listPendingApplications
+      summary: List onboarding applications (the pending queue by default)
+      operationId: listApplications
       security:
         - bearerAuth: []
         - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: >-
+            Which applications to list. Omitted means pending, the review queue (oldest first).
+            Decided applications are newest decision first.
+          schema:
+            type: string
+            enum: [pending, approved, rejected, all]
+            default: pending
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
       responses:
         "200":
-          description: Pending applications
+          description: A page of applications
+          headers:
+            X-Total-Count:
+              description: Number of applications matching the status, across all pages
+              schema: { type: integer }
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/OnboardingApplication"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
 

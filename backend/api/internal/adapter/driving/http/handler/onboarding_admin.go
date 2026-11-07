@@ -1,20 +1,33 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mq/api/internal/adapter/driving/http/dto"
 	"github.com/mq/api/internal/adapter/driving/http/requestauth"
+	"github.com/mq/api/internal/domain/apperrors"
 	"github.com/mq/api/internal/domain/onboarding"
 )
 
-func (h *OnboardingHandler) ListPending(c *gin.Context) {
-	apps, err := h.onboarding.ListPending(c.Request.Context())
+// List serves the admin queue. With no ?status= it is the pending review queue, as before; approved,
+// rejected and all give the decision history.
+func (h *OnboardingHandler) List(c *gin.Context) {
+	status, ok := onboarding.ParseStatusFilter(c.Query("status"))
+	if !ok {
+		writeError(c, fmt.Errorf("%w: status must be pending, approved, rejected or all", apperrors.ErrValidation))
+		return
+	}
+	apps, total, err := h.onboarding.List(c.Request.Context(), onboarding.ListFilter{
+		Status: status, Limit: queryLimit(c, 50), Offset: queryOffset(c),
+	})
 	if err != nil {
 		writeError(c, err)
 		return
 	}
+	c.Header("X-Total-Count", strconv.Itoa(total))
 	c.JSON(http.StatusOK, dto.ToOnboardingApplicationResponses(apps))
 }
 

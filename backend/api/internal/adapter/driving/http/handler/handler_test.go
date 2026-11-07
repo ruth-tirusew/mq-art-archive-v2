@@ -299,15 +299,15 @@ func (m *mockArt) AdminUpdate(ctx context.Context, postID uuid.UUID, status *art
 }
 
 type mockOnboarding struct {
-	listPending      func(ctx context.Context) ([]onboarding.OnboardingApplication, error)
+	list             func(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error)
 	getByID          func(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error)
 	getMyApplication func(ctx context.Context, applicantID uuid.UUID) (*onboarding.OnboardingApplication, error)
 	submit           func(ctx context.Context, applicantID uuid.UUID, applicantType onboarding.ApplicantType, displayName, notes string) (*onboarding.OnboardingApplication, error)
 	review           func(ctx context.Context, id, reviewerID uuid.UUID, status onboarding.ApprovalStatus, notes string) (*onboarding.OnboardingApplication, error)
 }
 
-func (m *mockOnboarding) ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error) {
-	return m.listPending(ctx)
+func (m *mockOnboarding) List(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error) {
+	return m.list(ctx, filter)
 }
 func (m *mockOnboarding) GetByID(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error) {
 	return m.getByID(ctx, id)
@@ -804,33 +804,69 @@ func TestArtHandler_Create_noArtistProfile(t *testing.T) {
 	assist.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestOnboardingHandler_ListPending_success(t *testing.T) {
+func TestOnboardingHandler_List_defaultsToThePendingQueue(t *testing.T) {
 	appID := uuid.New()
+	var got onboarding.ListFilter
 	h := NewOnboardingHandler(&mockOnboarding{
-		listPending: func(ctx context.Context) ([]onboarding.OnboardingApplication, error) {
+		list: func(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error) {
+			got = filter
 			return []onboarding.OnboardingApplication{{
 				ID: appID, DisplayName: "New Artist", Status: onboarding.ApprovalStatusPending,
-			}}, nil
+			}}, 7, nil
 		},
 	})
 
-	w := serve(t, http.MethodGet, "/admin/v1/applications", nil, nil, nil, h.ListPending)
+	w := serve(t, http.MethodGet, "/admin/v1/applications", nil, nil, nil, h.List)
 
 	assist.Equal(t, http.StatusOK, w.Code)
+	assist.Equal(t, "7", w.Header().Get("X-Total-Count"))
+	if got.Status == nil || *got.Status != onboarding.ApprovalStatusPending {
+		t.Errorf("no ?status= should mean pending, got %v", got.Status)
+	}
 	var resp []dto.OnboardingApplicationResponse
 	assist.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	assist.Len(t, 1, len(resp))
 	assist.Equal(t, "New Artist", resp[0].DisplayName)
 }
 
-func TestOnboardingHandler_ListPending_error(t *testing.T) {
+func TestOnboardingHandler_List_filtersAndPages(t *testing.T) {
+	var got onboarding.ListFilter
 	h := NewOnboardingHandler(&mockOnboarding{
-		listPending: func(ctx context.Context) ([]onboarding.OnboardingApplication, error) {
-			return nil, errors.New("db down")
+		list: func(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error) {
+			got = filter
+			return nil, 0, nil
 		},
 	})
 
-	w := serve(t, http.MethodGet, "/admin/v1/applications", nil, nil, nil, h.ListPending)
+	w := serve(t, http.MethodGet, "/admin/v1/applications?status=rejected&limit=10&offset=20", nil, nil, nil, h.List)
+	assist.Equal(t, http.StatusOK, w.Code)
+	if got.Status == nil || *got.Status != onboarding.ApprovalStatusRejected {
+		t.Errorf("status = %v, want rejected", got.Status)
+	}
+	assist.Equal(t, 10, got.Limit)
+	assist.Equal(t, 20, got.Offset)
+
+	w = serve(t, http.MethodGet, "/admin/v1/applications?status=all", nil, nil, nil, h.List)
+	assist.Equal(t, http.StatusOK, w.Code)
+	if got.Status != nil {
+		t.Errorf("status=all should not filter, got %v", *got.Status)
+	}
+}
+
+func TestOnboardingHandler_List_rejectsAnUnknownStatus(t *testing.T) {
+	h := NewOnboardingHandler(&mockOnboarding{})
+	w := serve(t, http.MethodGet, "/admin/v1/applications?status=bogus", nil, nil, nil, h.List)
+	assist.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOnboardingHandler_List_error(t *testing.T) {
+	h := NewOnboardingHandler(&mockOnboarding{
+		list: func(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error) {
+			return nil, 0, errors.New("db down")
+		},
+	})
+
+	w := serve(t, http.MethodGet, "/admin/v1/applications", nil, nil, nil, h.List)
 
 	assist.Equal(t, http.StatusInternalServerError, w.Code)
 }

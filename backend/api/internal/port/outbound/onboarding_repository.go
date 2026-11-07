@@ -9,6 +9,9 @@ import (
 
 type OnboardingRepository interface {
 	ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error)
+	// List returns one page and the total number of matches. The pending queue is oldest first;
+	// decided applications are newest decision first.
+	List(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error)
 	GetLatestByApplicantID(ctx context.Context, applicantID uuid.UUID) (*onboarding.OnboardingApplication, error)
 	// Save inserts or updates an application. ErrConflict if it would break a uniqueness rule

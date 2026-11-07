@@ -177,7 +177,7 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 	admin := r.Group("/admin/v1")
 	admin.Use(middleware.Authenticate(deps.Auth), middleware.RequireRole("admin"))
 	{
-		admin.GET("/applications", handlers.Onboarding.ListPending)
+		admin.GET("/applications", handlers.Onboarding.List)
 		admin.GET("/applications/:id", handlers.Onboarding.GetByID)
 		admin.PUT("/applications/:id", handlers.Onboarding.Review)
 		admin.GET("/applications/:id/answers", handlers.Questionnaire.ApplicationAnswers)

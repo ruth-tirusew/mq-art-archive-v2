@@ -128,3 +128,56 @@ func TestOnboardingRepository_Save_mapsUniqueViolationsToConflict(t *testing.T) 
 	_, err = repo.Save(ctx, newPendingApp(applicant, "another_handle"))
 	assist.ErrorIs(t, err, postgres.ErrConflict)
 }
+
+func TestOnboardingRepository_List_filtersPagesAndOrders(t *testing.T) {
+	pool := integration.SetupPostgresPool(t)
+	repo := postgres.NewOnboardingRepository(pool)
+	ctx := context.Background()
+
+	base := time.Now().UTC().Add(-time.Hour)
+	save := func(handle string, age time.Duration, status onboarding.ApprovalStatus, reviewedAgo time.Duration) onboarding.OnboardingApplication {
+		app := newPendingApp(uuid.New(), handle)
+		app.CreatedAt = base.Add(age)
+		app.UpdatedAt = app.CreatedAt
+		app.Status = status
+		if status != onboarding.ApprovalStatusPending {
+			at := base.Add(reviewedAgo)
+			app.ReviewedAt = &at
+		}
+		saved, err := repo.Save(ctx, app)
+		assist.NoError(t, err)
+		return *saved
+	}
+	oldPending := save("old_pending", 0, onboarding.ApprovalStatusPending, 0)
+	newPending := save("new_pending", time.Minute, onboarding.ApprovalStatusPending, 0)
+	early := save("early_approved", 2*time.Minute, onboarding.ApprovalStatusApproved, 10*time.Minute)
+	late := save("late_rejected", 3*time.Minute, onboarding.ApprovalStatusRejected, 20*time.Minute)
+
+	pendingStatus := onboarding.ApprovalStatusPending
+	got, total, err := repo.List(ctx, onboarding.ListFilter{Status: &pendingStatus, Limit: 10})
+	assist.NoError(t, err)
+	assist.Equal(t, 2, total)
+	assist.Len(t, 2, len(got))
+	assist.Equal(t, oldPending.ID, got[0].ID) // the queue is oldest first
+	assist.Equal(t, newPending.ID, got[1].ID)
+
+	// Everything, newest decision first; undecided ones sort by when they were submitted.
+	all, total, err := repo.List(ctx, onboarding.ListFilter{Limit: 10})
+	assist.NoError(t, err)
+	assist.Equal(t, 4, total)
+	assist.Equal(t, late.ID, all[0].ID)
+	assist.Equal(t, early.ID, all[1].ID)
+
+	// Paging keeps the total.
+	page, total, err := repo.List(ctx, onboarding.ListFilter{Limit: 1, Offset: 1})
+	assist.NoError(t, err)
+	assist.Equal(t, 4, total)
+	assist.Len(t, 1, len(page))
+	assist.Equal(t, all[1].ID, page[0].ID)
+
+	rejected := onboarding.ApprovalStatusRejected
+	only, total, err := repo.List(ctx, onboarding.ListFilter{Status: &rejected, Limit: 10})
+	assist.NoError(t, err)
+	assist.Equal(t, 1, total)
+	assist.Equal(t, late.ID, only[0].ID)
+}

@@ -54,6 +54,49 @@ func (r *OnboardingRepository) ListPending(ctx context.Context) ([]onboarding.On
 	return apps, nil
 }
 
+func (r *OnboardingRepository) List(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error) {
+	var status any
+	order := "COALESCE(reviewed_at, created_at) DESC, id"
+	if filter.Status != nil {
+		status = string(*filter.Status)
+		if *filter.Status == onboarding.ApprovalStatusPending {
+			order = "created_at ASC, id"
+		}
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT count(*) FROM onboarding_applications WHERE ($1::text IS NULL OR status = $1)
+	`, status).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count applications: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+onboardingColumns+`
+		FROM onboarding_applications
+		WHERE ($1::text IS NULL OR status = $1)
+		ORDER BY `+order+`
+		LIMIT $2 OFFSET $3
+	`, status, filter.Limit, filter.Offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list applications: %w", err)
+	}
+	defer rows.Close()
+
+	apps := []onboarding.OnboardingApplication{}
+	for rows.Next() {
+		app, err := scanOnboardingApplication(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		apps = append(apps, app)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("list applications: %w", err)
+	}
+	return apps, total, nil
+}
+
 func (r *OnboardingRepository) GetByID(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error) {
 	row := r.pool.QueryRow(ctx, `
 		SELECT `+onboardingColumns+`

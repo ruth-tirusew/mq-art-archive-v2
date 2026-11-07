@@ -1,6 +1,23 @@
 export type ApplicantType = 'artist' | 'institution';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
+/** What the admin list can show: one status, or every application. */
+export type ApplicationStatusFilter = ApprovalStatus | 'all';
+
+export const APPLICATION_STATUS_FILTERS: readonly ApplicationStatusFilter[] = ['pending', 'approved', 'rejected', 'all'];
+
+export function parseApplicationStatusFilter(raw: string | null): ApplicationStatusFilter {
+  return APPLICATION_STATUS_FILTERS.find((s) => s === raw) ?? 'pending';
+}
+
+export interface ApplicationPage {
+  items: OnboardingApplication[];
+  /** Matches across all pages, not just this one. */
+  total: number;
+}
+
+export const APPLICATIONS_PAGE_SIZE = 50;
+
 export interface OnboardingApplication {
   id: string;
   applicant_id?: string;

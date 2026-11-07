@@ -48,5 +48,5 @@ func writeError(c *gin.Context, err error) {
 // profileIsPublic reports whether an artist profile may be shown on public pages. Draft and
 // pending profiles (which hold contact details) are only visible to their owner and admins.
 func profileIsPublic(p *profile.ArtistProfile) bool {
-	return p != nil && p.Status == profile.ProfileStatusApproved
+	return p.IsPublic()
 }

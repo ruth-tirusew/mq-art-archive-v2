@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -881,15 +882,24 @@ func TestOnboardingHandler_Review_success(t *testing.T) {
 	assist.Equal(t, http.StatusOK, w.Code)
 }
 
+// Which statuses a review accepts is the usecase's rule; the handler passes the status through and
+// maps the usecase's validation error to 400.
 func TestOnboardingHandler_Review_invalidStatus(t *testing.T) {
 	appID := uuid.New()
-	h := NewOnboardingHandler(&mockOnboarding{})
+	var got onboarding.ApprovalStatus
+	h := NewOnboardingHandler(&mockOnboarding{
+		review: func(_ context.Context, _, _ uuid.UUID, status onboarding.ApprovalStatus, _ string) (*onboarding.OnboardingApplication, error) {
+			got = status
+			return nil, fmt.Errorf("%w: status must be approved or rejected", apperrors.ErrValidation)
+		},
+	})
 	w := serve(t, http.MethodPut, "/admin/v1/applications/"+appID.String(),
 		strings.NewReader(`{"status":"pending"}`),
 		gin.Params{{Key: "id", Value: appID.String()}},
 		map[string]string{"X-User-ID": uuid.New().String()}, h.Review)
 
 	assist.Equal(t, http.StatusBadRequest, w.Code)
+	assist.Equal(t, onboarding.ApprovalStatusPending, got)
 }
 
 func TestOnboardingHandler_Review_missingUserHeader(t *testing.T) {

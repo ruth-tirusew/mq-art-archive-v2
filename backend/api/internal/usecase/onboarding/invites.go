@@ -144,7 +144,7 @@ func (s *Service) PreviewInvite(ctx context.Context, rawToken string) (*inbound.
 	}, nil
 }
 
-func (s *Service) LiveInviteEmail(ctx context.Context, rawToken string) (string, error) {
+func (s *Service) liveInviteEmail(ctx context.Context, rawToken string) (string, error) {
 	if err := s.requireInvites(); err != nil {
 		return "", err
 	}
@@ -156,6 +156,24 @@ func (s *Service) LiveInviteEmail(ctx context.Context, rawToken string) (string,
 		return "", fmt.Errorf("%w: this invite is %s", apperrors.ErrConflict, status)
 	}
 	return inv.Email, nil
+}
+
+func (s *Service) RegisterWithInvite(ctx context.Context, rawToken, password string) (*inbound.RegisteredInvitee, error) {
+	if err := s.requireInvites(); err != nil {
+		return nil, err
+	}
+	if s.registrar == nil {
+		return nil, apperrors.ErrNotImplemented
+	}
+	email, err := s.liveInviteEmail(ctx, rawToken)
+	if err != nil {
+		return nil, err
+	}
+	token, user, err := s.registrar.RegisterInvited(ctx, email, password)
+	if err != nil {
+		return nil, err
+	}
+	return &inbound.RegisteredInvitee{AccessToken: token, User: user}, nil
 }
 
 func (s *Service) SubmitWithInvite(

@@ -24,14 +24,16 @@ const maxRichHTMLBytes = 40_000
 const maxAnswersPerRequest = 100
 
 type Service struct {
-	revisions outbound.QuestionnaireRepository
-	answers   outbound.QuestionnaireAnswerRepository
-	nudges    outbound.QuestionnaireNudgeRepository
-	sanitizer outbound.RichTextSanitizer
-	users     outbound.UserRepository
-	mailer    outbound.Mailer
-	webAppURL string
-	now       func() time.Time
+	revisions    outbound.QuestionnaireRepository
+	answers      outbound.QuestionnaireAnswerRepository
+	nudges       outbound.QuestionnaireNudgeRepository
+	sanitizer    outbound.RichTextSanitizer
+	users        outbound.UserRepository
+	mailer       outbound.Mailer
+	artists      outbound.QuestionnaireArtistLookup
+	applications outbound.QuestionnaireApplicationLookup
+	webAppURL    string
+	now          func() time.Time
 }
 
 type Option func(*Service)
@@ -42,6 +44,11 @@ func WithMailer(mailer outbound.Mailer, webAppURL string) Option {
 		s.mailer = mailer
 		s.webAppURL = strings.TrimRight(webAppURL, "/")
 	}
+}
+
+// WithLookups enables the views that start from a profile slug or an application id.
+func WithLookups(artists outbound.QuestionnaireArtistLookup, applications outbound.QuestionnaireApplicationLookup) Option {
+	return func(s *Service) { s.artists, s.applications = artists, applications }
 }
 
 // WithClock overrides the time source (tests).
@@ -302,6 +309,36 @@ func (s *Service) CheckComplete(ctx context.Context, userID uuid.UUID) (*uuid.UU
 }
 
 // ---- Public and review views ----
+
+// PublicAnswersBySlug returns an artist's visible answers. The profile must be public: a draft,
+// pending or taken-down profile answers ErrNotFound exactly like an unknown slug, so its answers
+// (which may exist, since artists fill the form before approval) are never exposed.
+func (s *Service) PublicAnswersBySlug(ctx context.Context, slug string) ([]inbound.PublicAnswer, error) {
+	if s.artists == nil {
+		return nil, apperrors.ErrNotImplemented
+	}
+	p, err := s.artists.GetArtistBySlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	if !p.IsPublic() {
+		return nil, apperrors.ErrNotFound
+	}
+	return s.PublicAnswers(ctx, p.UserID)
+}
+
+// ApplicationReviewView shows a reviewer an application's answers, private ones included, against
+// the revision the applicant answered.
+func (s *Service) ApplicationReviewView(ctx context.Context, applicationID uuid.UUID) (*inbound.ReviewView, error) {
+	if s.applications == nil {
+		return nil, apperrors.ErrNotImplemented
+	}
+	app, err := s.applications.GetByID(ctx, applicationID)
+	if err != nil {
+		return nil, err
+	}
+	return s.ReviewView(ctx, app.ApplicantID, app.QuestionnaireRevisionID)
+}
 
 func (s *Service) PublicAnswers(ctx context.Context, userID uuid.UUID) ([]inbound.PublicAnswer, error) {
 	rev, err := s.revisions.GetLatestPublished(ctx)

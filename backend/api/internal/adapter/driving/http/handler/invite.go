@@ -12,16 +12,14 @@ import (
 
 type InviteHandler struct {
 	invites    inbound.InviteService
-	auth       inbound.AuthService
 	cookieName string
 	webAppURL  string
 	now        func() time.Time
 }
 
-func NewInviteHandler(invites inbound.InviteService, auth inbound.AuthService, cookieName, webAppURL string) *InviteHandler {
+func NewInviteHandler(invites inbound.InviteService, cookieName, webAppURL string) *InviteHandler {
 	return &InviteHandler{
 		invites:    invites,
-		auth:       auth,
 		cookieName: cookieName,
 		webAppURL:  strings.TrimRight(webAppURL, "/"),
 		now:        func() time.Time { return time.Now().UTC() },
@@ -137,16 +135,11 @@ func (h *InviteHandler) Register(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	email, err := h.invites.LiveInviteEmail(c.Request.Context(), req.Token)
+	registered, err := h.invites.RegisterWithInvite(c.Request.Context(), req.Token, req.Password)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	token, user, err := h.auth.RegisterInvited(c.Request.Context(), email, req.Password)
-	if err != nil {
-		writeError(c, err)
-		return
-	}
-	writeAuthCookie(c, h.cookieName, token)
-	c.JSON(http.StatusCreated, toUserResponse(user))
+	writeAuthCookie(c, h.cookieName, registered.AccessToken)
+	c.JSON(http.StatusCreated, toUserResponse(registered.User))
 }

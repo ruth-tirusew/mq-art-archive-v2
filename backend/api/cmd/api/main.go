@@ -141,11 +141,27 @@ func main() {
 		richtextadapter.NewSanitizer(),
 		userRepo,
 		questionnaireuc.WithMailer(mailer, cfg.WebAppURL),
+		questionnaireuc.WithLookups(profileRepo, onboardingRepo),
+	)
+	authSvc := authuc.NewService(
+		userRepo,
+		oauthAccountRepo,
+		tokenSvc,
+		passwordHasher,
+		stateSvc,
+		oauthProviders,
+		cfg.CORSOrigins,
+		mailer,
+		passwordResetRepo,
+		notifPrefsRepo,
+		cfg.WebAppURL,
+		emailVerificationRepo,
 	)
 	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo,
 		onboardinguc.WithMailer(mailer, cfg.WebAppURL),
 		onboardinguc.WithInvites(postgres.NewInviteRepository(pool)),
 		onboardinguc.WithQuestionnaire(questionnaireSvc),
+		onboardinguc.WithInvitedRegistrar(authSvc),
 	)
 	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
 	// polling goroutine below can reuse this same instance rather than constructing a
@@ -163,20 +179,6 @@ func main() {
 		articleRepo, eventRepo, artPostRepo, digestRecipientRepo, digestRunRepo,
 		notifPrefsRepo, telegramLinkRepo, cfg.JWTSecret,
 		mailer, telegramNotifier, cfg.WebAppURL, cfg.PublicAPIURL,
-	)
-	authSvc := authuc.NewService(
-		userRepo,
-		oauthAccountRepo,
-		tokenSvc,
-		passwordHasher,
-		stateSvc,
-		oauthProviders,
-		cfg.CORSOrigins,
-		mailer,
-		passwordResetRepo,
-		notifPrefsRepo,
-		cfg.WebAppURL,
-		emailVerificationRepo,
 	)
 
 	authCfg := middleware.AuthConfig{
@@ -200,8 +202,8 @@ func main() {
 		Event:         handler.NewEventHandler(eventsSvc),
 		Search:        handler.NewSearchHandler(searchSvc),
 		Onboarding:    handler.NewOnboardingHandler(onboardingSvc),
-		Questionnaire: handler.NewQuestionnaireHandler(questionnaireSvc, questionnaireSvc, profileSvc, onboardingSvc),
-		Invite:        handler.NewInviteHandler(onboardingSvc, authSvc, cfg.AuthCookieName, cfg.WebAppURL),
+		Questionnaire: handler.NewQuestionnaireHandler(questionnaireSvc, questionnaireSvc),
+		Invite:        handler.NewInviteHandler(onboardingSvc, cfg.AuthCookieName, cfg.WebAppURL),
 		Auth:          handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
 		Settings:      handler.NewSettingsHandler(settingsSvc),
 		Media:         handler.NewMediaHandler(mediaSvc),

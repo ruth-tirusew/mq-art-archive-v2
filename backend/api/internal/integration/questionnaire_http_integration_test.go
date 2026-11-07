@@ -496,3 +496,41 @@ func TestHTTP_inviteRegistrationForSomeoneWithNoAccount_integration(t *testing.T
 		assist.Equal(t, http.StatusTooManyRequests, codes[6]) // guessing tokens is throttled
 	})
 }
+
+func TestHTTP_inviteRegistration_createsAVerifiedAccountFromTheInvite_integration(t *testing.T) {
+	app := integration.NewApp(t)
+	c := caller{t, app.Router()}
+	admin := integration.InsertAdminUser(t, app.Pool).String()
+
+	created := c.do("POST", "/admin/v1/invites", admin, map[string]any{"email": "New.Artist@Example.com"})
+	expect(t, created, http.StatusCreated)
+	inv := decode[struct {
+		Token string `json:"token"`
+	}](t, created)
+
+	// A bad token or a weak password creates nothing.
+	expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": "nope", "password": "password1"}), http.StatusNotFound)
+	expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": inv.Token, "password": "short"}), http.StatusBadRequest)
+	var accounts int
+	assist.NoError(t, app.Pool.QueryRow(context.Background(), `SELECT count(*) FROM users WHERE email = 'new.artist@example.com'`).Scan(&accounts))
+	assist.Equal(t, 0, accounts)
+
+	// The email comes from the invite, whatever else the body says, and the account is verified
+	// from the start.
+	rec := c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": inv.Token, "password": "password1", "email": "attacker@example.com"})
+	expect(t, rec, http.StatusCreated)
+	assist.Contains(t, rec.Body.String(), "new.artist@example.com")
+	assist.Contains(t, rec.Header().Get("Set-Cookie"), "=")
+
+	var verified bool
+	assist.NoError(t, app.Pool.QueryRow(context.Background(),
+		`SELECT email_verified_at IS NOT NULL FROM users WHERE email = 'new.artist@example.com'`).Scan(&verified))
+	if !verified {
+		t.Error("the invited account should be verified")
+	}
+	assist.NoError(t, app.Pool.QueryRow(context.Background(), `SELECT count(*) FROM users WHERE email = 'attacker@example.com'`).Scan(&accounts))
+	assist.Equal(t, 0, accounts)
+
+	// The address now has an account, so registering again is refused.
+	expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": inv.Token, "password": "password1"}), http.StatusConflict)
+}

@@ -130,22 +130,37 @@ func (g gateStub) CheckComplete(ctx context.Context, userID uuid.UUID) (*uuid.UU
 	return g.rev, g.err
 }
 
+type registrarStub struct {
+	emails []string
+	err    error
+}
+
+func (r *registrarStub) RegisterInvited(ctx context.Context, email, password string) (string, *identity.User, error) {
+	r.emails = append(r.emails, email)
+	if r.err != nil {
+		return "", nil, r.err
+	}
+	return "access-token", &identity.User{Email: email}, nil
+}
+
 type inviteEnv struct {
-	svc     *Service
-	invites *fakeInvites
-	saved   []domain.OnboardingApplication
-	saveErr error
-	user    *identity.User
-	now     time.Time
+	registrar *registrarStub
+	svc       *Service
+	invites   *fakeInvites
+	saved     []domain.OnboardingApplication
+	saveErr   error
+	user      *identity.User
+	now       time.Time
 }
 
 func newInviteEnv(t *testing.T, gate inbound.ApplicationQuestionnaireGate) *inviteEnv {
 	t.Helper()
 	verified := time.Now().Add(-time.Hour)
 	env := &inviteEnv{
-		invites: newFakeInvites(),
-		user:    &identity.User{ID: uuid.New(), Email: "Ada@Example.com", DisplayName: "Ada", EmailVerifiedAt: &verified},
-		now:     time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC),
+		registrar: &registrarStub{},
+		invites:   newFakeInvites(),
+		user:      &identity.User{ID: uuid.New(), Email: "Ada@Example.com", DisplayName: "Ada", EmailVerifiedAt: &verified},
+		now:       time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC),
 	}
 	apps := &mockOnboardingRepo{
 		save: func(ctx context.Context, app domain.OnboardingApplication) (*domain.OnboardingApplication, error) {
@@ -156,7 +171,7 @@ func newInviteEnv(t *testing.T, gate inbound.ApplicationQuestionnaireGate) *invi
 			return &app, nil
 		},
 	}
-	opts := []Option{WithInvites(env.invites)}
+	opts := []Option{WithInvites(env.invites), WithInvitedRegistrar(env.registrar)}
 	if gate != nil {
 		opts = append(opts, WithQuestionnaire(gate))
 	}
@@ -346,31 +361,31 @@ func TestLiveInviteEmail(t *testing.T) {
 	t.Run("returns the address a live invite was sent to", func(t *testing.T) {
 		env := newInviteEnv(t, nil)
 		inv := env.invite(t, "ada_1")
-		email, err := env.svc.LiveInviteEmail(ctx, "  "+inv.Token+"  ")
+		email, err := env.svc.liveInviteEmail(ctx, "  "+inv.Token+"  ")
 		assist.NoError(t, err)
 		assist.Equal(t, "ada@example.com", email)
 	})
 	t.Run("unknown token", func(t *testing.T) {
 		env := newInviteEnv(t, nil)
-		_, err := env.svc.LiveInviteEmail(ctx, "nope")
+		_, err := env.svc.liveInviteEmail(ctx, "nope")
 		assist.ErrorIs(t, err, apperrors.ErrNotFound)
 	})
 	t.Run("revoked, expired and claimed invites cannot start a registration", func(t *testing.T) {
 		env := newInviteEnv(t, nil)
 		revoked := env.invite(t, "")
 		assist.NoError(t, env.svc.RevokeInvite(ctx, revoked.Invite.ID))
-		_, err := env.svc.LiveInviteEmail(ctx, revoked.Token)
+		_, err := env.svc.liveInviteEmail(ctx, revoked.Token)
 		assist.ErrorIs(t, err, apperrors.ErrConflict)
 
 		claimed := env.invite(t, "")
 		_, err = env.invites.Claim(ctx, claimed.Invite.ID, env.user.ID, env.now)
 		assist.NoError(t, err)
-		_, err = env.svc.LiveInviteEmail(ctx, claimed.Token)
+		_, err = env.svc.liveInviteEmail(ctx, claimed.Token)
 		assist.ErrorIs(t, err, apperrors.ErrConflict)
 
 		expiring := env.invite(t, "")
 		env.now = env.now.Add(15 * 24 * time.Hour)
-		_, err = env.svc.LiveInviteEmail(ctx, expiring.Token)
+		_, err = env.svc.liveInviteEmail(ctx, expiring.Token)
 		assist.ErrorIs(t, err, apperrors.ErrConflict)
 	})
 }
@@ -412,4 +427,34 @@ func TestSubmitWithInvite_failedSaveGivesTheInviteBack(t *testing.T) {
 	env.saveErr = nil
 	_, err = env.svc.SubmitWithInvite(context.Background(), env.user.ID, inv.Token, "", "", "")
 	assist.NoError(t, err) // the same link still works
+}
+
+func TestRegisterWithInvite_usesTheInvitesEmailAndNothingElse(t *testing.T) {
+	env := newInviteEnv(t, nil)
+	inv := env.invite(t, "")
+
+	got, err := env.svc.RegisterWithInvite(context.Background(), "  "+inv.Token+"  ", "password1")
+	assist.NoError(t, err)
+	assist.Equal(t, "access-token", got.AccessToken)
+	assist.Equal(t, "ada@example.com", got.User.Email)
+	assist.Len(t, 1, len(env.registrar.emails))
+	assist.Equal(t, "ada@example.com", env.registrar.emails[0])
+}
+
+func TestRegisterWithInvite_refusesDeadInvitesWithoutCreatingAnAccount(t *testing.T) {
+	env := newInviteEnv(t, nil)
+	revoked := env.invite(t, "")
+	assist.NoError(t, env.svc.RevokeInvite(context.Background(), revoked.Invite.ID))
+
+	_, err := env.svc.RegisterWithInvite(context.Background(), revoked.Token, "password1")
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	_, err = env.svc.RegisterWithInvite(context.Background(), "unknown-token", "password1")
+	assist.ErrorIs(t, err, apperrors.ErrNotFound)
+	assist.Len(t, 0, len(env.registrar.emails))
+}
+
+func TestRegisterWithInvite_notConfigured(t *testing.T) {
+	svc := NewService(&mockOnboardingRepo{}, &mockUserRepo{}, &mockProfileRepo{}, &mockInstitutionRepo{}, WithInvites(newFakeInvites()))
+	_, err := svc.RegisterWithInvite(context.Background(), "t", "password1")
+	assist.ErrorIs(t, err, apperrors.ErrNotImplemented)
 }

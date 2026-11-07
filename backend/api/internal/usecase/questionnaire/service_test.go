@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/mq/api/internal/adapter/driven/richtext"
 	"github.com/mq/api/internal/domain/apperrors"
+	onboardingdomain "github.com/mq/api/internal/domain/onboarding"
+	profiledomain "github.com/mq/api/internal/domain/profile"
 	domain "github.com/mq/api/internal/domain/questionnaire"
 	"github.com/mq/api/internal/port/inbound"
 	"github.com/mq/api/internal/testutil/assist"
@@ -524,4 +526,71 @@ func TestPublicAnswers_dropsUnsafeLinkRows(t *testing.T) {
 	e.answers.byUser[user]["website"] = domain.Answer{UserID: user, QuestionKey: "website", RevisionID: rev.ID, Body: "https://example.com", Format: domain.FormatPlain, Lang: domain.LangEnglish}
 	got, _ = e.svc.PublicAnswers(ctx, user)
 	assist.Len(t, 2, len(got))
+}
+
+type artistsStub struct {
+	bySlug map[string]*profiledomain.ArtistProfile
+}
+
+func (a artistsStub) GetArtistBySlug(ctx context.Context, slug string) (*profiledomain.ArtistProfile, error) {
+	if p, ok := a.bySlug[slug]; ok {
+		return p, nil
+	}
+	return nil, apperrors.ErrNotFound
+}
+
+type applicationsStub struct {
+	byID map[uuid.UUID]*onboardingdomain.OnboardingApplication
+}
+
+func (a applicationsStub) GetByID(ctx context.Context, id uuid.UUID) (*onboardingdomain.OnboardingApplication, error) {
+	if app, ok := a.byID[id]; ok {
+		return app, nil
+	}
+	return nil, apperrors.ErrNotFound
+}
+
+func TestPublicAnswersBySlug_onlyForPublicProfiles(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	approved, draft := uuid.New(), uuid.New()
+	e.svc = NewService(e.revs, e.answers, e.nudges, richtext.NewSanitizer(), &userRepoStub{},
+		WithLookups(artistsStub{bySlug: map[string]*profiledomain.ArtistProfile{
+			"ada":   {UserID: approved, Status: profiledomain.ProfileStatusApproved},
+			"draft": {UserID: draft, Status: profiledomain.ProfileStatusDraft},
+		}}, nil))
+	e.publish(t, domain.ChangeSubstantive, q("bio", domain.TypeShortText))
+	for _, user := range []uuid.UUID{approved, draft} {
+		assist.NoError(t, e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{{Key: "bio", Body: "hello"}}))
+	}
+
+	got, err := e.svc.PublicAnswersBySlug(ctx, "ada")
+	assist.NoError(t, err)
+	assist.Len(t, 1, len(got))
+
+	// A draft profile has answers too, but they look exactly like an unknown slug.
+	_, err = e.svc.PublicAnswersBySlug(ctx, "draft")
+	assist.ErrorIs(t, err, apperrors.ErrNotFound)
+	_, err = e.svc.PublicAnswersBySlug(ctx, "nobody")
+	assist.ErrorIs(t, err, apperrors.ErrNotFound)
+}
+
+func TestApplicationReviewView_resolvesTheApplicant(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	user, appID := uuid.New(), uuid.New()
+	rev := e.publish(t, domain.ChangeSubstantive, q("bio", domain.TypeShortText))
+	assist.NoError(t, e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{{Key: "bio", Body: "hello"}}))
+	e.svc = NewService(e.revs, e.answers, e.nudges, richtext.NewSanitizer(), &userRepoStub{},
+		WithLookups(nil, applicationsStub{byID: map[uuid.UUID]*onboardingdomain.OnboardingApplication{
+			appID: {ID: appID, ApplicantID: user, QuestionnaireRevisionID: &rev.ID},
+		}}))
+
+	view, err := e.svc.ApplicationReviewView(ctx, appID)
+	assist.NoError(t, err)
+	assist.Equal(t, rev.ID, view.Revision.ID)
+	assist.Len(t, 1, len(view.Items))
+
+	_, err = e.svc.ApplicationReviewView(ctx, uuid.New())
+	assist.ErrorIs(t, err, apperrors.ErrNotFound)
 }

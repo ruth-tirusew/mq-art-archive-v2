@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mq/api/internal/domain/identity"
 	"github.com/mq/api/internal/domain/onboarding"
 )
 
@@ -40,6 +41,12 @@ type InvitePreview struct {
 	Status      onboarding.InviteStatus
 }
 
+// RegisteredInvitee is a freshly created invitee account and its session token.
+type RegisteredInvitee struct {
+	AccessToken string
+	User        *identity.User
+}
+
 type InviteService interface {
 	CreateInvite(ctx context.Context, adminID uuid.UUID, in CreateInviteInput) (*InviteWithToken, error)
 	// ResendInvite revokes the invite and issues a fresh link with the same details.
@@ -48,10 +55,11 @@ type InviteService interface {
 	ListInvites(ctx context.Context) ([]onboarding.Invite, error)
 	// PreviewInvite looks an invite up by its raw token. ErrNotFound for an unknown token.
 	PreviewInvite(ctx context.Context, rawToken string) (*InvitePreview, error)
-	// LiveInviteEmail returns the address a live invite was sent to. ErrNotFound for an unknown
-	// token, ErrConflict if it was already used, revoked or has expired. Registering from an invite
-	// uses this so the account's email always comes from the invite, not from the request.
-	LiveInviteEmail(ctx context.Context, rawToken string) (string, error)
+	// RegisterWithInvite creates the invitee's verified account and signs them in. The email is
+	// read from the live invite, never taken from the request, so it cannot be used to create a
+	// verified account for an address the requester merely typed. ErrNotFound for an unknown token,
+	// ErrConflict if the invite was used, revoked or expired, or the address already has an account.
+	RegisterWithInvite(ctx context.Context, rawToken, password string) (*RegisteredInvitee, error)
 	// SubmitWithInvite claims the invite and submits the application in one step. The signed-in
 	// user's verified email must match the invite's.
 	SubmitWithInvite(ctx context.Context, applicantID uuid.UUID, rawToken, displayName, requestedHandle, notes string) (*onboarding.OnboardingApplication, error)

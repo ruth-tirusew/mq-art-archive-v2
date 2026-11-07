@@ -1,42 +1,25 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/mq/api/internal/adapter/driving/http/dto"
 	"github.com/mq/api/internal/adapter/driving/http/requestauth"
-	"github.com/mq/api/internal/domain/onboarding"
-	"github.com/mq/api/internal/domain/profile"
 	"github.com/mq/api/internal/port/inbound"
 )
-
-// artistLookup is the one profile capability the public answers endpoint needs.
-type artistLookup interface {
-	GetArtistBySlug(ctx context.Context, slug string) (*profile.ArtistProfile, error)
-}
-
-// applicationLookup is the one onboarding capability the reviewer's answers view needs.
-type applicationLookup interface {
-	GetByID(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error)
-}
 
 type QuestionnaireHandler struct {
 	questionnaire inbound.QuestionnaireService
 	admin         inbound.QuestionnaireAdminService
-	artists       artistLookup
-	applications  applicationLookup
 }
 
 func NewQuestionnaireHandler(
 	questionnaire inbound.QuestionnaireService,
 	admin inbound.QuestionnaireAdminService,
-	artists artistLookup,
-	applications applicationLookup,
 ) *QuestionnaireHandler {
-	return &QuestionnaireHandler{questionnaire: questionnaire, admin: admin, artists: artists, applications: applications}
+	return &QuestionnaireHandler{questionnaire: questionnaire, admin: admin}
 }
 
 func currentUser(c *gin.Context) (uuid.UUID, bool) {
@@ -131,16 +114,7 @@ func (h *QuestionnaireHandler) DismissNudge(c *gin.Context) {
 // pending or taken-down profile answers 404 exactly like an unknown slug, so its answers (which
 // may exist, since artists fill the form before approval) are never exposed.
 func (h *QuestionnaireHandler) ListPublicAnswers(c *gin.Context) {
-	p, err := h.artists.GetArtistBySlug(c.Request.Context(), c.Param("slug"))
-	if err != nil {
-		writeError(c, err)
-		return
-	}
-	if !profileIsPublic(p) {
-		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "not found"})
-		return
-	}
-	answers, err := h.questionnaire.PublicAnswers(c.Request.Context(), p.UserID)
+	answers, err := h.questionnaire.PublicAnswersBySlug(c.Request.Context(), c.Param("slug"))
 	if err != nil {
 		writeError(c, err)
 		return
@@ -259,12 +233,7 @@ func (h *QuestionnaireHandler) ApplicationAnswers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	app, err := h.applications.GetByID(c.Request.Context(), id)
-	if err != nil {
-		writeError(c, err)
-		return
-	}
-	view, err := h.questionnaire.ReviewView(c.Request.Context(), app.ApplicantID, app.QuestionnaireRevisionID)
+	view, err := h.questionnaire.ApplicationReviewView(c.Request.Context(), id)
 	if err != nil {
 		writeError(c, err)
 		return

@@ -36,3 +36,25 @@ func TestUserRepository_integration(t *testing.T) {
 	_, err = repo.GetByID(ctx, uuid.New())
 	assist.ErrorIs(t, err, postgres.ErrNotFound)
 }
+
+func TestUserRepository_CreateWithPassword_canCreateAVerifiedAccount(t *testing.T) {
+	pool := integration.SetupPostgresPool(t)
+	repo := postgres.NewUserRepository(pool)
+	ctx := context.Background()
+
+	at := time.Now().UTC().Truncate(time.Second)
+	verified := identity.User{ID: uuid.New(), Email: "v@example.com", Role: identity.RolePublic, EmailVerifiedAt: &at}
+	plain := identity.User{ID: uuid.New(), Email: "p@example.com", Role: identity.RolePublic}
+	assist.NoError(t, repo.CreateWithPassword(ctx, verified, "hash"))
+	assist.NoError(t, repo.CreateWithPassword(ctx, plain, "hash"))
+
+	got, err := repo.GetByID(ctx, verified.ID)
+	assist.NoError(t, err)
+	assist.NotNil(t, got.EmailVerifiedAt)
+
+	got, err = repo.GetByID(ctx, plain.ID)
+	assist.NoError(t, err)
+	if got.EmailVerifiedAt != nil {
+		t.Error("an account created without EmailVerifiedAt must stay unverified")
+	}
+}

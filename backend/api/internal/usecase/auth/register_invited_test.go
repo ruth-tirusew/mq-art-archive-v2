@@ -56,8 +56,11 @@ func TestService_RegisterInvited_createsAVerifiedAccountWithoutAVerificationEmai
 	assist.Equal(t, "ada@example.com", user.Email)
 	assist.Equal(t, identity.RolePublic, user.Role) // an invite grants no role; approval does
 	assist.NotNil(t, user.EmailVerifiedAt)
-	if _, ok := users.verified[user.ID]; !ok {
-		t.Error("the account was not marked verified in the store")
+	if stored := users.byEmail["ada@example.com"]; stored.EmailVerifiedAt == nil {
+		t.Error("the account was not stored verified")
+	}
+	if len(users.verified) != 0 {
+		t.Error("verification must be part of the create, not a second write that can fail on its own")
 	}
 	assist.Equal(t, "hash:password1", users.passwordHashes["ada@example.com"])
 	assist.Equal(t, 0, verification.created) // the invite link already proved the inbox
@@ -97,14 +100,16 @@ func TestService_RegisterInvited_rejectsExistingAccountsAndWeakPasswords(t *test
 	}
 }
 
-func TestService_RegisterInvited_refusesRatherThanCreateAnUnverifiedAccount(t *testing.T) {
-	// A repo that can't record verification would produce an account that can't claim the invite.
+func TestService_RegisterInvited_needsNoSeparateVerificationWrite(t *testing.T) {
+	// A repo that can't mark emails verified still yields a verified account, because the
+	// verification travels with the create.
 	plain := &stubUserRepo{byID: map[uuid.UUID]identity.User{}, byEmail: map[string]identity.User{}}
 	svc := newInviteAuth(plain, &stubMailer{}, &stubVerificationRepo{})
 
-	_, _, err := svc.RegisterInvited(t.Context(), "new@example.com", "password1")
-	assist.ErrorIs(t, err, apperrors.ErrNotImplemented)
-	if len(plain.byEmail) != 0 {
-		t.Error("no account should have been created")
+	_, user, err := svc.RegisterInvited(t.Context(), "new@example.com", "password1")
+	assist.NoError(t, err)
+	assist.NotNil(t, user.EmailVerifiedAt)
+	if plain.byEmail["new@example.com"].EmailVerifiedAt == nil {
+		t.Error("the stored account should be verified")
 	}
 }

@@ -79,14 +79,14 @@ type QuestionnaireService interface {
 	GetForm(ctx context.Context, userID uuid.UUID) (*Form, error)
 	// SaveAnswers autosaves a partial form. It never enforces required answers.
 	SaveAnswers(ctx context.Context, userID uuid.UUID, answers []AnswerInput) error
-	// PublicAnswers returns the answers a visitor may see, in question order. The caller MUST
-	// first confirm the artist's profile is approved; this method does not check profile state.
-	PublicAnswers(ctx context.Context, userID uuid.UUID) ([]PublicAnswer, error)
+	// PublicAnswersBySlug returns the answers a visitor may see, in question order. ErrNotFound
+	// unless the artist's profile is public, exactly as for an unknown slug.
+	PublicAnswersBySlug(ctx context.Context, slug string) ([]PublicAnswer, error)
 	ActiveNudge(ctx context.Context, userID uuid.UUID) (*NudgePrompt, error)
 	DismissNudge(ctx context.Context, userID, revisionID uuid.UUID) error
-	// ReviewView shows an application's answers against the revision it was submitted on
-	// (revisionID), or the latest published one when nil.
-	ReviewView(ctx context.Context, userID uuid.UUID, revisionID *uuid.UUID) (*ReviewView, error)
+	// ApplicationReviewView shows an application's answers, private ones included, against the
+	// revision it was submitted on (or the latest published one when it has none).
+	ApplicationReviewView(ctx context.Context, applicationID uuid.UUID) (*ReviewView, error)
 }
 
 // QuestionnaireAdminService is the admin editor.

@@ -255,10 +255,6 @@ func (s *Service) Register(ctx context.Context, email, password string) (string,
 // have taken the email from a live invite on the server; it must never be reachable with an email
 // the requester typed.
 func (s *Service) RegisterInvited(ctx context.Context, email, password string) (string, *identity.User, error) {
-	if s.verifiedUsers == nil {
-		// Without this the account would be created unverified and the invite could not be claimed.
-		return "", nil, apperrors.ErrNotImplemented
-	}
 	return s.register(ctx, email, password, true)
 }
 
@@ -289,17 +285,19 @@ func (s *Service) register(ctx context.Context, email, password string, verified
 		Email: normalized,
 		Role:  identity.RolePublic,
 	}
+	if verified {
+		// Created verified in the same write, so there is no window (and no failure mode) in which
+		// the account exists unverified and the invite it came from can't be claimed.
+		now := time.Now().UTC()
+		user.EmailVerifiedAt = &now
+	}
 	if err := s.users.CreateWithPassword(ctx, user, hash); err != nil {
 		return "", nil, err
 	}
-	if verified {
-		now := time.Now().UTC()
-		if err := s.verifiedUsers.MarkEmailVerified(ctx, user.ID, now); err != nil {
+	if !verified {
+		if err := s.sendEmailVerification(ctx, user); err != nil {
 			return "", nil, err
 		}
-		user.EmailVerifiedAt = &now
-	} else if err := s.sendEmailVerification(ctx, user); err != nil {
-		return "", nil, err
 	}
 
 	token, err := s.tokens.Issue(ctx, &user)

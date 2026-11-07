@@ -46,19 +46,13 @@ func (h *OnboardingHandler) Review(c *gin.Context) {
 		return
 	}
 
-	status := onboarding.ApprovalStatus(req.Status)
-	if status != onboarding.ApprovalStatusApproved && status != onboarding.ApprovalStatusRejected {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "status must be approved or rejected"})
-		return
-	}
-
 	reviewerID, err := requestauth.UserIDFromContext(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
-	app, err := h.onboarding.Review(c.Request.Context(), id, reviewerID, status, req.Notes)
+	app, err := h.onboarding.Review(c.Request.Context(), id, reviewerID, onboarding.ApprovalStatus(req.Status), req.Notes)
 	if err != nil {
 		writeError(c, err)
 		return

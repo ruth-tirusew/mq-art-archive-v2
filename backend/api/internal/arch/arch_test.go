@@ -25,6 +25,25 @@ var repositoryFileToContext = map[string]string{
 	"event_location_repository.go":           "events",
 	"scrape_settings_repository.go":          "settings",
 	"password_reset_repository.go":           "identity",
+	"invite_repository.go":                   "onboarding",
+	"questionnaire_repository.go":            "questionnaire",
+	"questionnaire_answer_repository.go":     "questionnaire",
+	"questionnaire_nudge_repository.go":      "questionnaire",
+}
+
+// uncheckedRepositories are repositories that predate the vertical-boundary check and are not yet
+// mapped to a context. New repositories must be added to repositoryFileToContext, not here.
+var uncheckedRepositories = map[string]bool{
+	"analytics_repository.go":          true,
+	"comment_repository.go":            true,
+	"digest_recipient_repository.go":   true,
+	"digest_run_repository.go":         true,
+	"email_verification_repository.go": true,
+	"favorite_repository.go":           true,
+	"highlight_repository.go":          true,
+	"media_asset_repository.go":        true,
+	"telegram_link_repository.go":      true,
+	"wiki_submission_repository.go":    true,
 }
 
 var usecaseDirToContext = map[string]string{
@@ -297,4 +316,31 @@ func checkUsecaseVerticalBoundary(rel string, imports []string) string {
 func domainContextFromImport(imp string) string {
 	suffix := strings.TrimPrefix(imp, modulePrefix+"internal/domain/")
 	return strings.Split(suffix, "/")[0]
+}
+
+// TestEveryRepositoryHasAContext keeps new repositories from silently escaping the vertical check:
+// a repository file must be mapped to a context, or be on the explicit legacy list.
+func TestEveryRepositoryHasAContext(t *testing.T) {
+	root, err := moduleRoot()
+	if err != nil {
+		t.Fatalf("module root: %v", err)
+	}
+	dir := filepath.Join(root, "internal", "adapter", "driven", "persistence", "postgres")
+	files, err := filepath.Glob(filepath.Join(dir, "*_repository.go"))
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no repository files found; the glob is wrong")
+	}
+	for _, f := range files {
+		name := filepath.Base(f)
+		_, mapped := repositoryFileToContext[name]
+		if !mapped && !uncheckedRepositories[name] {
+			t.Errorf("%s has no entry in repositoryFileToContext; map it to its context", name)
+		}
+		if mapped && uncheckedRepositories[name] {
+			t.Errorf("%s is mapped, so remove it from uncheckedRepositories", name)
+		}
+	}
 }

@@ -24,6 +24,7 @@ type Service struct {
 	webAppURL     string
 	invites       outbound.InviteRepository
 	questionnaire inbound.ApplicationQuestionnaireGate
+	registrar     inbound.InvitedRegistrar
 	now           func() time.Time
 }
 
@@ -42,6 +43,11 @@ func WithMailer(mailer outbound.Mailer, webAppURL string) Option {
 // live invites have reserved.
 func WithInvites(invites outbound.InviteRepository) Option {
 	return func(s *Service) { s.invites = invites }
+}
+
+// WithInvitedRegistrar enables creating an invitee's account straight from their invite.
+func WithInvitedRegistrar(r inbound.InvitedRegistrar) Option {
+	return func(s *Service) { s.registrar = r }
 }
 
 // WithQuestionnaire requires artist applicants to have completed the published questionnaire

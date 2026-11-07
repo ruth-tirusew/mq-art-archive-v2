@@ -101,6 +101,7 @@ func NewApp(t *testing.T) *App {
 		richtext.NewSanitizer(),
 		userRepo,
 		questionnaireuc.WithMailer(mailer, "http://localhost:5173"),
+		questionnaireuc.WithLookups(profileRepo, onboardingRepo),
 	)
 
 	return &App{
@@ -116,6 +117,7 @@ func NewApp(t *testing.T) *App {
 			onboardinguc.WithMailer(mailer, "http://localhost:5173"),
 			onboardinguc.WithInvites(postgres.NewInviteRepository(pool)),
 			onboardinguc.WithQuestionnaire(questionnaireSvc),
+			onboardinguc.WithInvitedRegistrar(authSvc),
 		),
 		Events:   eventsuc.NewService(eventRepo, eventLocationRepo, eventSource),
 		Search:   searchuc.NewService(articleRepo, eventRepo),
@@ -154,8 +156,8 @@ func (a *App) Router() *gin.Engine {
 		Event:         handler.NewEventHandler(a.Events),
 		Search:        handler.NewSearchHandler(a.Search),
 		Onboarding:    handler.NewOnboardingHandler(a.Onboarding),
-		Questionnaire: handler.NewQuestionnaireHandler(a.Questionnaire, a.Questionnaire, a.Profile, a.Onboarding),
-		Invite:        handler.NewInviteHandler(a.Onboarding, a.Auth, cfg.AuthCookieName, "http://localhost:5173"),
+		Questionnaire: handler.NewQuestionnaireHandler(a.Questionnaire, a.Questionnaire),
+		Invite:        handler.NewInviteHandler(a.Onboarding, cfg.AuthCookieName, "http://localhost:5173"),
 		Auth:          handler.NewAuthHandler(a.Auth, cfg.AuthCookieName),
 		Settings:      handler.NewSettingsHandler(a.Settings),
 	}

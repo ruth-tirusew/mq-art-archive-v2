@@ -19,6 +19,7 @@ import (
 	mediaadapter "github.com/mq/api/internal/adapter/driven/media"
 	oauthadapter "github.com/mq/api/internal/adapter/driven/oauth"
 	"github.com/mq/api/internal/adapter/driven/persistence/postgres"
+	provisioningadapter "github.com/mq/api/internal/adapter/driven/provisioning"
 	richtextadapter "github.com/mq/api/internal/adapter/driven/richtext"
 	telegramadapter "github.com/mq/api/internal/adapter/driven/telegram"
 	httpadapter "github.com/mq/api/internal/adapter/driving/http"
@@ -167,6 +168,7 @@ func main() {
 		onboardinguc.WithQuestionnaire(questionnaireSvc),
 		onboardinguc.WithInvitedRegistrar(authSvc),
 		onboardinguc.WithApplicantWorks(postgres.NewApplicantWorkRepository(pool)),
+		onboardinguc.WithArtistProvisioner(provisioningadapter.NewArtistProvisioner(profileRepo, artPostRepo)),
 	)
 	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
 	// polling goroutine below can reuse this same instance rather than constructing a

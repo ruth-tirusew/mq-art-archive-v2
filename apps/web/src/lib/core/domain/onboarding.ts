@@ -23,7 +23,40 @@ export interface AddWorkInput {
 	year?: number | null;
 }
 
+/**
+ * A piece of work the applicant has chosen but not uploaded. Nothing leaves the browser until they
+ * submit: the image stays a local file with a local preview, and is uploaded (and attached to the
+ * application) only as part of submitting.
+ */
+export interface WorkDraft {
+	key: string;
+	file: File;
+	/** An object URL for previewing the local file. Revoke it when the draft goes away. */
+	previewUrl: string;
+	title: string;
+	medium: string;
+	/** As typed; validated by workDraftProblem. */
+	year: string;
+	status: 'pending' | 'uploading' | 'done' | 'failed';
+	/** The stored work's id once uploaded, so it can still be removed. */
+	workId?: string;
+	error?: string;
+}
+
+/** What is wrong with a draft's text fields, or null. The image itself is checked on selection. */
+export function workDraftProblem(draft: Pick<WorkDraft, 'title' | 'year'>, now = new Date()): string | null {
+	if (!draft.title.trim()) return 'Give this piece a title.';
+	if (draft.title.trim().length > 200) return 'Keep the title under 200 characters.';
+	const year = draft.year.trim();
+	if (year) {
+		const n = Number(year);
+		if (!Number.isInteger(n) || n < 1000 || n > now.getFullYear() + 1) return 'Year should look like 2024.';
+	}
+	return null;
+}
+
 /** How many more works are needed before the applicant can submit, or 0. */
+
 export function worksShortfall(have: number): number {
 	return Math.max(0, MIN_APPLICATION_WORKS - have);
 }

@@ -14,6 +14,7 @@ import (
 	eventsadapter "github.com/mq/api/internal/adapter/driven/events"
 	maileradapter "github.com/mq/api/internal/adapter/driven/mailer"
 	"github.com/mq/api/internal/adapter/driven/persistence/postgres"
+	provisioningadapter "github.com/mq/api/internal/adapter/driven/provisioning"
 	"github.com/mq/api/internal/adapter/driven/richtext"
 	httpadapter "github.com/mq/api/internal/adapter/driving/http"
 	"github.com/mq/api/internal/adapter/driving/http/handler"
@@ -119,6 +120,7 @@ func NewApp(t *testing.T) *App {
 			onboardinguc.WithQuestionnaire(questionnaireSvc),
 			onboardinguc.WithInvitedRegistrar(authSvc),
 			onboardinguc.WithApplicantWorks(postgres.NewApplicantWorkRepository(pool)),
+			onboardinguc.WithArtistProvisioner(provisioningadapter.NewArtistProvisioner(profileRepo, artPostRepo)),
 		),
 		Events:   eventsuc.NewService(eventRepo, eventLocationRepo, eventSource),
 		Search:   searchuc.NewService(articleRepo, eventRepo),

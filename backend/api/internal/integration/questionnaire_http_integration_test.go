@@ -216,13 +216,8 @@ func TestHTTP_questionnaireInviteLifecycle_integration(t *testing.T) {
 	assist.Contains(t, review.Body.String(), "private figure")
 	assist.Contains(t, review.Body.String(), "Addis Ababa")
 
-	// Approve. The profile starts as a private draft, so its answers are not public yet.
+	// Approve. Approval publishes the artist, so visitors see their public answers straight away.
 	expect(t, c.do("PUT", "/admin/v1/applications/"+appID, admin, map[string]any{"status": "approved"}), http.StatusOK)
-	expect(t, c.do("GET", "/api/v1/artists/ada_1/answers", "", nil), http.StatusNotFound)
-
-	// Once the profile is public, visitors see only the public answers.
-	_, err := app.Pool.Exec(context.Background(), `UPDATE artist_profiles SET status = 'approved' WHERE slug = 'ada_1'`)
-	assist.NoError(t, err)
 	pub := c.do("GET", "/api/v1/artists/ada_1/answers", "", nil)
 	expect(t, pub, http.StatusOK)
 	assist.Contains(t, pub.Body.String(), "ሰላም")
@@ -231,8 +226,8 @@ func TestHTTP_questionnaireInviteLifecycle_integration(t *testing.T) {
 		t.Errorf("private answer leaked publicly: %s", pub.Body.String())
 	}
 
-	// Taken down again (e.g. moderation): the answers disappear with it.
-	_, err = app.Pool.Exec(context.Background(), `UPDATE artist_profiles SET status = 'draft' WHERE slug = 'ada_1'`)
+	// Taken down (e.g. moderation): the answers disappear with it.
+	_, err := app.Pool.Exec(context.Background(), `UPDATE artist_profiles SET status = 'draft' WHERE slug = 'ada_1'`)
 	assist.NoError(t, err)
 	expect(t, c.do("GET", "/api/v1/artists/ada_1/answers", "", nil), http.StatusNotFound)
 	_, err = app.Pool.Exec(context.Background(), `UPDATE artist_profiles SET status = 'approved' WHERE slug = 'ada_1'`)

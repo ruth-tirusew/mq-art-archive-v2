@@ -134,7 +134,7 @@
 				The <em class="italic text-accent">roster</em>.
 			</h1>
 			<p class="mt-6 max-w-xl text-balance text-lg leading-relaxed text-muted-foreground">
-				Painters, printmakers, and image-keepers working in Ethiopia and across the diaspora — held
+				Painters, printmakers, and image-keepers working in Ethiopia held
 				together by a shared inheritance and a stubborn refusal to inherit quietly.
 			</p>
 		</div>

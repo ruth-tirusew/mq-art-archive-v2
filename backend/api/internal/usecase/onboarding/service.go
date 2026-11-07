@@ -26,6 +26,7 @@ type Service struct {
 	questionnaire inbound.ApplicationQuestionnaireGate
 	registrar     inbound.InvitedRegistrar
 	works         outbound.ApplicantWorkRepository
+	provisioner   outbound.ArtistProvisioner
 	now           func() time.Time
 }
 
@@ -55,6 +56,13 @@ func WithInvitedRegistrar(r inbound.InvitedRegistrar) Option {
 // before they can apply. Without it (or before a questionnaire is published) applying works as before.
 func WithQuestionnaire(gate inbound.ApplicationQuestionnaireGate) Option {
 	return func(s *Service) { s.questionnaire = gate }
+}
+
+// WithArtistProvisioner makes approving an artist application publish them: a public profile and a
+// published artwork for each submitted work. Without it approval creates a private draft profile
+// the artist publishes themselves.
+func WithArtistProvisioner(p outbound.ArtistProvisioner) Option {
+	return func(s *Service) { s.provisioner = p }
 }
 
 // WithApplicantWorks requires artist applicants to have uploaded at least MinApplicationWorks
@@ -289,7 +297,12 @@ func decisionEmail(app *domain.OnboardingApplication, webAppURL string) (string,
 		if app.ReviewNotes != "" {
 			fmt.Fprintf(&b, "A note from the team:\n%s\n\n", app.ReviewNotes)
 		}
-		fmt.Fprintf(&b, "Next, open your studio, add a portrait and a short bio, and publish your profile:\n%s/studio\n", webAppURL)
+		if len(app.Works) > 0 && app.RequestedHandle != "" {
+			fmt.Fprintf(&b, "Your profile and your %d works are now live on Artiv:\n%s/artists/%s\n\n", len(app.Works), webAppURL, app.RequestedHandle)
+			fmt.Fprintf(&b, "Next, open your studio to add a portrait and a short bio:\n%s/studio\n", webAppURL)
+		} else {
+			fmt.Fprintf(&b, "Next, open your studio, add a portrait and a short bio, and publish your profile:\n%s/studio\n", webAppURL)
+		}
 		return "Welcome to Artiv — your application was approved", b.String()
 	}
 	b.WriteString("Thanks for applying to Artiv. We couldn't approve your application this time.\n\n")
@@ -304,6 +317,12 @@ func decisionEmail(app *domain.OnboardingApplication, webAppURL string) (string,
 // including applying the requested handle to a draft profile an earlier attempt already created.
 // The role is promoted last so a failure never leaves an artist without their profile.
 func (s *Service) provisionArtist(ctx context.Context, app *domain.OnboardingApplication) error {
+	if s.provisioner != nil {
+		if err := s.provisioner.ProvisionApproved(ctx, *app); err != nil {
+			return err
+		}
+		return s.users.PromoteToArtist(ctx, app.ApplicantID)
+	}
 	draft, err := s.profiles.GetArtistByUserID(ctx, app.ApplicantID)
 	if errors.Is(err, apperrors.ErrNotFound) {
 		draft, err = s.profiles.CreateDraftForUser(ctx, app.ApplicantID, app.DisplayName)

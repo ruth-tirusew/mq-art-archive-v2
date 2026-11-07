@@ -97,3 +97,47 @@ func TestHTTP_worksAreOnlyForSignedInUsers_integration(t *testing.T) {
 		expect(t, c.do(method, path, "", nil, "Origin", allowedOrigin), http.StatusUnauthorized)
 	}
 }
+
+// The whole point of approving an artist: they show up on the site, with their work, without
+// having to do anything else first.
+func TestHTTP_approvedArtistIsPublicWithTheirWork_integration(t *testing.T) {
+	app := integration.NewApp(t)
+	c := caller{t, app.Router()}
+	admin := integration.InsertAdminUser(t, app.Pool).String()
+	applicant := insertVerifiedUser(t, app, "live@example.com", true)
+
+	addWorks(t, app, c, applicant, domain.MinApplicationWorks)
+	rec := c.do("POST", "/api/v1/applications", applicant, map[string]any{
+		"applicant_type": "artist", "display_name": "Live Artist", "requested_handle": "live_artist",
+	})
+	expect(t, rec, http.StatusCreated)
+	appID := decode[map[string]any](t, rec)["id"].(string)
+
+	// Before approval: nobody can see them.
+	expect(t, c.do("GET", "/api/v1/artists/live_artist", "", nil), http.StatusNotFound)
+	expect(t, c.do("GET", "/api/v1/artists/live_artist/posts", "", nil), http.StatusNotFound)
+
+	expect(t, c.do("PUT", "/admin/v1/applications/"+appID, admin, map[string]any{"status": "approved"}), http.StatusOK)
+
+	// After: public, with no sign-in, the profile and all five works.
+	profile := c.do("GET", "/api/v1/artists/live_artist", "", nil)
+	expect(t, profile, http.StatusOK)
+	assist.Equal(t, "Live Artist", decode[map[string]any](t, profile)["display_name"].(string))
+	expect(t, c.do("GET", "/api/v1/profiles/@live_artist", "", nil), http.StatusOK)
+
+	posts := c.do("GET", "/api/v1/artists/live_artist/posts", "", nil)
+	expect(t, posts, http.StatusOK)
+	listed := decode[[]map[string]any](t, posts)
+	assist.Len(t, 5, len(listed))
+	media := listed[0]["media"].([]any)[0].(map[string]any)
+	assist.Contains(t, media["url"].(string), "res.cloudinary.com")
+	assist.Equal(t, "TESTHASH", media["blurhash"].(string)) // each image keeps its own blur hash
+
+	// They also appear in the artists directory and the public archive.
+	directory := c.do("GET", "/api/v1/artists", "", nil)
+	expect(t, directory, http.StatusOK)
+	assist.Contains(t, directory.Body.String(), "live_artist")
+	archive := c.do("GET", "/api/v1/posts", "", nil)
+	expect(t, archive, http.StatusOK)
+	assist.Contains(t, archive.Body.String(), "Work 1")
+}

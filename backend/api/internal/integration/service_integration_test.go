@@ -169,7 +169,8 @@ func TestOnboardingService_integration(t *testing.T) {
 	artistProfile, err := app.Profile.GetArtistByUserID(ctx, applicantID)
 	assist.NoError(t, err)
 	assist.Equal(t, "pending-studio", artistProfile.Slug)
-	assist.Equal(t, profile.ProfileStatusDraft, artistProfile.Status)
+	// Approval publishes the artist: an admin has reviewed them, so they are public straight away.
+	assist.Equal(t, profile.ProfileStatusApproved, artistProfile.Status)
 
 	pendingStatus := onboarding.ApprovalStatusPending
 	pending, _, err = app.Onboarding.List(ctx, onboarding.ListFilter{Status: &pendingStatus, Limit: 50})

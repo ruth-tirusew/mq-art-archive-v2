@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { authService, currentUser } from "$lib/application/auth";
   import { inviteService } from "$lib/composition";
   import { onboardingService } from "$lib/composition";
   import { questionnaireService } from "$lib/composition";
+  import { applicantWorksService } from "$lib/composition";
   import { isErrorKind } from "$lib/core/domain/errors";
   import {
     composeLinkNotes,
@@ -13,7 +14,9 @@
     normalizeHandle,
     parseLinkNotes,
     worksShortfall,
+    workDraftProblem,
     type ApplicantWork,
+    type WorkDraft,
   } from "$lib/core/domain/onboarding";
   import QuestionnaireForm from "$lib/components/questionnaire/QuestionnaireForm.svelte";
   import ApplicantWorks from "$lib/components/onboarding/ApplicantWorks.svelte";
@@ -27,9 +30,19 @@
   // Institutions are not onboarded through this form for now.
   const applicantType = "artist" as const;
 
-  // The work an applicant shows (at least five pieces). The step lists and edits them itself.
-  let works = $state<ApplicantWork[]>([]);
-  const worksShort = $derived(worksShortfall(works.length));
+  // The work an applicant shows (at least five pieces). Chosen pieces stay local drafts, with a local
+  // preview, until the application is submitted; only then are they uploaded. `storedWorks` are ones
+  // already on the server from an earlier, rejected application.
+  let drafts = $state<WorkDraft[]>([]);
+  let storedWorks = $state<ApplicantWork[]>([]);
+  let uploadProgress = $state("");
+  const worksTotal = $derived(storedWorks.length + drafts.length);
+  const worksShort = $derived(worksShortfall(worksTotal));
+  const worksProblem = $derived(drafts.some((d) => workDraftProblem(d)));
+  const worksReady = $derived(worksShort === 0 && !worksProblem);
+
+  // Preview URLs point at files in memory; let them go when the page does.
+  onDestroy(() => drafts.forEach((d) => URL.revokeObjectURL(d.previewUrl)));
 
   // About you, Your work/answers, Your art, Review.
   const REVIEW_STEP = 4;
@@ -234,7 +247,7 @@
       return;
     }
     // Step 3: at least five pieces of work.
-    if (step === 3 && worksShort > 0) return;
+    if (step === 3 && !worksReady) return;
     attempted = false;
     step += 1;
   }
@@ -254,6 +267,18 @@
     submitting = true;
     error = "";
     try {
+      // The only moment images leave the browser. A failure stops here, before the application is
+      // sent, and a retry only uploads the pieces that are left.
+      try {
+        await applicantWorksService.uploadDrafts(drafts, {
+          onProgress: (done, total) => (uploadProgress = `Uploading ${Math.min(done + 1, total)} of ${total}…`),
+        });
+      } catch (e) {
+        error = `We couldn't upload all your pieces (${e instanceof Error ? e.message : "upload failed"}). Your application hasn't been sent. Try again and we'll carry on with the ones that are left.`;
+        return;
+      } finally {
+        uploadProgress = "";
+      }
       if (usingInvite && inviteToken) {
         await inviteService.claim({
           token: inviteToken,
@@ -294,7 +319,7 @@
 <section class="mx-auto max-w-2xl px-6 py-16 md:px-10 md:py-24">
   <PageHeader
     eyebrow="Artist application"
-    lead="Artiv is a home for Ethiopian artists to share their work. Tell us a little about you, and our team will take a look — usually within a few days. You'll get an email when there's a decision, and once approved you can set up your public profile and publish right away."
+    lead="Artiv is a home for Ethiopian artists to share their work. Tell us a little about you, and our team will take a look — usually within a few days. You'll get an email when there's a decision, and once approved your profile and the work you submit go live on Artiv."
   >
     {#if reapplying}Apply <em class="italic">again</em>{:else}Join Artiv as an <em class="italic">artist</em>{/if}
   </PageHeader>
@@ -414,7 +439,7 @@
         {/snippet}
       </Field>
     {:else if step === 3}
-      <ApplicantWorks onchange={(next) => (works = next)} />
+      <ApplicantWorks bind:drafts bind:existing={storedWorks} loadExisting={reapplying} showProblems={attempted} />
     {:else if step === REVIEW_STEP}
       <div class="rounded-sm border border-border/70 bg-card/30 p-6 text-sm">
         <p class="t-eyebrow text-muted-foreground">Review your application</p>
@@ -444,14 +469,27 @@
           <p class="mt-4 whitespace-pre-wrap text-muted-foreground">{notes}</p>
         {/if}
         <div class="mt-6 border-t border-border/60 pt-5" data-testid="apply-review-works">
-          <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your art · {works.length} pieces</p>
-          <ul class="mt-3 flex flex-wrap gap-2">
-            {#each works as work (work.id)}
-              <li class="h-16 w-14 overflow-hidden rounded-sm bg-muted" title={work.title}>
-                <BlurhashImage src={work.url} alt={work.title} blurhash={work.blurhash} width={112} class="h-full w-full object-cover" />
+          <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your art · {worksTotal} pieces</p>
+          <ul class="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+            {#each storedWorks as work (work.id)}
+              <li>
+                <div class="aspect-[4/5] overflow-hidden rounded-sm bg-muted">
+                  <BlurhashImage src={work.url} alt={work.title} blurhash={work.blurhash} width={200} class="h-full w-full object-cover" />
+                </div>
+                <p class="mt-1 truncate text-xs text-foreground">{work.title}</p>
+              </li>
+            {/each}
+            {#each drafts as draft (draft.key)}
+              <li>
+                <div class="aspect-[4/5] overflow-hidden rounded-sm bg-muted">
+                  <!-- Local preview: not uploaded until you submit. -->
+                  <img src={draft.previewUrl} alt={draft.title} class="h-full w-full object-cover" />
+                </div>
+                <p class="mt-1 truncate text-xs text-foreground">{draft.title}</p>
               </li>
             {/each}
           </ul>
+          <p class="mt-3 text-xs text-muted-foreground">These are previews from your device. They're uploaded when you press Submit.</p>
         </div>
       </div>
       <p class="text-xs text-muted-foreground">
@@ -474,9 +512,9 @@
       <Button
         type="submit"
         loading={submitting || savingStep}
-        disabled={(step === 2 && (formState === "loading" || formState === "error")) || (step === 3 && worksShort > 0)}
+        disabled={(step === 2 && (formState === "loading" || formState === "error")) || (step === 3 && !worksReady)}
       >
-        {step < REVIEW_STEP ? (savingStep ? "Saving…" : "Continue") : submitting ? "Submitting…" : "Submit application"}
+        {step < REVIEW_STEP ? (savingStep ? "Saving…" : "Continue") : submitting ? (uploadProgress || "Submitting…") : "Submit application"}
       </Button>
     </div>
   </form>

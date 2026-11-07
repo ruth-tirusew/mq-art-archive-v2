@@ -1,105 +1,105 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
-	import MediaUploader from '$lib/components/MediaUploader.svelte';
+	import { validateImageFile } from '$lib/application/media';
 	import { applicantWorksService } from '$lib/composition';
-	import type { ApplicantWork } from '$lib/core/domain/onboarding';
-	import { MIN_APPLICATION_WORKS, worksShortfall } from '$lib/core/domain/onboarding';
-	import type { UploadedMedia } from '$lib/core/domain/media';
-	import { Alert, Button, Field, Input } from '$ui';
+	import type { ApplicantWork, WorkDraft } from '$lib/core/domain/onboarding';
+	import { MIN_APPLICATION_WORKS, worksShortfall, workDraftProblem } from '$lib/core/domain/onboarding';
+	import { Alert, Field, Input } from '$ui';
 
 	type Props = {
-		/** Called whenever the list changes, so the page can decide whether to let the applicant continue. */
-		onchange?: (works: ApplicantWork[]) => void;
+		/** Pieces chosen but not uploaded yet. Nothing here touches the network until the application is submitted. */
+		drafts: WorkDraft[];
+		/** Works already stored for this applicant. Only someone re-applying after a rejection has any. */
+		existing: ApplicantWork[];
+		/** Fetch the stored works. False for a first-time applicant, who can't have any. */
+		loadExisting?: boolean;
+		/** Show what's wrong with each piece (after they try to continue). */
+		showProblems?: boolean;
 	};
 
-	let { onchange }: Props = $props();
+	let { drafts = $bindable(), existing = $bindable(), loadExisting = false, showProblems = false }: Props = $props();
 
-	let works = $state<ApplicantWork[]>([]);
-	let loading = $state(true);
-	let loadFailed = $state(false);
 	let error = $state('');
-	let busy = $state(false);
+	let loadFailed = $state(false);
+	let busyId = $state('');
 
-	// The image just uploaded, waiting for a title before it becomes a work.
-	let pending = $state<UploadedMedia | null>(null);
-	let title = $state('');
-	let medium = $state('');
-	let year = $state('');
-	let titleError = $state('');
+	const total = $derived(existing.length + drafts.length);
+	const shortfall = $derived(worksShortfall(total));
+	const atLimit = $derived(total >= applicantWorksService.maxWorks);
 
-	const shortfall = $derived(worksShortfall(works.length));
-	const atLimit = $derived(works.length >= applicantWorksService.maxWorks);
-
-	function set(next: ApplicantWork[]) {
-		works = next;
-		onchange?.(next);
-	}
-
-	async function load() {
-		loading = true;
+	async function loadStored() {
 		loadFailed = false;
 		try {
-			set(await applicantWorksService.list());
+			existing = await applicantWorksService.list();
 		} catch {
 			loadFailed = true;
-		} finally {
-			loading = false;
 		}
 	}
 
-	onMount(load);
+	onMount(() => {
+		if (loadExisting) void loadStored();
+	});
 
-	function uploaded(media: UploadedMedia) {
+	function choose(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const files = Array.from(input.files ?? []);
+		input.value = '';
+		const problems: string[] = [];
+		const added: WorkDraft[] = [];
+		for (const file of files) {
+			if (total + added.length >= applicantWorksService.maxWorks) {
+				problems.push(`You can add up to ${applicantWorksService.maxWorks} pieces.`);
+				break;
+			}
+			const problem = validateImageFile(file);
+			if (problem) {
+				problems.push(`${file.name}: ${problem}`);
+				continue;
+			}
+			added.push({
+				key: crypto.randomUUID(),
+				file,
+				previewUrl: URL.createObjectURL(file),
+				// A sensible starting title from the file name, which the applicant can change.
+				title: file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim(),
+				medium: '',
+				year: '',
+				status: 'pending'
+			});
+		}
+		error = problems.join(' ');
+		drafts = [...drafts, ...added];
+	}
+
+	async function removeDraft(draft: WorkDraft) {
 		error = '';
-		pending = media;
-		title = medium = year = '';
-		titleError = '';
+		// One that was already uploaded (a retry after a failed submit) also has to leave the server.
+		if (draft.workId) {
+			busyId = draft.key;
+			try {
+				await applicantWorksService.remove(draft.workId);
+			} catch (e) {
+				error = e instanceof Error ? e.message : 'Could not remove this piece.';
+				busyId = '';
+				return;
+			}
+			busyId = '';
+		}
+		URL.revokeObjectURL(draft.previewUrl);
+		drafts = drafts.filter((d) => d.key !== draft.key);
 	}
 
-	async function add(event?: Event) {
-		event?.preventDefault();
-		if (!pending?.id) return;
-		if (!title.trim()) {
-			titleError = 'Give this work a title.';
-			return;
-		}
-		const parsedYear = year.trim() ? Number(year) : null;
-		if (parsedYear !== null && !Number.isInteger(parsedYear)) {
-			titleError = '';
-			error = 'Year should be a number, like 2024.';
-			return;
-		}
-		busy = true;
+	async function removeStored(work: ApplicantWork) {
 		error = '';
-		try {
-			const work = await applicantWorksService.add({ media_asset_id: pending.id, title, medium, year: parsedYear });
-			set([...works, work]);
-			pending = null;
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Could not add this work.';
-		} finally {
-			busy = false;
-		}
-	}
-
-	// Enter adds the work (and must not submit the whole application, which this sits inside).
-	function enterAdds(event: KeyboardEvent) {
-		if (event.key !== 'Enter') return;
-		event.preventDefault();
-		void add();
-	}
-
-	async function remove(work: ApplicantWork) {
-		busy = true;
-		error = '';
+		busyId = work.id;
 		try {
 			await applicantWorksService.remove(work.id);
-			set(works.filter((w) => w.id !== work.id));
+			existing = existing.filter((w) => w.id !== work.id);
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Could not remove this work.';
+			error = e instanceof Error ? e.message : 'Could not remove this piece.';
 		} finally {
-			busy = false;
+			busyId = '';
 		}
 	}
 </script>
@@ -109,46 +109,42 @@
 		<p class="t-eyebrow text-accent">Your art</p>
 		<h2 class="t-h3 mt-2">Show us at least {MIN_APPLICATION_WORKS} pieces of your work</h2>
 		<p class="mt-2 text-sm text-muted-foreground">
-			Upload your best pieces, one at a time, and give each a title. These are what our team looks at first, and once you're approved
-			they're a head start on your profile.
+			Choose your best pieces and give each a title. Nothing is uploaded yet: you'll see everything on the next step, and your images are only
+			sent when you submit your application.
 		</p>
 	</div>
 
 	<p class="font-mono text-xs uppercase tracking-[0.18em] {shortfall === 0 ? 'text-success' : 'text-muted-foreground'}" role="status" aria-live="polite">
 		{#if shortfall === 0}
-			{works.length} of {MIN_APPLICATION_WORKS} · you have enough to apply
+			{total} of {MIN_APPLICATION_WORKS} · you have enough to apply
 		{:else}
-			{works.length} of {MIN_APPLICATION_WORKS} · add {shortfall} more
+			{total} of {MIN_APPLICATION_WORKS} · add {shortfall} more
 		{/if}
 	</p>
 
-	{#if loading}
-		<p class="text-sm text-muted-foreground">Loading your works…</p>
-	{:else if loadFailed}
+	{#if loadFailed}
 		<Alert tone="error">
-			We couldn't load your works.
-			<button type="button" class="underline underline-offset-4" onclick={load}>Try again</button>
+			We couldn't load the works from your earlier application.
+			<button type="button" class="underline underline-offset-4" onclick={loadStored}>Try again</button>
 		</Alert>
-	{:else}
-		{#if works.length > 0}
+	{/if}
+
+	{#if existing.length > 0}
+		<div>
+			<p class="mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">From your earlier application</p>
 			<ul class="grid grid-cols-2 gap-4 sm:grid-cols-3">
-				{#each works as work (work.id)}
-					<li class="group" data-testid="applicant-work">
+				{#each existing as work (work.id)}
+					<li data-testid="stored-work">
 						<div class="aspect-[4/5] overflow-hidden rounded-sm bg-muted">
 							<BlurhashImage src={work.url} alt={work.title} blurhash={work.blurhash} width={320} class="h-full w-full object-cover" />
 						</div>
 						<div class="mt-2 flex items-start justify-between gap-2">
-							<div class="min-w-0">
-								<p class="truncate text-sm text-foreground">{work.title}</p>
-								<p class="truncate font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-									{[work.medium, work.year].filter(Boolean).join(' · ')}
-								</p>
-							</div>
+							<p class="min-w-0 truncate text-sm text-foreground">{work.title}</p>
 							<button
 								type="button"
 								class="shrink-0 font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50"
-								disabled={busy}
-								onclick={() => remove(work)}
+								disabled={busyId === work.id}
+								onclick={() => removeStored(work)}
 								aria-label="Remove {work.title}"
 							>
 								Remove
@@ -157,45 +153,75 @@
 					</li>
 				{/each}
 			</ul>
-		{/if}
+		</div>
+	{/if}
 
-		{#if pending}
-			<!-- Not a <form>: this sits inside the application's own form, and forms can't nest. -->
-			<div class="space-y-4 rounded-sm border border-border/70 p-4" role="group" aria-label="Add this work">
-				<div class="flex gap-4">
-					<div class="h-24 w-20 shrink-0 overflow-hidden rounded-sm bg-muted">
-						<BlurhashImage src={pending.secure_url} alt="Uploaded work" blurhash={pending.blurhash} width={160} class="h-full w-full object-cover" />
+	{#if drafts.length > 0}
+		<ul class="space-y-4" data-testid="work-drafts">
+			{#each drafts as draft (draft.key)}
+				{@const problem = showProblems ? workDraftProblem(draft) : null}
+				<li class="flex gap-4 rounded-sm border border-border/70 p-4" data-testid="work-draft">
+					<div class="h-28 w-24 shrink-0 overflow-hidden rounded-sm bg-muted">
+						<!-- A local preview of the file the applicant chose; it has not been uploaded. -->
+						<img src={draft.previewUrl} alt="Preview of {draft.title || draft.file.name}" class="h-full w-full object-cover" />
 					</div>
 					<div class="min-w-0 flex-1 space-y-3">
-						<Field label="Title" required error={titleError || undefined}>
+						<Field label="Title" required error={problem ?? undefined}>
 							{#snippet children({ id, describedby, invalid })}
-								<Input {id} aria-describedby={describedby} {invalid} bind:value={title} maxlength={200} onkeydown={enterAdds} />
+								<Input {id} aria-describedby={describedby} {invalid} bind:value={draft.title} maxlength={200} disabled={draft.status === 'done'} />
 							{/snippet}
 						</Field>
 						<div class="grid grid-cols-2 gap-3">
 							<Field label="Medium" hint="Optional">
 								{#snippet children({ id, describedby })}
-									<Input {id} aria-describedby={describedby} bind:value={medium} maxlength={100} onkeydown={enterAdds} />
+									<Input {id} aria-describedby={describedby} bind:value={draft.medium} maxlength={100} disabled={draft.status === 'done'} />
 								{/snippet}
 							</Field>
 							<Field label="Year" hint="Optional">
 								{#snippet children({ id, describedby })}
-									<Input {id} inputmode="numeric" aria-describedby={describedby} bind:value={year} maxlength={4} onkeydown={enterAdds} />
+									<Input {id} inputmode="numeric" aria-describedby={describedby} bind:value={draft.year} maxlength={4} disabled={draft.status === 'done'} />
 								{/snippet}
 							</Field>
 						</div>
+						<div class="flex items-center justify-between gap-3">
+							<p class="font-mono text-[10px] uppercase tracking-[0.15em] {draft.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}" role="status">
+								{#if draft.status === 'uploading'}Uploading…
+								{:else if draft.status === 'done'}Uploaded
+								{:else if draft.status === 'failed'}Upload failed{draft.error ? `: ${draft.error}` : ''}
+								{:else}Not uploaded yet{/if}
+							</p>
+							<button
+								type="button"
+								class="shrink-0 font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground underline underline-offset-4 hover:text-destructive disabled:opacity-50"
+								disabled={busyId === draft.key || draft.status === 'uploading'}
+								onclick={() => removeDraft(draft)}
+								aria-label="Remove {draft.title || draft.file.name}"
+							>
+								Remove
+							</button>
+						</div>
 					</div>
-				</div>
-				<div class="flex gap-3">
-					<Button type="button" disabled={busy} onclick={add}>{busy ? 'Adding…' : 'Add this work'}</Button>
-					<Button type="button" variant="ghost" disabled={busy} onclick={() => (pending = null)}>Discard</Button>
-				</div>
-			</div>
-		{:else if atLimit}
-			<p class="text-sm text-muted-foreground">That's the most we can take ({applicantWorksService.maxWorks}). Remove one to add another.</p>
-		{:else}
-			<MediaUploader scope="applicant" label={works.length === 0 ? 'Upload your first piece' : 'Upload another piece'} showPreview={false} onUploaded={uploaded} />
-		{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	{#if atLimit}
+		<p class="text-sm text-muted-foreground">That's the most we can take ({applicantWorksService.maxWorks}). Remove one to add another.</p>
+	{:else}
+		<label class="block">
+			<span class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+				{total === 0 ? 'Choose your pieces' : 'Choose more pieces'}
+			</span>
+			<input
+				type="file"
+				multiple
+				accept="image/jpeg,image/png,image/webp"
+				onchange={choose}
+				class="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-sm file:border file:border-border file:bg-transparent file:px-4 file:py-2 file:text-foreground"
+			/>
+			<span class="mt-1 block text-xs text-muted-foreground">JPEG, PNG or WebP, up to 10 MB each. You can pick several at once.</span>
+		</label>
 	{/if}
 
 	{#if error}<Alert tone="error">{error}</Alert>{/if}

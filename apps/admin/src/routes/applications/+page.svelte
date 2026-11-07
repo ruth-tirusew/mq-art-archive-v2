@@ -85,7 +85,7 @@
 <PageHeader
   eyebrow="Applications"
   title={showingQueue ? 'Pending applications' : `${tabLabel[data.status]} applications`}
-  description="Review artist applications. Approving one creates a private draft profile the artist can publish themselves."
+  description="Review artist applications. Approving one publishes the artist: their profile goes live with the work they submitted."
 />
 
 <div class="mb-4 flex gap-2 overflow-x-auto" role="group" aria-label="Filter by status">

@@ -43,7 +43,10 @@
       status === 'approved'
         ? {
             title: 'Approve this application?',
-            description: 'The applicant is notified of the decision and gets access to the studio.',
+            description:
+              data.application.applicant_type === 'artist'
+                ? 'This publishes them straight away: their profile and submitted work go live on the site, and they are notified and get access to the studio.'
+                : 'The applicant is notified of the decision and gets access to the studio.',
             confirmLabel: 'Approve',
             run: () => review(status)
           }

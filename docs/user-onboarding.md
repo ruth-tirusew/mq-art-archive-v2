@@ -26,11 +26,14 @@ This guide is for:
 
 ### 2. Apply as an artist
 
-Signed-in readers see **Apply as artist** in the site header. The application is a three-step form:
+Signed-in readers see **Apply as artist** in the site header. The application is a four-step form:
 
 1. **About you**: artist name and a requested profile handle (3–30 lowercase letters, numbers or underscores). Availability is checked as you type.
 2. **Your answers** (or **Your work**, see below).
-3. **Review**: confirm and submit.
+3. **Your art**: upload **at least five** pieces of your work, each with a title (medium and year are optional). Up to 20 are allowed. You choose and preview them on your device first; nothing is uploaded until you press **Submit** on the last step, when they go to Cloudinary (kept exactly as uploaded, shown to visitors as lossless WebP).
+4. **Review**: confirm and submit.
+
+**The five-works rule.** An artist application can't be submitted with fewer than five works; the form says how many more are needed and the API refuses the submission (`400`) otherwise. This applies to invited applicants too. The works are copied onto the application when it is submitted, so a reviewer always sees what was sent, even if the applicant later changes their works. While an application is under review the works are locked; after a rejection the applicant can edit them and apply again. Institution applications aren't affected.
 
 **The questionnaire.** Once an admin has published a questionnaire revision (Admin → Applications → Questionnaire), step 2 is that questionnaire instead of the free-text links. Applicants answer in English, Amharic or both:
 
@@ -43,7 +46,11 @@ Before any revision is published, step 2 is the original form: Instagram, websit
 
 Institution applications are not offered in the UI for now.
 
-**Invitations.** For artists the team already knows, an admin can send an invite (Admin → Applications → Invites) with an optional name and a reserved handle. The link (`/apply?invite=…`) works once and expires (14 days by default). The invitee signs in with the invited address, which must be **verified**, and the form is pre-filled. An invite does not skip review: the application is still approved by an admin. The link is shown to the admin once, and also emailed best-effort.
+**Invitations.** For artists the team already knows, an admin can send an invite (Admin → Applications → Invites) with an optional name and a reserved handle. The link (`/apply?invite=…`) works once and expires (14 days by default).
+
+The invitee **does not need an account**. The link opens a welcome page where they choose a password; that creates their account and signs them in. Because the link was sent only to that address, the account is created already verified, so there is no verification email to wait for. The address always comes from the invite, never from what the visitor types. If that address already has an account, the page says so and sends them to sign in instead; an invite never verifies or takes over an existing account. Google sign-in works too, as long as it is the invited address.
+
+The form is then pre-filled with their name and handle. An invite does not skip review: the application is still approved by an admin. The link is shown to the admin once, and also emailed best-effort. A forwarded link can be used by whoever opens it first, so admins can revoke or resend a link at any time.
 
 ### 3. Admin review
 
@@ -59,10 +66,11 @@ The applicant gets an email with the decision (sent best-effort; logged only if 
 
 Reviewers see the applicant's answers (including those marked team-only) next to the approve and reject buttons. Approval is the only review. When it is approved:
 
-- the user becomes an artist and a **private draft** profile is created with their name and handle
-- the studio opens with a welcome guide: add a portrait and bio, optionally publish a first work, then tick **Make my profile public** and save
+- the user becomes an artist and their profile **goes live straight away** under the handle they asked for
+- each of the (at least five) works they submitted becomes a published artwork on their page, with its blur hash
+- the studio opens with a welcome guide: add a portrait and a short bio, and add more work when they like
 
-Publishing requires a bio and a portrait and needs no further approval. Unticking the box takes the profile offline.
+Approval is the only gate: an admin has already reviewed the artist and their work, so there is no separate publish step. The profile has no portrait or bio until the artist adds them. An artist can still untick **Make my profile public** in the studio to take the profile offline, and admins can take one down too. Applications that predate the five-works rule go live with no artworks. If publishing fails part-way, the application goes back to pending and approving again finishes the job without duplicating anything.
 
 If rejected, the applicant sees the reviewer's reason and can edit and apply again; the form is pre-filled.
 
@@ -80,6 +88,7 @@ The onboarding form must validate all of the following:
 - duplicate handle conflicts are rejected
 - the user must not submit a malformed or empty profile request
 - the application must be traceable to the authenticated user
+- an artist application needs at least five works, each with a title and an image the applicant uploaded themselves
 
 ## User experience expectations
 

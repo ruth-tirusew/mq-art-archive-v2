@@ -2,6 +2,7 @@ package onboarding
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -452,4 +453,75 @@ func TestService_Review_failedProvisioningReopensApplicationAndRetryAppliesHandl
 	assist.Equal(t, domain.ApprovalStatusApproved, got.Status)
 	assist.Equal(t, "studio_x", profile.Handle) // the retry still applied the requested handle
 	assist.Equal(t, identity.RoleArtist, role)
+}
+
+type provisionerStub struct {
+	calls []domain.OnboardingApplication
+	err   error
+}
+
+func (p *provisionerStub) ProvisionApproved(_ context.Context, app domain.OnboardingApplication) error {
+	p.calls = append(p.calls, app)
+	return p.err
+}
+
+func TestService_Review_approvalPublishesTheArtistThroughTheProvisioner(t *testing.T) {
+	app := pendingArtistApp("studio_x")
+	app.Works = []domain.ApplicantWork{{ID: uuid.New(), Title: "One"}, {ID: uuid.New(), Title: "Two"}}
+	var order []string
+	repo := &mockOnboardingRepo{
+		getByID: func(context.Context, uuid.UUID) (*domain.OnboardingApplication, error) { c := *app; return &c, nil },
+		save: func(_ context.Context, a domain.OnboardingApplication) (*domain.OnboardingApplication, error) {
+			return &a, nil
+		},
+	}
+	users := &mockUserRepo{updateRole: func(context.Context, uuid.UUID, identity.Role) error {
+		order = append(order, "promote")
+		return nil
+	}}
+	prov := &provisionerStub{}
+	svc := NewService(repo, users, &mockProfileRepo{}, &mockInstitutionRepo{}, WithArtistProvisioner(prov))
+
+	_, err := svc.Review(context.Background(), app.ID, uuid.New(), domain.ApprovalStatusApproved, "welcome")
+	assist.NoError(t, err)
+	assist.Len(t, 1, len(prov.calls))
+	assist.Len(t, 2, len(prov.calls[0].Works)) // the submitted works travel with the application
+	assist.Equal(t, "studio_x", prov.calls[0].RequestedHandle)
+	assist.Equal(t, 1, len(order)) // promoted
+}
+
+func TestService_Review_aFailedProvisionDoesNotPromoteAndSendsTheApplicationBackToPending(t *testing.T) {
+	app := pendingArtistApp("studio_x")
+	var saved []domain.ApprovalStatus
+	repo := &mockOnboardingRepo{
+		getByID: func(context.Context, uuid.UUID) (*domain.OnboardingApplication, error) { c := *app; return &c, nil },
+		save: func(_ context.Context, a domain.OnboardingApplication) (*domain.OnboardingApplication, error) {
+			saved = append(saved, a.Status)
+			return &a, nil
+		},
+	}
+	promoted := false
+	users := &mockUserRepo{updateRole: func(context.Context, uuid.UUID, identity.Role) error { promoted = true; return nil }}
+	prov := &provisionerStub{err: errors.New("db hiccup")}
+	svc := NewService(repo, users, &mockProfileRepo{}, &mockInstitutionRepo{}, WithArtistProvisioner(prov))
+
+	_, err := svc.Review(context.Background(), app.ID, uuid.New(), domain.ApprovalStatusApproved, "")
+	assist.Error(t, err)
+	if promoted {
+		t.Error("the role must not change when the artist could not be published")
+	}
+	if len(saved) == 0 || saved[len(saved)-1] != domain.ApprovalStatusPending {
+		t.Errorf("the application should be back to pending so it can be retried, saved statuses: %v", saved)
+	}
+}
+
+func TestDecisionEmail_saysTheProfileIsLiveWhenWorksWerePublished(t *testing.T) {
+	approved := &domain.OnboardingApplication{
+		DisplayName: "Sam", RequestedHandle: "sam_1", Status: domain.ApprovalStatusApproved,
+		Works: []domain.ApplicantWork{{Title: "a"}, {Title: "b"}, {Title: "c"}, {Title: "d"}, {Title: "e"}},
+	}
+	_, body := decisionEmail(approved, "https://artiv.example")
+	assist.Contains(t, body, "5 works are now live")
+	assist.Contains(t, body, "https://artiv.example/artists/sam_1")
+	assist.Contains(t, body, "https://artiv.example/studio")
 }

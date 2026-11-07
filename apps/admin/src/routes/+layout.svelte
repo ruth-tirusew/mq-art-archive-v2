@@ -1,6 +1,5 @@
 <script lang="ts">
   import '../app.css';
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authService, currentUser } from '$lib/application/auth';
@@ -16,7 +15,7 @@
   import Settings from 'lucide-svelte/icons/settings';
   import UserCog from 'lucide-svelte/icons/user-cog';
 
-  let { children } = $props();
+  let { data, children } = $props();
 
   type NavItem = { href: string; label: string };
   type NavGroup = { heading?: string; items: NavItem[] };
@@ -181,21 +180,11 @@
   const topSections = sections.filter((s) => s.position !== 'bottom');
   const bottomSections = sections.filter((s) => s.position === 'bottom');
 
-  onMount(async () => {
-    const path = $page.url.pathname;
-    if (path === '/login' || path.startsWith('/auth/')) {
-      await authService.load();
-      return;
-    }
-
-    const user = await authService.load();
-    if (!user) {
-      await goto('/login');
-      return;
-    }
-    if (user.role !== 'admin') {
-      await goto('/login?error=access_denied');
-    }
+  // The route guard lives in +layout.ts. Here the session only feeds the shared store that pages
+  // (and the login screen) read; effects never run on the server, so requests can't share it.
+  $effect(() => {
+    if (data.user) currentUser.set(data.user);
+    else void authService.load();
   });
 
   async function logout() {
@@ -287,7 +276,7 @@
       {bottomSections}
       activeSectionId={activeSection.id}
       {isItemActive}
-      email={$currentUser?.email}
+      email={data.user?.email ?? $currentUser?.email}
       onlogout={logout}
     />
 

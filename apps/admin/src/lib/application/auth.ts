@@ -15,6 +15,18 @@ export const authLoading = writable(true);
 export const authService = {
   googleLoginUrl,
 
+  /**
+   * The signed-in user, or null. Unlike `load` it touches no store, so it is safe in a server
+   * `load` where module state is shared between requests.
+   */
+  async session(): Promise<User | null> {
+    try {
+      return await api.me();
+    } catch {
+      return null;
+    }
+  },
+
   async load(): Promise<User | null> {
     authLoading.set(true);
     try {

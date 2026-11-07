@@ -63,6 +63,12 @@ export const handlers = [
 		// like the real API: the account's email is the invite's, whatever the body says
 		return HttpResponse.json({ id: 'u-1', email: 'ada@example.com', role: 'public', email_verified: true }, { status: 201 });
 	}),
+	http.post(`${base}/api/v1/auth/verify-email`, async ({ request }) => {
+		const body = (await request.json()) as { token: string };
+		return body.token === 'good'
+			? new HttpResponse(null, { status: 204 })
+			: HttpResponse.json({ error: 'invalid or expired token' }, { status: 400 });
+	}),
 	http.post(`${base}/api/v1/applications/invite`, async ({ request }) => {
 		const body = (await request.json()) as { token: string };
 		return body.token === 'good'

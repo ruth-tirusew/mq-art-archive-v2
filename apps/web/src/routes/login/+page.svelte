@@ -23,7 +23,8 @@
 	);
 	const loginHref = $derived(googleLoginUrl(returnTo, $page.url.origin));
 
-	let mode = $state<Mode>('signin');
+	// ?mode=signup opens straight on account creation (the home page's "Join the community").
+	let mode = $state<Mode>($page.url.searchParams.get('mode') === 'signup' ? 'signup' : 'signin');
 	// Pre-filled by invite links so the invitee signs in with the address the invite was sent to.
 	let email = $state($page.url.searchParams.get('email') ?? '');
 	let password = $state('');

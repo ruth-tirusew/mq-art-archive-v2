@@ -1,86 +1,89 @@
 import { describe, expect, it } from 'vitest';
 import {
-	BLOOM_LIFE,
-	createBloom,
+	BLOOM_LIFE_MS,
+	bloomLook,
 	createRng,
-	dropRadius,
 	isDry,
-	outline,
-	shouldDrop,
-	spread,
-	wetness
+	pigmentIndex,
+	shouldPaint,
+	stampOutline,
+	washScale
 } from './watercolor';
 
-const pigment = { r: 139, g: 40, b: 30 };
-
-describe('spread and wetness', () => {
-	it('spills fast then creeps: most of the spread happens in the first second', () => {
-		expect(spread(0)).toBe(0);
-		expect(spread(1)).toBeGreaterThan(0.55);
-		expect(spread(1)).toBeLessThan(spread(6));
-		expect(spread(60)).toBeLessThanOrEqual(1);
+describe('bloomLook', () => {
+	it('starts small and spreads quickly toward full size', () => {
+		expect(bloomLook(0).spread).toBeCloseTo(0.35);
+		expect(bloomLook(700).spread).toBeGreaterThan(0.75);
+		expect(bloomLook(5000).spread).toBeLessThanOrEqual(1);
 	});
 
-	it('never shrinks while it is spreading', () => {
+	it('never shrinks while it spreads', () => {
 		let last = 0;
-		for (let t = 0; t <= BLOOM_LIFE; t += 0.25) {
-			expect(spread(t)).toBeGreaterThanOrEqual(last);
-			last = spread(t);
+		for (let t = 0; t <= BLOOM_LIFE_MS; t += 50) {
+			expect(bloomLook(t).spread).toBeGreaterThanOrEqual(last);
+			last = bloomLook(t).spread;
 		}
 	});
 
-	it('wets in quickly, holds, then dries to nothing', () => {
-		expect(wetness(0)).toBe(0);
-		expect(wetness(0.35)).toBe(1);
-		expect(wetness(3)).toBe(1);
-		expect(wetness(BLOOM_LIFE / 2)).toBeLessThan(1);
-		expect(wetness(BLOOM_LIFE / 2)).toBeGreaterThan(0);
-		expect(wetness(BLOOM_LIFE)).toBe(0);
+	it('wets in fast, holds, then dries to nothing', () => {
+		expect(bloomLook(0).alpha).toBe(0);
+		expect(bloomLook(120).alpha).toBeCloseTo(0.8);
+		expect(bloomLook(2000).alpha).toBeCloseTo(0.8);
+		expect(bloomLook(5500).alpha).toBeLessThan(0.8);
+		expect(bloomLook(5500).alpha).toBeGreaterThan(0);
+		expect(bloomLook(BLOOM_LIFE_MS).alpha).toBe(0);
+		expect(bloomLook(BLOOM_LIFE_MS + 1000).alpha).toBe(0);
+	});
+
+	it('is dry exactly when its life is over', () => {
+		expect(isDry(BLOOM_LIFE_MS - 1)).toBe(false);
+		expect(isDry(BLOOM_LIFE_MS)).toBe(true);
 	});
 });
 
-describe('bloom outline', () => {
-	it('is deterministic for a seed and a different shape for another', () => {
-		const a = createBloom(100, 100, 100, pigment, 0, createRng(7));
-		const b = createBloom(100, 100, 100, pigment, 0, createRng(7));
-		const c = createBloom(100, 100, 100, pigment, 0, createRng(8));
-		expect(outline(a, 3)).toEqual(outline(b, 3));
-		expect(outline(a, 3)).not.toEqual(outline(c, 3));
+describe('stampOutline', () => {
+	it('is deterministic for a seed and different for another', () => {
+		expect(stampOutline(createRng(3))).toEqual(stampOutline(createRng(3)));
+		expect(stampOutline(createRng(3))).not.toEqual(stampOutline(createRng(4)));
 	});
 
-	it('stays one blob: radius is positive and within a sane band of the nominal radius', () => {
-		for (let seed = 1; seed < 40; seed++) {
-			const bloom = createBloom(0, 0, 100, pigment, 0, createRng(seed));
-			for (const p of outline(bloom, BLOOM_LIFE - 1)) {
-				const r = Math.hypot(p.x, p.y);
-				expect(r).toBeGreaterThan(30);
-				expect(r).toBeLessThan(190);
+	it('stays one lobed blob inside the stamp, never a star or a speck', () => {
+		for (let seed = 1; seed < 50; seed++) {
+			for (const { radius } of stampOutline(createRng(seed))) {
+				expect(radius).toBeGreaterThan(50);
+				expect(radius).toBeLessThan(110);
 			}
 		}
 	});
 
-	it('is a point at the moment the drop lands', () => {
-		const bloom = createBloom(50, 60, 100, pigment, 5, createRng(1));
-		for (const p of outline(bloom, 5)) expect(p).toEqual({ x: 50, y: 60 });
+	it('goes once around the circle', () => {
+		const pts = stampOutline(createRng(1), 80);
+		expect(pts).toHaveLength(80);
+		expect(pts[0].angle).toBe(0);
+		expect(pts[79].angle).toBeLessThan(Math.PI * 2);
 	});
 
-	it('is dry once its life is over', () => {
-		const bloom = createBloom(0, 0, 100, pigment, 10, createRng(1));
-		expect(isDry(bloom, 10 + BLOOM_LIFE - 0.1)).toBe(false);
-		expect(isDry(bloom, 10 + BLOOM_LIFE)).toBe(true);
+	it('has washes that grow from 60% of the outline, so edges stack up darker', () => {
+		expect(washScale(0)).toBeCloseTo(0.6);
+		expect(washScale(21)).toBeGreaterThan(washScale(20));
+		expect(washScale(21)).toBeLessThan(1);
 	});
 });
 
 describe('brush', () => {
-	it('lays the first drop at once and later ones only after enough movement', () => {
-		expect(shouldDrop(null, { x: 0, y: 0 }, 40)).toBe(true);
-		expect(shouldDrop({ x: 0, y: 0 }, { x: 20, y: 10 }, 40)).toBe(false);
-		expect(shouldDrop({ x: 0, y: 0 }, { x: 30, y: 30 }, 40)).toBe(true);
+	it('lays the first drop at once', () => {
+		expect(shouldPaint(null, { x: 0, y: 0, t: 0 })).toBe(true);
 	});
 
-	it('gives faster strokes bigger pools, within limits', () => {
-		expect(dropRadius(0)).toBe(70);
-		expect(dropRadius(1)).toBeGreaterThan(dropRadius(0.2));
-		expect(dropRadius(50)).toBe(150);
+	it('waits for both enough time and enough distance', () => {
+		const last = { x: 0, y: 0, t: 1000 };
+		expect(shouldPaint(last, { x: 100, y: 0, t: 1020 })).toBe(false); // too soon
+		expect(shouldPaint(last, { x: 5, y: 5, t: 1100 })).toBe(false); // too close
+		expect(shouldPaint(last, { x: 30, y: 10, t: 1060 })).toBe(true);
+	});
+
+	it('changes colour every five drops and wraps around the set', () => {
+		expect([0, 4, 5, 9, 10].map((n) => pigmentIndex(n, 3))).toEqual([0, 0, 1, 1, 2]);
+		expect(pigmentIndex(15, 3)).toBe(0);
 	});
 });

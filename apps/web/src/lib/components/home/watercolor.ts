@@ -1,6 +1,10 @@
 /**
- * Geometry and timing for the watercolor spill on the empty home page. Pure functions, so the
- * look (how fast a drop spreads, how its edge wobbles, when it dries) is testable without a canvas.
+ * Timing and shape rules for the watercolor on the empty home page. Pure functions, so how a drop
+ * looks and when the brush lays one down can be tested without a canvas.
+ *
+ * A drop is a pre-painted "stamp": many translucent, slightly offset washes of one irregular
+ * outline, with specks of paper left showing through. Stamping it at the pointer, scaled up while
+ * it spreads and faded as it dries, reads as pigment bleeding into wet paper.
  */
 
 export interface Rgb {
@@ -9,23 +13,16 @@ export interface Rgb {
 	b: number;
 }
 
-export interface Bloom {
-	x: number;
-	y: number;
-	/** Radius in px when fully spread. */
-	radius: number;
-	pigment: Rgb;
-	/** Seconds on the clock when the drop landed. */
-	born: number;
-	/** Per-bloom wobble: harmonic amplitudes and phases for the edge, and how fast each one drifts. */
-	harmonics: { k: number; amp: number; phase: number; drift: number }[];
-}
+export const STAMP_SIZE = 256;
+export const WASH_LAYERS = 22;
+export const WASH_ALPHA = 0.024;
+export const GRAIN_SPECKS = 5200;
 
-/** Seconds a drop stays visible: it spills fast, creeps for a while, then dries away. */
-export const BLOOM_LIFE = 18;
-const DRY_FROM = 4;
+/** Milliseconds a drop stays visible before it has dried away. */
+export const BLOOM_LIFE_MS = 6500;
+export const MAX_BLOOMS = 65;
 
-/** Small, fast, deterministic PRNG (mulberry32), so a seeded bloom always has the same shape. */
+/** Small, fast, deterministic PRNG (mulberry32), so a seeded stamp always has the same shape. */
 export function createRng(seed: number): () => number {
 	let a = seed >>> 0;
 	return () => {
@@ -37,60 +34,48 @@ export function createRng(seed: number): () => number {
 	};
 }
 
-export function createBloom(x: number, y: number, radius: number, pigment: Rgb, born: number, rng: () => number): Bloom {
-	// Low harmonics make a lobed, uneven pool; higher ones a fine ragged edge. Amplitude falls
-	// off with k so the shape stays one blob rather than a star.
-	const harmonics = [2, 3, 4, 5, 7].map((k) => ({
-		k,
-		amp: (0.16 / Math.sqrt(k - 0.5)) * (0.55 + rng() * 0.9),
-		phase: rng() * Math.PI * 2,
-		drift: (rng() - 0.5) * 0.5
-	}));
-	return { x, y, radius, pigment, born, harmonics };
+/** One uneven pool outline, as polar points around the stamp's centre. */
+export function stampOutline(rng: () => number, points = 80): { angle: number; radius: number }[] {
+	return Array.from({ length: points }, (_, i) => {
+		const angle = (i / points) * Math.PI * 2;
+		const radius = 74 + 13 * Math.sin(angle * 3 + 1) + 10 * Math.cos(angle * 7) + rng() * 12;
+		return { angle, radius };
+	});
 }
 
-/** How far the drop has spread, 0..1: most of it in the first second, then a slow creep. */
-export function spread(age: number): number {
-	if (age <= 0) return 0;
-	return 0.82 * (1 - Math.exp(-age / 0.9)) + 0.18 * (1 - Math.exp(-age / 7));
+/** Each wash is the same outline a touch larger, so the layers stack into soft, darker edges. */
+export function washScale(layer: number): number {
+	return 0.6 + layer * 0.017;
 }
 
-/** Visible strength, 0..1: wet quickly, holds, then dries to nothing at BLOOM_LIFE. */
-export function wetness(age: number): number {
-	if (age <= 0 || age >= BLOOM_LIFE) return 0;
-	const attack = Math.min(1, age / 0.35);
-	const drying = age < DRY_FROM ? 1 : 1 - (age - DRY_FROM) / (BLOOM_LIFE - DRY_FROM);
-	return attack * Math.pow(Math.max(0, drying), 1.5);
+/** How big the drop is (as a fraction of its full size) and how strong it looks, `ageMs` after landing. */
+export function bloomLook(ageMs: number): { spread: number; alpha: number } {
+	const spread = 0.35 + 0.65 * (1 - Math.exp(-ageMs / 700));
+	const wetting = Math.min(ageMs / 120, 1);
+	const drying = Math.min((BLOOM_LIFE_MS - ageMs) / 2300, 1);
+	return { spread, alpha: Math.max(0, wetting * drying * 0.8) };
 }
 
-export function isDry(bloom: Bloom, now: number): boolean {
-	return now - bloom.born >= BLOOM_LIFE;
+export function isDry(ageMs: number): boolean {
+	return ageMs >= BLOOM_LIFE_MS;
 }
 
-/** The outline of the pool at `now`, as points around its centre. */
-export function outline(bloom: Bloom, now: number, steps = 56): { x: number; y: number }[] {
-	const age = now - bloom.born;
-	const base = bloom.radius * spread(age);
-	const pts: { x: number; y: number }[] = [];
-	for (let i = 0; i < steps; i++) {
-		const angle = (i / steps) * Math.PI * 2;
-		let wobble = 1;
-		for (const h of bloom.harmonics) wobble += h.amp * Math.sin(h.k * angle + h.phase + h.drift * age);
-		const r = Math.max(0, base * wobble);
-		pts.push({ x: bloom.x + Math.cos(angle) * r, y: bloom.y + Math.sin(angle) * r });
-	}
-	return pts;
+export interface BrushPoint {
+	x: number;
+	y: number;
+	/** performance.now() when the point was seen. */
+	t: number;
 }
 
-/** A new drop is only laid down once the brush has moved far enough from the last one. */
-export function shouldDrop(last: { x: number; y: number } | null, next: { x: number; y: number }, spacing: number): boolean {
+/** The brush lays a drop only after enough time and distance since the last one. */
+export function shouldPaint(last: BrushPoint | null, next: BrushPoint): boolean {
 	if (!last) return true;
-	return Math.hypot(next.x - last.x, next.y - last.y) >= spacing;
+	return next.t - last.t >= 55 && Math.hypot(next.x - last.x, next.y - last.y) >= 24;
 }
 
-/** Faster strokes carry more water: a bigger, thinner pool. Clamped so it never gets absurd. */
-export function dropRadius(speedPxPerMs: number, min = 70, max = 150): number {
-	return Math.min(max, min + speedPxPerMs * 55);
+/** The brush changes colour every few drops. */
+export function pigmentIndex(drops: number, pigments: number): number {
+	return Math.floor(drops / 5) % pigments;
 }
 
 /** Resolve any CSS colour (including oklch tokens) to sRGB by letting the browser paint it. */

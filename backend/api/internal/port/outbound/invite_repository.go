@@ -19,8 +19,9 @@ type InviteRepository interface {
 	// GetLiveByHandle returns the live (unclaimed, unrevoked, unexpired) invite reserving the
 	// handle, or ErrNotFound. Handle availability checks use it.
 	GetLiveByHandle(ctx context.Context, handle string, now time.Time) (*onboarding.Invite, error)
-	// List returns all invites, newest first.
-	List(ctx context.Context) ([]onboarding.Invite, error)
+	// List returns one page of invites, newest first, and the total number matching the filter.
+	// Status is derived from the timestamps, so it is evaluated against now.
+	List(ctx context.Context, filter onboarding.InviteListFilter, now time.Time) ([]onboarding.Invite, int, error)
 	// Claim atomically marks a live invite claimed by the user. ErrConflict if it is already
 	// claimed, revoked or expired, so two concurrent claims cannot both succeed.
 	Claim(ctx context.Context, id, userID uuid.UUID, now time.Time) (*onboarding.Invite, error)

@@ -53,7 +53,8 @@ type InviteService interface {
 	// ResendInvite revokes the invite and issues a fresh link with the same details.
 	ResendInvite(ctx context.Context, adminID, inviteID uuid.UUID) (*InviteWithToken, error)
 	RevokeInvite(ctx context.Context, inviteID uuid.UUID) error
-	ListInvites(ctx context.Context) ([]onboarding.Invite, error)
+	// ListInvites returns one page of invites and the total number of matches.
+	ListInvites(ctx context.Context, filter onboarding.InviteListFilter) ([]onboarding.Invite, int, error)
 	// PreviewInvite looks an invite up by its raw token. ErrNotFound for an unknown token.
 	PreviewInvite(ctx context.Context, rawToken string) (*InvitePreview, error)
 	// RegisterWithInvite creates the invitee's verified account and signs them in. The email is

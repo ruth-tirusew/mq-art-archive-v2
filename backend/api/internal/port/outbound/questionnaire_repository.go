@@ -22,8 +22,9 @@ type QuestionnaireRepository interface {
 	ListPublished(ctx context.Context) ([]questionnaire.Revision, error)
 	// SaveDraft inserts or replaces the draft, replacing its whole question list. ErrConflict if
 	// the revision is already published (published revisions are immutable) or a different draft
-	// already exists.
-	SaveDraft(ctx context.Context, draft questionnaire.Revision) (*questionnaire.Revision, error)
+	// already exists. When expected is set the save only applies if the stored draft's updated_at
+	// still equals it (ErrConflict otherwise), so a stale editor cannot overwrite a newer save.
+	SaveDraft(ctx context.Context, draft questionnaire.Revision, expected *time.Time) (*questionnaire.Revision, error)
 	// DiscardDraft deletes a draft. ErrNotFound if no draft has that id.
 	DiscardDraft(ctx context.Context, id uuid.UUID) error
 	// Publish validates the draft, assigns the next revision number and freezes it, atomically.

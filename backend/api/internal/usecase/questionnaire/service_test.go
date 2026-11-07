@@ -53,7 +53,10 @@ func (f *fakeRevisions) ListPublished(ctx context.Context) ([]domain.Revision, e
 	}
 	return out, nil
 }
-func (f *fakeRevisions) SaveDraft(ctx context.Context, d domain.Revision) (*domain.Revision, error) {
+func (f *fakeRevisions) SaveDraft(ctx context.Context, d domain.Revision, expected *time.Time) (*domain.Revision, error) {
+	if expected != nil && f.draft != nil && !f.draft.UpdatedAt.Equal(*expected) {
+		return nil, apperrors.ErrConflict
+	}
 	f.draft = &d
 	c := d
 	return &c, nil
@@ -639,4 +642,34 @@ func TestApplicationReviewView_snapshotIsSanitisedOnTheWayOut(t *testing.T) {
 	if strings.Contains(view.Items[0].Answer.Body, "script") {
 		t.Errorf("snapshot html must be re-sanitised, got %q", view.Items[0].Answer.Body)
 	}
+}
+
+func TestAdmin_SaveDraft_refusesAStaleEditor(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	e.publish(t, domain.ChangeSubstantive, q("bio", domain.TypeShortText))
+
+	loaded, err := e.svc.StartDraft(ctx, e.admin)
+	assist.NoError(t, err)
+	seen := loaded.UpdatedAt
+
+	// Another admin saves first (the clock has moved on, so updated_at differs).
+	time.Sleep(2 * time.Millisecond)
+	_, err = e.svc.SaveDraft(ctx, e.admin, inbound.DraftInput{ChangeKind: domain.ChangeMinor, Questions: []inbound.QuestionInput{q("bio", domain.TypeShortText), q("city", domain.TypeShortText)}})
+	assist.NoError(t, err)
+
+	// Ours was made against the older copy.
+	_, err = e.svc.SaveDraft(ctx, e.admin, inbound.DraftInput{
+		ChangeKind: domain.ChangeMinor, ExpectedUpdatedAt: &seen, Questions: []inbound.QuestionInput{q("bio", domain.TypeShortText)},
+	})
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	assist.Contains(t, err.Error(), "reload")
+	assist.Len(t, 2, len(e.revs.draft.Questions)) // their save survived
+
+	// Using the current timestamp works.
+	current := e.revs.draft.UpdatedAt
+	_, err = e.svc.SaveDraft(ctx, e.admin, inbound.DraftInput{
+		ChangeKind: domain.ChangeMinor, ExpectedUpdatedAt: &current, Questions: []inbound.QuestionInput{q("bio", domain.TypeShortText)},
+	})
+	assist.NoError(t, err)
 }

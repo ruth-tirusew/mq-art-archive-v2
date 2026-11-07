@@ -37,6 +37,20 @@ describe('QuestionnaireApi (MSW)', () => {
 		expect(saved.questions.map((q) => q.position)).toEqual([1, 2]);
 	});
 
+	it('sends the loaded draft’s timestamp and surfaces a stale-save refusal as a conflict', async () => {
+		let sent: Record<string, unknown> = {};
+		server.use(
+			http.put(`${base}/admin/v1/questionnaire/draft`, async ({ request }) => {
+				sent = (await request.json()) as Record<string, unknown>;
+				return HttpResponse.json({ error: 'conflict: reload to see their changes' }, { status: 409 });
+			})
+		);
+		const questions = fromQuestions(fixtureRevision.questions, new Set(['bio', 'income']));
+		const input = { ...toSaveDraftInput('minor', '', questions), expected_updated_at: '2026-01-01T00:00:00Z' };
+		await expect(api.saveDraft(input)).rejects.toMatchObject({ status: 409 });
+		expect(sent.expected_updated_at).toBe('2026-01-01T00:00:00Z');
+	});
+
 	it('declares JSON on bodyless POSTs too, which forces a CORS preflight for cross-origin callers', async () => {
 		let contentType: string | null = 'unset';
 		server.use(
@@ -74,8 +88,22 @@ describe('QuestionnaireApi (MSW)', () => {
 describe('InvitesApi (MSW)', () => {
 	const api = new InvitesApi();
 
-	it('lists invites', async () => {
-		expect((await api.list())[0]?.status).toBe('live');
+	it('lists a page of invites with the total', async () => {
+		const page = await api.list('all', { limit: 50, offset: 0 });
+		expect(page.items[0]?.status).toBe('live');
+		expect(page.total).toBe(3);
+	});
+
+	it('sends the status filter and window', async () => {
+		let search = '';
+		server.use(
+			http.get(`${base}/admin/v1/invites`, ({ request }) => {
+				search = new URL(request.url).search;
+				return HttpResponse.json([]);
+			})
+		);
+		await api.list('expired', { limit: 25, offset: 50 });
+		expect(search).toBe('?status=expired&limit=25&offset=50');
 	});
 
 	it('creates an invite and returns the one-time link', async () => {

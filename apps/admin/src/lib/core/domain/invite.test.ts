@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canResendInvite, canRevokeInvite, normalizeInviteHandle, validateInviteForm } from '$lib/core/domain/invite';
+import {
+  canResendInvite,
+  canRevokeInvite,
+  normalizeInviteHandle,
+  parseInviteStatusFilter,
+  validateInviteForm
+} from '$lib/core/domain/invite';
 import { reviewBlocker } from '$lib/core/domain/onboarding';
 
 describe('validateInviteForm', () => {
@@ -30,5 +36,14 @@ describe('reviewBlocker', () => {
     expect(reviewBlocker('rejected', '  ')).not.toBeNull();
     expect(reviewBlocker('rejected', 'Please add links')).toBeNull();
     expect(reviewBlocker('approved', '')).toBeNull();
+  });
+});
+
+describe('parseInviteStatusFilter', () => {
+  it('accepts the API statuses and falls back to everything for anything else', () => {
+    expect(parseInviteStatusFilter('expired')).toBe('expired');
+    expect(parseInviteStatusFilter('all')).toBe('all');
+    expect(parseInviteStatusFilter(null)).toBe('all');
+    expect(parseInviteStatusFilter('bogus')).toBe('all');
   });
 });

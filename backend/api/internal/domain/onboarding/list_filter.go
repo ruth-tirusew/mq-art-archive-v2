@@ -25,3 +25,24 @@ func ParseStatusFilter(raw string) (status *ApprovalStatus, ok bool) {
 	}
 	return nil, false
 }
+
+// InviteListFilter selects a page of invites. A nil Status means every status.
+type InviteListFilter struct {
+	Status *InviteStatus
+	Limit  int
+	Offset int
+}
+
+// ParseInviteStatusFilter reads the invites list's ?status= value. Empty or "all" means no
+// filter. ok is false for anything else.
+func ParseInviteStatusFilter(raw string) (status *InviteStatus, ok bool) {
+	switch InviteStatus(raw) {
+	case InviteLive, InviteClaimed, InviteRevoked, InviteExpired:
+		s := InviteStatus(raw)
+		return &s, true
+	}
+	if raw == "" || raw == "all" {
+		return nil, true
+	}
+	return nil, false
+}

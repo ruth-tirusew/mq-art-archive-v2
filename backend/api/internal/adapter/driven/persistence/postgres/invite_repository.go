@@ -87,10 +87,35 @@ func (r *InviteRepository) GetLiveByHandle(ctx context.Context, handle string, n
 		AND claimed_at IS NULL AND revoked_at IS NULL AND expires_at > $2`, handle, now)
 }
 
-func (r *InviteRepository) List(ctx context.Context) ([]onboarding.Invite, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+inviteColumns+` FROM artist_invites ORDER BY created_at DESC`)
+// inviteStatusSQL mirrors onboarding.Invite.Status: claimed beats revoked beats expired. $1 is now.
+var inviteStatusSQL = map[onboarding.InviteStatus]string{
+	onboarding.InviteClaimed: `claimed_at IS NOT NULL`,
+	onboarding.InviteRevoked: `claimed_at IS NULL AND revoked_at IS NOT NULL`,
+	onboarding.InviteExpired: `claimed_at IS NULL AND revoked_at IS NULL AND expires_at <= $1`,
+	onboarding.InviteLive:    `claimed_at IS NULL AND revoked_at IS NULL AND expires_at > $1`,
+}
+
+func (r *InviteRepository) List(ctx context.Context, filter onboarding.InviteListFilter, now time.Time) ([]onboarding.Invite, int, error) {
+	// $1 (now) must appear in every statement that is sent it, even when no status is filtered.
+	where := `$1::timestamptz IS NOT NULL`
+	if filter.Status != nil {
+		cond, ok := inviteStatusSQL[*filter.Status]
+		if !ok {
+			return nil, 0, fmt.Errorf("list invites: unknown status %q", *filter.Status)
+		}
+		where = cond + ` AND $1::timestamptz IS NOT NULL`
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM artist_invites WHERE `+where, now).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count invites: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+inviteColumns+` FROM artist_invites WHERE `+where+`
+		ORDER BY created_at DESC, id LIMIT $2 OFFSET $3`, now, filter.Limit, filter.Offset)
 	if err != nil {
-		return nil, fmt.Errorf("list invites: %w", err)
+		return nil, 0, fmt.Errorf("list invites: %w", err)
 	}
 	defer rows.Close()
 
@@ -98,11 +123,11 @@ func (r *InviteRepository) List(ctx context.Context) ([]onboarding.Invite, error
 	for rows.Next() {
 		inv, err := scanInvite(rows)
 		if err != nil {
-			return nil, fmt.Errorf("list invites: %w", err)
+			return nil, 0, fmt.Errorf("list invites: %w", err)
 		}
 		invites = append(invites, inv)
 	}
-	return invites, rows.Err()
+	return invites, total, rows.Err()
 }
 
 func (r *InviteRepository) Claim(ctx context.Context, id, userID uuid.UUID, now time.Time) (*onboarding.Invite, error) {

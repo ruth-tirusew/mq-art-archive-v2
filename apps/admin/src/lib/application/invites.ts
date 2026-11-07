@@ -1,10 +1,16 @@
-import type { CreateInviteInput, Invite, InviteCreated } from '$lib/core/domain/invite';
+import {
+  INVITES_PAGE_SIZE,
+  type CreateInviteInput,
+  type InviteCreated,
+  type InvitePage,
+  type InviteStatusFilter
+} from '$lib/core/domain/invite';
 import type { InvitesPort } from '$lib/core/ports/invites';
 
 export function createInvitesService(port: InvitesPort) {
   return {
-    list(): Promise<Invite[]> {
-      return port.list();
+    list(status: InviteStatusFilter, offset = 0): Promise<InvitePage> {
+      return port.list(status, { limit: INVITES_PAGE_SIZE, offset });
     },
     create(input: CreateInviteInput): Promise<InviteCreated> {
       return port.create(input);

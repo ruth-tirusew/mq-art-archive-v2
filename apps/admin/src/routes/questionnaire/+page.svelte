@@ -127,7 +127,10 @@
       return false;
     }
     return run(async () => {
-      await questionnaireService.saveDraft(toSaveDraftInput(changeKind, note, questions));
+      await questionnaireService.saveDraft({
+        ...toSaveDraftInput(changeKind, note, questions),
+        expected_updated_at: data.draft?.updated_at
+      });
       await invalidateAll();
       toast.success('Draft saved.');
     }, 'Could not save the draft');

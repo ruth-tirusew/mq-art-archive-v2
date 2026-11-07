@@ -34,6 +34,8 @@ type SaveDraftRequest struct {
 	ChangeKind string            `json:"change_kind" binding:"required"`
 	Note       string            `json:"note" binding:"max=1000"`
 	Questions  []QuestionRequest `json:"questions" binding:"required,min=1,max=100,dive"`
+	// ExpectedUpdatedAt is the draft's updated_at when the editor loaded it; a stale save gets 409.
+	ExpectedUpdatedAt *time.Time `json:"expected_updated_at,omitempty"`
 }
 
 type QuestionResponse struct {
@@ -94,7 +96,7 @@ func ToRevisionResponses(rs []questionnaire.Revision) []RevisionResponse {
 }
 
 func ToDraftInput(req SaveDraftRequest) inbound.DraftInput {
-	in := inbound.DraftInput{ChangeKind: questionnaire.ChangeKind(req.ChangeKind), Note: req.Note}
+	in := inbound.DraftInput{ChangeKind: questionnaire.ChangeKind(req.ChangeKind), Note: req.Note, ExpectedUpdatedAt: req.ExpectedUpdatedAt}
 	for _, q := range req.Questions {
 		qi := inbound.QuestionInput{
 			Key: q.Key, Type: questionnaire.QuestionType(q.Type), PromptEN: q.PromptEN, PromptAM: q.PromptAM,

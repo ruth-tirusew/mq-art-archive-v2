@@ -1,4 +1,20 @@
 export type InviteStatus = 'live' | 'claimed' | 'revoked' | 'expired';
+export type InviteStatusFilter = InviteStatus | 'all';
+
+export const INVITE_STATUS_FILTERS: readonly InviteStatusFilter[] = ['all', 'live', 'claimed', 'expired', 'revoked'];
+
+/** The invites list shows everything unless told otherwise, so an unknown ?status= falls back to "all". */
+export function parseInviteStatusFilter(raw: string | null): InviteStatusFilter {
+  return INVITE_STATUS_FILTERS.find((s) => s === raw) ?? 'all';
+}
+
+export interface InvitePage {
+  items: Invite[];
+  /** Matches across all pages, not just this one. */
+  total: number;
+}
+
+export const INVITES_PAGE_SIZE = 50;
 
 export interface Invite {
   id: string;

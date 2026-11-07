@@ -67,12 +67,14 @@ func (f *fakeInvites) GetLiveByHandle(ctx context.Context, handle string, now ti
 	}
 	return nil, apperrors.ErrNotFound
 }
-func (f *fakeInvites) List(ctx context.Context) ([]domain.Invite, error) {
+func (f *fakeInvites) List(ctx context.Context, filter domain.InviteListFilter, now time.Time) ([]domain.Invite, int, error) {
 	out := []domain.Invite{}
 	for _, i := range f.byID {
-		out = append(out, *i)
+		if filter.Status == nil || i.Status(now) == *filter.Status {
+			out = append(out, *i)
+		}
 	}
-	return out, nil
+	return out, len(out), nil
 }
 func (f *fakeInvites) Claim(ctx context.Context, id, userID uuid.UUID, now time.Time) (*domain.Invite, error) {
 	i, ok := f.byID[id]
@@ -461,4 +463,22 @@ func TestRegisterWithInvite_notConfigured(t *testing.T) {
 	svc := NewService(&mockOnboardingRepo{}, &mockUserRepo{}, &mockProfileRepo{}, &mockInstitutionRepo{}, WithInvites(newFakeInvites()))
 	_, err := svc.RegisterWithInvite(context.Background(), "t", "password1")
 	assist.ErrorIs(t, err, apperrors.ErrNotImplemented)
+}
+
+func TestListInvites_filtersByStatusAtTheServiceClock(t *testing.T) {
+	env := newInviteEnv(t, nil)
+	ctx := context.Background()
+	live := &domain.Invite{ID: uuid.New(), Email: "a@x.co", ExpiresAt: env.now.Add(time.Hour)}
+	old := &domain.Invite{ID: uuid.New(), Email: "b@x.co", ExpiresAt: env.now.Add(-time.Hour)}
+	env.invites.byID[live.ID], env.invites.byID[old.ID] = live, old
+
+	expired := domain.InviteExpired
+	got, total, err := env.svc.ListInvites(ctx, domain.InviteListFilter{Status: &expired})
+	assist.NoError(t, err)
+	assist.Equal(t, 1, total)
+	assist.Equal(t, old.ID, got[0].ID)
+
+	_, total, err = env.svc.ListInvites(ctx, domain.InviteListFilter{})
+	assist.NoError(t, err)
+	assist.Equal(t, 2, total)
 }

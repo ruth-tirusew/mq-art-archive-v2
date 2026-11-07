@@ -1,12 +1,16 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mq/api/internal/adapter/driving/http/dto"
+	"github.com/mq/api/internal/domain/apperrors"
+	"github.com/mq/api/internal/domain/onboarding"
 	"github.com/mq/api/internal/port/inbound"
 )
 
@@ -35,11 +39,19 @@ func (h *InviteHandler) created(w *inbound.InviteWithToken) dto.InviteCreatedRes
 }
 
 func (h *InviteHandler) List(c *gin.Context) {
-	invites, err := h.invites.ListInvites(c.Request.Context())
+	status, ok := onboarding.ParseInviteStatusFilter(c.Query("status"))
+	if !ok {
+		writeError(c, fmt.Errorf("%w: status must be live, claimed, revoked, expired or all", apperrors.ErrValidation))
+		return
+	}
+	invites, total, err := h.invites.ListInvites(c.Request.Context(), onboarding.InviteListFilter{
+		Status: status, Limit: queryLimit(c, 50), Offset: queryOffset(c),
+	})
 	if err != nil {
 		writeError(c, err)
 		return
 	}
+	c.Header("X-Total-Count", strconv.Itoa(total))
 	c.JSON(http.StatusOK, dto.ToInviteResponses(invites, h.now()))
 }
 

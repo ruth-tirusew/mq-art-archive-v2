@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mq/api/internal/domain/questionnaire"
@@ -25,6 +26,9 @@ type DraftInput struct {
 	ChangeKind questionnaire.ChangeKind
 	Note       string
 	Questions  []QuestionInput
+	// ExpectedUpdatedAt is the draft's updated_at as the editor last saw it. When set, the save is
+	// refused with ErrConflict if the draft has changed since. Nil skips the check.
+	ExpectedUpdatedAt *time.Time
 }
 
 type AnswerInput struct {

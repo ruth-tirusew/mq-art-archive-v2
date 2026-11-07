@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '$lib/adapters/api/client';
 import { errorKind, kindForStatus } from '$lib/core/domain/errors';
-import { composeLinkNotes, isValidHandle, normalizeHandle } from '$lib/core/domain/onboarding';
+import { composeLinkNotes, parseLinkNotes, isValidHandle, normalizeHandle } from '$lib/core/domain/onboarding';
 
 describe('handles', () => {
 	it('normalizes case and whitespace before validating', () => {
@@ -36,5 +36,26 @@ describe('error kinds', () => {
 		expect(errorKind(new ApiError('nope', 409))).toBe('conflict');
 		expect(errorKind(new Error('plain'))).toBe('unknown');
 		expect(errorKind('weird')).toBe('unknown');
+	});
+});
+
+describe('parseLinkNotes', () => {
+	const empty = { instagram: '', website: '', telegram: '', about: '' };
+
+	it('round-trips what composeLinkNotes produced, so re-applying never nests the labels', () => {
+		const fields = { instagram: '@ada', website: 'https://ada.art', telegram: '@ada_t', about: 'I paint.\nSince 2010.' };
+		expect(parseLinkNotes(composeLinkNotes(fields))).toEqual(fields);
+		const again = composeLinkNotes(parseLinkNotes(composeLinkNotes(fields)));
+		expect(again).toBe(composeLinkNotes(fields));
+	});
+
+	it('handles notes with only links, or only an about', () => {
+		expect(parseLinkNotes('Instagram: @ada')).toEqual({ ...empty, instagram: '@ada' });
+		expect(parseLinkNotes('About my practice:\nhello')).toEqual({ ...empty, about: 'hello' });
+		expect(parseLinkNotes('')).toEqual(empty);
+	});
+
+	it('keeps free text it does not recognise as the about text', () => {
+		expect(parseLinkNotes('Just a plain note')).toEqual({ ...empty, about: 'Just a plain note' });
 	});
 });

@@ -24,6 +24,7 @@ import (
 	"github.com/mq/api/internal/domain/institution"
 	"github.com/mq/api/internal/domain/onboarding"
 	"github.com/mq/api/internal/domain/profile"
+	"github.com/mq/api/internal/port/inbound"
 	"github.com/mq/api/internal/testutil/assist"
 )
 
@@ -1131,4 +1132,42 @@ func TestWriteError_mapping(t *testing.T) {
 			assist.Equal(t, tc.want, w.Code)
 		})
 	}
+}
+
+type inviteListStub struct {
+	inbound.InviteService
+	got   onboarding.InviteListFilter
+	total int
+}
+
+func (s *inviteListStub) ListInvites(ctx context.Context, f onboarding.InviteListFilter) ([]onboarding.Invite, int, error) {
+	s.got = f
+	return []onboarding.Invite{{ID: uuid.New(), Email: "ada@example.com", ExpiresAt: time.Now().Add(time.Hour)}}, s.total, nil
+}
+
+func TestInviteHandler_List_filtersPagesAndReportsTheTotal(t *testing.T) {
+	stub := &inviteListStub{total: 12}
+	h := NewInviteHandler(stub, "session", "https://artiv.test")
+
+	w := serve(t, http.MethodGet, "/admin/v1/invites?status=expired&limit=5&offset=10", nil, nil, nil, h.List)
+	assist.Equal(t, http.StatusOK, w.Code)
+	assist.Equal(t, "12", w.Header().Get("X-Total-Count"))
+	if stub.got.Status == nil || *stub.got.Status != onboarding.InviteExpired {
+		t.Errorf("status = %v, want expired", stub.got.Status)
+	}
+	assist.Equal(t, 5, stub.got.Limit)
+	assist.Equal(t, 10, stub.got.Offset)
+
+	// No status keeps the old behaviour: every invite.
+	w = serve(t, http.MethodGet, "/admin/v1/invites", nil, nil, nil, h.List)
+	assist.Equal(t, http.StatusOK, w.Code)
+	if stub.got.Status != nil {
+		t.Errorf("no ?status= should not filter, got %v", *stub.got.Status)
+	}
+}
+
+func TestInviteHandler_List_rejectsAnUnknownStatus(t *testing.T) {
+	h := NewInviteHandler(&inviteListStub{}, "session", "https://artiv.test")
+	w := serve(t, http.MethodGet, "/admin/v1/invites?status=bogus", nil, nil, nil, h.List)
+	assist.Equal(t, http.StatusBadRequest, w.Code)
 }

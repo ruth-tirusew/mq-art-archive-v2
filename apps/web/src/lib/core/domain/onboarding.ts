@@ -12,6 +12,8 @@ export interface OnboardingApplication {
 	status: ApprovalStatus;
 	reviewed_by?: string | null;
 	reviewed_at?: string | null;
+	/** Set when the application was submitted with questionnaire answers. */
+	questionnaire_revision_id?: string | null;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -59,4 +61,38 @@ export function composeLinkNotes(fields: {
 	]
 		.filter(Boolean)
 		.join('\n');
+}
+
+/**
+ * Inverse of composeLinkNotes, so a rejected applicant's earlier note refills the form's fields
+ * instead of being pasted whole into "about" (which would nest the labels on the next submit).
+ * Text that isn't in the composed shape is kept intact as "about".
+ */
+export function parseLinkNotes(notes: string): {
+	instagram: string;
+	website: string;
+	telegram: string;
+	about: string;
+} {
+	const fields = { instagram: '', website: '', telegram: '', about: '' };
+	const aboutMarker = 'About my practice:\n';
+	const marked = notes.startsWith(aboutMarker) ? 0 : notes.indexOf('\n' + aboutMarker) + 1 || -1;
+	const hasAbout = marked >= 0;
+	const head = hasAbout ? notes.slice(0, marked) : notes;
+	const labels = { 'Instagram: ': 'instagram', 'Website: ': 'website', 'Telegram: ': 'telegram' } as const;
+
+	const leftovers: string[] = [];
+	for (const line of head.split('\n')) {
+		const label = (Object.keys(labels) as (keyof typeof labels)[]).find((l) => line.startsWith(l));
+		if (label && !fields[labels[label]]) fields[labels[label]] = line.slice(label.length);
+		else if (line.trim()) leftovers.push(line);
+	}
+	if (hasAbout) {
+		fields.about = notes.slice(marked + aboutMarker.length);
+		// anything unrecognised in front of the marker is not lost
+		if (leftovers.length) fields.about = `${leftovers.join('\n')}\n${fields.about}`;
+	} else {
+		fields.about = leftovers.join('\n');
+	}
+	return fields;
 }

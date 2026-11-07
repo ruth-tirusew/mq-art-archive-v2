@@ -60,6 +60,8 @@ export interface SaveDraftInput {
   change_kind: ChangeKind;
   note: string;
   questions: QuestionInput[];
+  /** The draft's updated_at when the editor loaded it; a save made against an older copy is refused (409). */
+  expected_updated_at?: string;
 }
 
 export interface Answer {

@@ -44,7 +44,7 @@ func TestQuestionnaireRepository_revisionLifecycle(t *testing.T) {
 
 	// Save, then replace the draft's questions wholesale, including a choice with options.
 	draft := draftWith("bio", "influences")
-	saved, err := repo.SaveDraft(ctx, draft)
+	saved, err := repo.SaveDraft(ctx, draft, nil)
 	assist.NoError(t, err)
 	assist.Len(t, 2, len(saved.Questions))
 	assist.Equal(t, "ንገሩን", saved.Questions[0].PromptAM)
@@ -54,7 +54,7 @@ func TestQuestionnaireRepository_revisionLifecycle(t *testing.T) {
 		{Key: "medium", Position: 2, Type: questionnaire.TypeChoice, PromptEN: "Medium", IsPublic: false, MaxLength: 50,
 			Options: []questionnaire.Option{{Value: "oil", LabelEN: "Oil"}, {Value: "ink", LabelEN: "Ink", LabelAM: "ቀለም"}}},
 	}
-	saved, err = repo.SaveDraft(ctx, draft)
+	saved, err = repo.SaveDraft(ctx, draft, nil)
 	assist.NoError(t, err)
 	assist.Len(t, 2, len(saved.Questions))
 	assist.Equal(t, "medium", saved.Questions[1].Key)
@@ -63,20 +63,20 @@ func TestQuestionnaireRepository_revisionLifecycle(t *testing.T) {
 	assist.Equal(t, false, saved.Questions[1].IsPublic)
 
 	// Only one draft may exist at a time.
-	_, err = repo.SaveDraft(ctx, draftWith("other"))
+	_, err = repo.SaveDraft(ctx, draftWith("other"), nil)
 	assist.ErrorIs(t, err, apperrors.ErrConflict)
 
 	// An invalid draft (duplicate key can't be stored, so use a choice with no options) cannot publish.
 	bad := draftWith("x")
 	bad.Questions[0].Type = questionnaire.TypeChoice
 	bad.ID = draft.ID
-	_, err = repo.SaveDraft(ctx, bad)
+	_, err = repo.SaveDraft(ctx, bad, nil)
 	assist.NoError(t, err)
 	_, err = repo.Publish(ctx, draft.ID, time.Now().UTC())
 	assist.ErrorIs(t, err, apperrors.ErrValidation)
 
 	// Fix it and publish: number 1, frozen.
-	_, err = repo.SaveDraft(ctx, draft)
+	_, err = repo.SaveDraft(ctx, draft, nil)
 	assist.NoError(t, err)
 	pub, err := repo.Publish(ctx, draft.ID, time.Now().UTC())
 	assist.NoError(t, err)
@@ -84,7 +84,7 @@ func TestQuestionnaireRepository_revisionLifecycle(t *testing.T) {
 	assist.NotNil(t, pub.Number)
 	assist.Equal(t, 1, *pub.Number)
 
-	_, err = repo.SaveDraft(ctx, draft)
+	_, err = repo.SaveDraft(ctx, draft, nil)
 	assist.ErrorIs(t, err, apperrors.ErrConflict) // immutable once published
 	_, err = repo.Publish(ctx, draft.ID, time.Now().UTC())
 	assist.ErrorIs(t, err, apperrors.ErrConflict)
@@ -92,7 +92,7 @@ func TestQuestionnaireRepository_revisionLifecycle(t *testing.T) {
 
 	// A second revision gets number 2 and becomes the latest.
 	second := draftWith("bio", "new_q")
-	_, err = repo.SaveDraft(ctx, second)
+	_, err = repo.SaveDraft(ctx, second, nil)
 	assist.NoError(t, err)
 	got, err := repo.GetDraft(ctx)
 	assist.NoError(t, err)
@@ -114,7 +114,7 @@ func TestQuestionnaireRepository_revisionLifecycle(t *testing.T) {
 
 	// A fresh draft can be discarded.
 	third := draftWith("tmp")
-	_, err = repo.SaveDraft(ctx, third)
+	_, err = repo.SaveDraft(ctx, third, nil)
 	assist.NoError(t, err)
 	assist.NoError(t, repo.DiscardDraft(ctx, third.ID))
 	_, err = repo.GetDraft(ctx)
@@ -130,7 +130,7 @@ func TestQuestionnaireAnswersAndNudges_integration(t *testing.T) {
 	now := time.Now().UTC()
 
 	r1 := draftWith("bio", "influences")
-	_, err := revs.SaveDraft(ctx, r1)
+	_, err := revs.SaveDraft(ctx, r1, nil)
 	assist.NoError(t, err)
 	_, err = revs.Publish(ctx, r1.ID, now)
 	assist.NoError(t, err)
@@ -164,7 +164,7 @@ func TestQuestionnaireAnswersAndNudges_integration(t *testing.T) {
 
 	// Revision 2 adds a question. Ada answered everything she was asked; Bez is missing "influences".
 	r2 := draftWith("bio", "influences", "new_q")
-	_, err = revs.SaveDraft(ctx, r2)
+	_, err = revs.SaveDraft(ctx, r2, nil)
 	assist.NoError(t, err)
 	_, err = revs.Publish(ctx, r2.ID, now)
 	assist.NoError(t, err)
@@ -272,13 +272,14 @@ func TestInviteRepository_integration(t *testing.T) {
 	_, err = repo.Create(ctx, mk("t5", "f@example.com", "bez_2", now.Add(time.Hour)))
 	assist.NoError(t, err)
 
-	all, err := repo.List(ctx)
+	all, total, err := repo.List(ctx, onboarding.InviteListFilter{Limit: 50}, now)
 	assist.NoError(t, err)
 	assist.Len(t, 4, len(all))
+	assist.Equal(t, 4, total)
 
 	// The application round-trips its revision and invite links.
 	rev := draftWith("bio")
-	_, err = revs.SaveDraft(ctx, rev)
+	_, err = revs.SaveDraft(ctx, rev, nil)
 	assist.NoError(t, err)
 	app, err := apps.Save(ctx, onboarding.OnboardingApplication{
 		ID: uuid.New(), ApplicantID: user, ApplicantType: onboarding.ApplicantTypeArtist, DisplayName: "Ada",
@@ -328,4 +329,29 @@ func TestQuestionnaireAnswerRepository_isLockedForReview(t *testing.T) {
 	assist.NoError(t, err)
 	locked, _ = answers.IsLockedForReview(ctx, user)
 	assist.Equal(t, true, locked)
+}
+
+func TestQuestionnaireRepository_SaveDraft_staleEditorLoses(t *testing.T) {
+	pool := integration.SetupPostgresPool(t)
+	repo := postgres.NewQuestionnaireRepository(pool)
+	ctx := context.Background()
+
+	draft := draftWith("bio")
+	first, err := repo.SaveDraft(ctx, draft, nil)
+	assist.NoError(t, err)
+	seen := first.UpdatedAt
+
+	draft.UpdatedAt = draft.UpdatedAt.Add(time.Minute)
+	second, err := repo.SaveDraft(ctx, draft, &seen) // matches: applies
+	assist.NoError(t, err)
+
+	draft.Questions = draftWith("other").Questions
+	draft.UpdatedAt = draft.UpdatedAt.Add(time.Minute)
+	_, err = repo.SaveDraft(ctx, draft, &seen) // seen is now out of date
+	assist.ErrorIs(t, err, postgres.ErrConflict)
+
+	got, err := repo.GetDraft(ctx)
+	assist.NoError(t, err)
+	assist.Equal(t, "bio", got.Questions[0].Key) // the stale save did not touch the questions
+	assist.Equal(t, true, got.UpdatedAt.Equal(second.UpdatedAt))
 }

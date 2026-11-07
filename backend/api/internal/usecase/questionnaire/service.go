@@ -122,7 +122,7 @@ func (s *Service) StartDraft(ctx context.Context, adminID uuid.UUID) (*domain.Re
 	case !errors.Is(err, apperrors.ErrNotFound):
 		return nil, err
 	}
-	return s.revisions.SaveDraft(ctx, draft)
+	return s.revisions.SaveDraft(ctx, draft, nil)
 }
 
 func (s *Service) SaveDraft(ctx context.Context, adminID uuid.UUID, in inbound.DraftInput) (*domain.Revision, error) {
@@ -132,6 +132,10 @@ func (s *Service) SaveDraft(ctx context.Context, adminID uuid.UUID, in inbound.D
 	draft, err := s.StartDraft(ctx, adminID)
 	if err != nil {
 		return nil, err
+	}
+	// Fail early with a useful message; the repository repeats the check atomically with the write.
+	if in.ExpectedUpdatedAt != nil && !draft.UpdatedAt.Equal(*in.ExpectedUpdatedAt) {
+		return nil, staleDraft()
 	}
 
 	rev := domain.Revision{
@@ -156,7 +160,15 @@ func (s *Service) SaveDraft(ctx context.Context, adminID uuid.UUID, in inbound.D
 	if err := s.checkKeyStability(ctx, rev); err != nil {
 		return nil, err
 	}
-	return s.revisions.SaveDraft(ctx, rev)
+	saved, err := s.revisions.SaveDraft(ctx, rev, in.ExpectedUpdatedAt)
+	if errors.Is(err, apperrors.ErrConflict) && in.ExpectedUpdatedAt != nil {
+		return nil, staleDraft()
+	}
+	return saved, err
+}
+
+func staleDraft() error {
+	return fmt.Errorf("%w: the draft was changed by someone else since you loaded it; reload to see their changes", apperrors.ErrConflict)
 }
 
 // checkKeyStability enforces that a key keeps meaning the same thing: reusing a published key for

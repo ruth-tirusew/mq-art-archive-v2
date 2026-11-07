@@ -2298,19 +2298,39 @@ paths:
       summary: List artist invites
       operationId: listInvites
       description: |
-        Admin only. State-changing requests must be sent as `application/json` from an allowed origin (CSRF protection).
+        Admin only, newest first. Without `status` every invite is returned. The total number of matches
+        is in the `X-Total-Count` header.
       security:
         - bearerAuth: []
         - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [live, claimed, revoked, expired, all]
+            default: all
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+        - name: offset
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
       responses:
         "200":
           description: Invites
+          headers:
+            X-Total-Count:
+              description: Number of invites matching the filter, ignoring limit and offset.
+              schema: {type: integer}
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/Invite"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2496,6 +2516,8 @@ paths:
                 $ref: "#/components/schemas/QuestionnaireRevision"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -3541,6 +3563,12 @@ components:
       properties:
         change_kind: {type: string, enum: [minor, substantive]}
         note: {type: string, maxLength: 1000}
+        expected_updated_at:
+          type: string
+          format: date-time
+          description: >
+            The draft's updated_at when the editor loaded it. If the draft has been saved by someone
+            else since, the request is refused with 409 instead of overwriting their changes.
         questions:
           type: array
           minItems: 1

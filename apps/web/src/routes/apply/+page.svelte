@@ -7,7 +7,7 @@
   import { onboardingService } from "$lib/composition";
   import { questionnaireService } from "$lib/composition";
   import { isErrorKind } from "$lib/core/domain/errors";
-  import { composeLinkNotes, isValidHandle, normalizeHandle } from "$lib/core/domain/onboarding";
+  import { composeLinkNotes, isValidHandle, normalizeHandle, parseLinkNotes } from "$lib/core/domain/onboarding";
   import QuestionnaireForm from "$lib/components/questionnaire/QuestionnaireForm.svelte";
   import SafeHtml from "$lib/components/SafeHtml.svelte";
   import type { InvitePreview } from "$lib/core/domain/invite";
@@ -173,7 +173,7 @@
       if (previous.status === "rejected") {
         displayName = previous.display_name;
         requestedHandle = previous.requested_handle ?? "";
-        about = previous.notes ?? "";
+        ({ instagram, website, telegram, about } = parseLinkNotes(previous.notes ?? ""));
         reapplying = true;
       }
     } catch (e) {

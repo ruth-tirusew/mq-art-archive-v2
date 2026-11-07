@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ConfirmDialog, Field, Input, Select, createConfirm, toast } from '$ui';
+  import { untrack } from 'svelte';
   import { invalidateAll } from '$app/navigation';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -9,7 +10,9 @@
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '$lib/components/ui/table';
   import { invitesService } from '$lib/composition';
+  import { cn } from '$lib/utils';
   import {
+    INVITE_STATUS_FILTERS,
     canResendInvite,
     canRevokeInvite,
     inviteStatusLabel,
@@ -17,7 +20,8 @@
     validateInviteForm,
     type Invite,
     type InviteCreated,
-    type InviteStatus
+    type InviteStatus,
+    type InviteStatusFilter
   } from '$lib/core/domain/invite';
 
   let { data } = $props();
@@ -33,6 +37,45 @@
   let fieldErrors = $state<{ email?: string; handle?: string }>({});
   /** The link is only ever returned once, so it is held here until the admin dismisses it. */
   let created = $state<InviteCreated | null>(null);
+
+  // The first page comes from the route loader (so it follows ?status=); "Load more" appends.
+  let extra = $state<Invite[]>([]);
+  let loadingMore = $state(false);
+  let loadError = $state('');
+
+  // A different filter, or a refresh after create/resend/revoke, is a new load: drop appended rows.
+  $effect(() => {
+    data.status;
+    data.invites;
+    untrack(() => {
+      extra = [];
+      loadError = '';
+    });
+  });
+
+  const invites = $derived([...data.invites, ...extra]);
+  const hasMore = $derived(invites.length < data.total);
+
+  const tabLabel: Record<InviteStatusFilter, string> = {
+    all: 'All',
+    live: 'Waiting',
+    claimed: 'Claimed',
+    expired: 'Expired',
+    revoked: 'Revoked'
+  };
+
+  async function loadMore() {
+    loadingMore = true;
+    loadError = '';
+    try {
+      const page = await invitesService.list(data.status, invites.length);
+      extra = [...extra, ...page.items];
+    } catch (cause) {
+      loadError = cause instanceof Error ? cause.message : 'Could not load more invites';
+    } finally {
+      loadingMore = false;
+    }
+  }
 
   const statusVariant: Record<InviteStatus, 'warning' | 'success' | 'muted' | 'destructive'> = {
     live: 'warning',
@@ -198,8 +241,28 @@
   </CardContent>
 </Card>
 
-{#if data.invites.length === 0}
-  <EmptyState title="No invites yet" description="Invites you create will show up here with their status." />
+<div class="mb-4 flex gap-2 overflow-x-auto" role="group" aria-label="Filter by status">
+  {#each INVITE_STATUS_FILTERS as option}
+    <a
+      href={option === 'all' ? '/invites' : `/invites?status=${option}`}
+      aria-current={data.status === option ? 'page' : undefined}
+      class={cn(
+        'shrink-0 rounded-md border px-3 py-1 text-xs transition-colors',
+        data.status === option
+          ? 'border-foreground bg-muted text-foreground'
+          : 'border-border text-muted-foreground hover:text-foreground'
+      )}
+    >
+      {tabLabel[option]}
+    </a>
+  {/each}
+</div>
+
+{#if invites.length === 0}
+  <EmptyState
+    title={data.status === 'all' ? 'No invites yet' : `No ${tabLabel[data.status].toLowerCase()} invites`}
+    description={data.status === 'all' ? 'Invites you create will show up here with their status.' : 'Try another status above.'}
+  />
 {:else}
   <Table>
     <TableHeader>
@@ -212,7 +275,7 @@
       </TableRow>
     </TableHeader>
     <TableBody>
-      {#each data.invites as invite (invite.id)}
+      {#each invites as invite (invite.id)}
         <TableRow data-testid="invite-row">
           <TableCell>
             <div class="font-medium text-foreground">{invite.display_name || invite.email}</div>
@@ -237,6 +300,15 @@
       {/each}
     </TableBody>
   </Table>
+  {#if loadError}
+    <Alert variant="destructive" class="mt-4">{loadError}</Alert>
+  {/if}
+  <p class="mt-3 text-xs text-muted-foreground">Showing {invites.length} of {data.total}.</p>
+  {#if hasMore}
+    <div class="mt-3">
+      <Button variant="secondary" size="sm" disabled={loadingMore} onclick={loadMore}>{loadingMore ? 'Loading…' : 'Load more'}</Button>
+    </div>
+  {/if}
 {/if}
 
 <ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

@@ -124,11 +124,17 @@ func (s *Service) RevokeInvite(ctx context.Context, inviteID uuid.UUID) error {
 	return s.invites.Revoke(ctx, inviteID, s.now())
 }
 
-func (s *Service) ListInvites(ctx context.Context) ([]domain.Invite, error) {
+func (s *Service) ListInvites(ctx context.Context, filter domain.InviteListFilter) ([]domain.Invite, int, error) {
 	if err := s.requireInvites(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return s.invites.List(ctx)
+	if filter.Limit <= 0 {
+		filter.Limit = 50
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	return s.invites.List(ctx, filter, s.now())
 }
 
 func (s *Service) PreviewInvite(ctx context.Context, rawToken string) (*inbound.InvitePreview, error) {

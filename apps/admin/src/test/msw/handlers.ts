@@ -99,7 +99,7 @@ export const handlers = [
 			? HttpResponse.json(fixtureReviewView)
 			: HttpResponse.json({ error: 'not found' }, { status: 404 })
 	),
-	http.get(`${base}/admin/v1/invites`, () => HttpResponse.json([fixtureInvite])),
+	http.get(`${base}/admin/v1/invites`, () => HttpResponse.json([fixtureInvite], { headers: { 'X-Total-Count': '3' } })),
 	http.post(`${base}/admin/v1/invites`, async ({ request }) => {
 		if (!request.headers.get('content-type')?.startsWith('application/json')) {
 			return HttpResponse.json({ error: 'content type must be application/json' }, { status: 415 });

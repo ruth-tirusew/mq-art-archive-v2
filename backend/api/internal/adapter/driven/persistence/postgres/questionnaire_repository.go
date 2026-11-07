@@ -81,7 +81,7 @@ func (r *QuestionnaireRepository) ListPublished(ctx context.Context) ([]question
 	return revs, rows.Err()
 }
 
-func (r *QuestionnaireRepository) SaveDraft(ctx context.Context, draft questionnaire.Revision) (*questionnaire.Revision, error) {
+func (r *QuestionnaireRepository) SaveDraft(ctx context.Context, draft questionnaire.Revision, expected *time.Time) (*questionnaire.Revision, error) {
 	if draft.Status != questionnaire.RevisionDraft {
 		return nil, fmt.Errorf("save draft: revision is %q: %w", draft.Status, ErrConflict)
 	}
@@ -91,8 +91,8 @@ func (r *QuestionnaireRepository) SaveDraft(ctx context.Context, draft questionn
 	}
 	defer tx.Rollback(ctx)
 
-	// The WHERE on the update branch is what makes published revisions immutable: touching one
-	// matches no row, which surfaces below as ErrNoRows.
+	// The WHERE on the update branch is what makes published revisions immutable, and (with
+	// expected) stale saves fail: either matches no row, which surfaces below as ErrNoRows.
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, `
 		INSERT INTO questionnaire_revisions (id, status, change_kind, note, created_by, created_at, updated_at)
@@ -102,8 +102,9 @@ func (r *QuestionnaireRepository) SaveDraft(ctx context.Context, draft questionn
 			note = EXCLUDED.note,
 			updated_at = EXCLUDED.updated_at
 		WHERE questionnaire_revisions.status = 'draft'
+		  AND ($7::timestamptz IS NULL OR questionnaire_revisions.updated_at = $7)
 		RETURNING id
-	`, draft.ID, string(draft.ChangeKind), draft.Note, draft.CreatedBy, draft.CreatedAt, draft.UpdatedAt).Scan(&id)
+	`, draft.ID, string(draft.ChangeKind), draft.Note, draft.CreatedBy, draft.CreatedAt, draft.UpdatedAt, expected).Scan(&id)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.Is(err, pgx.ErrNoRows) || (errors.As(err, &pgErr) && pgErr.Code == "23505") {

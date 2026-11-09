@@ -56,8 +56,15 @@ func TestCheckAnswer(t *testing.T) {
 	if err := long.CheckAnswer("ሰላም", FormatPlain, LangAmharic); err != nil {
 		t.Errorf("3 Amharic runes (9 bytes) should fit max 5: %v", err)
 	}
-	if err := short.CheckAnswer("x", FormatRich, LangEnglish); err == nil {
-		t.Error("rich text on a short_text question should be rejected")
+	if err := short.CheckAnswer("x", FormatRich, LangEnglish); err != nil {
+		t.Errorf("rich text on short_text should be accepted: %v", err)
+	}
+	if err := choice.CheckAnswer("a", FormatRich, LangEnglish); err == nil {
+		t.Error("rich text on a choice question should be rejected")
+	}
+	link := q("site", 4, TypeLink)
+	if err := link.CheckAnswer("https://example.com", FormatRich, LangEnglish); err == nil {
+		t.Error("rich text on a link question should be rejected")
 	}
 	if err := long.CheckAnswer("hi", FormatRich, LangEnglish); err != nil {
 		t.Errorf("rich text on long_text should be accepted: %v", err)

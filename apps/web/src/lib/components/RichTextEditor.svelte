@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { cn } from '$lib/utils';
-	import { safeHttpUrl } from '$lib/utils/answers';
+	import { plainToHtml, safeHttpUrl } from '$lib/utils/answers';
 
 	type Props = {
 		/** Initial HTML. The editor owns the content afterwards; it is not re-synced from here. */
@@ -13,10 +13,12 @@
 		invalid?: boolean;
 		describedby?: string;
 		lang?: string;
+		/** A short answer: a one- or two-line box instead of a tall one. Same toolbar. */
+		compact?: boolean;
 		class?: string;
 	};
 
-	let { value, label, onchange, disabled = false, invalid = false, describedby, lang, class: className }: Props = $props();
+	let { value, label, onchange, disabled = false, invalid = false, describedby, lang, compact = false, class: className }: Props = $props();
 
 	type EditorLike = import('@tiptap/core').Editor;
 	type BlockStyle = 'paragraph' | 'h2' | 'h3';
@@ -63,19 +65,6 @@
 		};
 	}
 
-	const escapeHtml = (s: string) =>
-		s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-	/** Only used if the editor library can't load: plain paragraphs, escaped, so nothing is lost. */
-	function fromPlain(text: string): string {
-		return text
-			.split(/\n{2,}/)
-			.map((p) => p.trim())
-			.filter(Boolean)
-			.map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
-			.join('');
-	}
-
 	onMount(() => {
 		let destroyed = false;
 		(async () => {
@@ -118,7 +107,7 @@
 							'aria-label': label,
 							...(describedby ? { 'aria-describedby': describedby } : {}),
 							...(lang ? { lang } : {}),
-							class: 'rte-content min-h-[9rem] px-3.5 py-3 text-sm leading-relaxed text-foreground focus:outline-none'
+							class: `rte-content ${compact ? 'min-h-[2.75rem]' : 'min-h-[9rem]'} px-3.5 py-3 text-sm leading-relaxed text-foreground focus:outline-none`
 						}
 					},
 					onUpdate: ({ editor: e }) => {
@@ -240,13 +229,13 @@
 >
 	{#if failed}
 		<textarea
-			class="block min-h-[9rem] w-full resize-y bg-transparent px-3.5 py-3 text-sm leading-relaxed text-foreground focus:outline-none"
+			class="block {compact ? 'min-h-[2.75rem]' : 'min-h-[9rem]'} w-full resize-y bg-transparent px-3.5 py-3 text-sm leading-relaxed text-foreground focus:outline-none"
 			aria-label={label}
 			aria-describedby={describedby}
 			{lang}
 			{disabled}
 			bind:value={fallbackText}
-			oninput={() => onchange(fromPlain(fallbackText))}
+			oninput={() => onchange(plainToHtml(fallbackText))}
 			placeholder="Formatting isn't available right now. You can still write plain text."
 		></textarea>
 	{:else}

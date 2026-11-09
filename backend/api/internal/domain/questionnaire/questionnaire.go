@@ -148,6 +148,12 @@ func DefaultMaxLength(t QuestionType) int {
 	}
 }
 
+// AcceptsRichText reports whether answers may be formatted. Every free-text answer can be; a
+// choice is an option value and a link is a URL, so formatting means nothing there.
+func (t QuestionType) AcceptsRichText() bool {
+	return t == TypeShortText || t == TypeLongText
+}
+
 func (t QuestionType) valid() bool {
 	switch t {
 	case TypeShortText, TypeLongText, TypeChoice, TypeLink:
@@ -235,7 +241,7 @@ func (q Question) CheckAnswer(body string, format Format, lang Lang) error {
 	if format != FormatPlain && format != FormatRich {
 		return invalid("invalid format %q", format)
 	}
-	if format == FormatRich && q.Type != TypeLongText {
+	if format == FormatRich && !q.Type.AcceptsRichText() {
 		return invalid("question %q does not accept rich text", q.Key)
 	}
 	// Length is counted in characters, not bytes, so Amharic (3 bytes per letter) is not penalised.

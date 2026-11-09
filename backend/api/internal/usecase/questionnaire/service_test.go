@@ -258,6 +258,12 @@ func TestAnswers_saveValidateAndSanitize(t *testing.T) {
 	assist.Equal(t, "<p>ሰላም</p>", stored.Body)
 	assist.Equal(t, domain.LangAmharic, stored.Lang)
 
+	// Short answers can be formatted too; their limit (5 here) also counts visible text only.
+	assist.NoError(t, e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{
+		{Key: "city", Body: `<p><strong>Addis</strong><img src=x onerror=alert(1)></p>`, Format: domain.FormatRich},
+	}))
+	assist.Equal(t, "<p><strong>Addis</strong></p>", e.answers.byUser[user]["city"].Body)
+
 	// The length limit counts visible text, not markup.
 	assist.NoError(t, e.svc.SaveAnswers(ctx, user, []inbound.AnswerInput{
 		{Key: "bio", Body: "<p><strong>" + strings.Repeat("a", 20) + "</strong></p>", Format: domain.FormatRich},
@@ -270,7 +276,6 @@ func TestAnswers_saveValidateAndSanitize(t *testing.T) {
 	for name, in := range map[string][]inbound.AnswerInput{
 		"unknown key":   {{Key: "nope", Body: "x"}},
 		"duplicate key": {{Key: "city", Body: "a"}, {Key: "city", Body: "b"}},
-		"rich on short": {{Key: "city", Body: "x", Format: domain.FormatRich}},
 		"too long":      {{Key: "city", Body: "Addis Ababa"}},
 		"bad language":  {{Key: "city", Body: "x", Lang: "fr"}},
 	} {

@@ -16,9 +16,11 @@
 		loadExisting?: boolean;
 		/** Show what's wrong with each piece (after they try to continue). */
 		showProblems?: boolean;
+		/** The chosen pieces are saved in this browser, so it's safe to close the page. */
+		kept?: boolean;
 	};
 
-	let { drafts = $bindable(), existing = $bindable(), loadExisting = false, showProblems = false }: Props = $props();
+	let { drafts = $bindable(), existing = $bindable(), loadExisting = false, showProblems = false, kept = false }: Props = $props();
 
 	let error = $state('');
 	let loadFailed = $state(false);
@@ -112,6 +114,11 @@
 			Choose your best pieces and give each a title. Nothing is uploaded yet: you'll see everything on the next step, and your images are only
 			sent when you submit your application.
 		</p>
+		{#if kept && drafts.length > 0}
+			<p class="mt-2 text-sm text-muted-foreground" data-testid="drafts-kept">
+				Your chosen pieces are saved on this device, so you can close this page and come back to finish.
+			</p>
+		{/if}
 	</div>
 
 	<p class="font-mono text-xs uppercase tracking-[0.18em] {shortfall === 0 ? 'text-success' : 'text-muted-foreground'}" role="status" aria-live="polite">

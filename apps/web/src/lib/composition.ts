@@ -13,3 +13,6 @@ export const onboardingService = createOnboardingService(new OnboardingApi());
 export const inviteService = createInviteService(new InviteApi());
 export const questionnaireService = createQuestionnaireService(new QuestionnaireApi());
 export const applicantWorksService = createApplicantWorksService(new ApplicantWorksApi());
+
+// Chosen-but-not-uploaded works, kept in this browser so a refresh doesn't lose them.
+export { workDraftStore } from '$lib/adapters/browser/workDraftStore';

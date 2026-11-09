@@ -6,7 +6,7 @@
   import { inviteService } from "$lib/composition";
   import { onboardingService } from "$lib/composition";
   import { questionnaireService } from "$lib/composition";
-  import { applicantWorksService } from "$lib/composition";
+  import { applicantWorksService, workDraftStore } from "$lib/composition";
   import { isErrorKind } from "$lib/core/domain/errors";
   import {
     composeLinkNotes,
@@ -43,6 +43,41 @@
 
   // Preview URLs point at files in memory; let them go when the page does.
   onDestroy(() => drafts.forEach((d) => URL.revokeObjectURL(d.previewUrl)));
+
+  // Chosen pieces are also kept in this browser, per account, until submit: a refresh or a closed
+  // tab gives them back instead of losing five or more images. Still nothing is uploaded early.
+  let draftsKept = $state(false);
+  let draftsRestoredFor: string | null = null;
+  let draftsReady = $state(false);
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  $effect(() => {
+    const userId = $currentUser?.id;
+    if (!userId || draftsRestoredFor === userId) return;
+    draftsRestoredFor = userId;
+    draftsReady = false;
+    void workDraftStore.load(userId).then((restored) => {
+      if (draftsRestoredFor !== userId) return;
+      // Anything picked while this was loading stays; restored pieces go first, as they were.
+      drafts = [...restored.filter((r) => !drafts.some((d) => d.key === r.key)), ...drafts];
+      draftsKept = restored.length > 0;
+      draftsReady = true;
+    });
+  });
+
+  $effect(() => {
+    const userId = $currentUser?.id;
+    // Read every field that should trigger a save, so typing a title is kept too.
+    const snapshot = drafts.map((d) => [d.key, d.title, d.medium, d.year, d.workId]);
+    // Before the restore finishes, an empty list would wipe what is stored.
+    if (!userId || !draftsReady) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      const ok = await workDraftStore.save(userId, drafts);
+      draftsKept = ok && snapshot.length > 0;
+    }, 400);
+    return () => clearTimeout(saveTimer);
+  });
 
   // About you, Your work/answers, Your art, Review.
   const REVIEW_STEP = 4;
@@ -296,6 +331,10 @@
           notes: form ? "" : notes.trim(),
         });
       }
+      // Sent: the pieces are on the server now, so the copy in this browser can go.
+      if ($currentUser) await workDraftStore.clear($currentUser.id);
+      drafts.forEach((d) => URL.revokeObjectURL(d.previewUrl));
+      drafts = [];
       await goto("/apply/status");
     } catch (e) {
       if (isErrorKind(e, "forbidden") && usingInvite) {
@@ -439,7 +478,7 @@
         {/snippet}
       </Field>
     {:else if step === 3}
-      <ApplicantWorks bind:drafts bind:existing={storedWorks} loadExisting={reapplying} showProblems={attempted} />
+      <ApplicantWorks bind:drafts bind:existing={storedWorks} loadExisting={reapplying} showProblems={attempted} kept={draftsKept} />
     {:else if step === REVIEW_STEP}
       <div class="rounded-sm border border-border/70 bg-card/30 p-6 text-sm">
         <p class="t-eyebrow text-muted-foreground">Review your application</p>

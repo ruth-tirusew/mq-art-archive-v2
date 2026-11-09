@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -228,16 +229,19 @@ func (stubPasswordHasher) Check(hash, password string) bool {
 	return hash == "hash:"+password
 }
 
-type stubMailer struct{ sent int }
+type stubMailer struct {
+	sent int
+	err  error
+}
 
 func (m *stubMailer) Send(context.Context, string, string, string) error {
 	m.sent++
-	return nil
+	return m.err
 }
 
 func (m *stubMailer) SendHTML(context.Context, string, string, string, string) error {
 	m.sent++
-	return nil
+	return m.err
 }
 
 type stubVerificationRepo struct {
@@ -287,6 +291,24 @@ func TestService_RegisterCreatesEmailVerification(t *testing.T) {
 		t.Fatalf("register: %v", err)
 	}
 	assist.Equal(t, 1, verification.created)
+	assist.Equal(t, 1, mailer.sent)
+}
+
+func TestService_RegisterSucceedsWhenTheVerificationEmailFails(t *testing.T) {
+	users := &stubUserRepo{byID: map[uuid.UUID]identity.User{}, byEmail: map[string]identity.User{}}
+	mailer := &stubMailer{err: errors.New("smtp: connect: timeout")}
+	svc := authuc.NewService(users, &stubOAuthAccountRepo{}, stubTokenIssuer{}, stubPasswordHasher{}, nil, nil, nil,
+		mailer, nil, nil, "http://localhost:5173", &stubVerificationRepo{})
+
+	// The account is created before the email goes out, so failing here would leave a person
+	// told "error" whose retry then says the address is taken.
+	token, user, err := svc.Register(t.Context(), "new@example.com", "password1")
+	if err != nil {
+		t.Fatalf("a mail outage must not fail signup: %v", err)
+	}
+	if token == "" || user == nil || user.EmailVerifiedAt != nil {
+		t.Fatalf("want a signed-in, still unverified user; got token=%q user=%+v", token, user)
+	}
 	assist.Equal(t, 1, mailer.sent)
 }
 

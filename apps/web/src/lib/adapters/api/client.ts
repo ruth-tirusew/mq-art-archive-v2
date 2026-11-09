@@ -12,6 +12,17 @@ export class ApiError extends DomainError {
   }
 }
 
+type UnauthorizedListener = (path: string) => void;
+let unauthorizedListener: UnauthorizedListener | null = null;
+
+/**
+ * Called with the request path whenever the API answers 401. The transport only reports it; the
+ * application layer decides whether that means the session ended (see application/session.ts).
+ */
+export function onUnauthorized(listener: UnauthorizedListener | null): void {
+  unauthorizedListener = listener;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await apiResponse(path, init);
   if (response.status === 204) {
@@ -33,6 +44,7 @@ export async function apiResponse(path: string, init?: RequestInit): Promise<Res
     } catch {
       // ignore JSON parse errors
     }
+    if (response.status === 401) unauthorizedListener?.(path);
     throw new ApiError(message, response.status);
   }
   if (response.status === 204) {

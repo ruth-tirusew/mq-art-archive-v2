@@ -1,8 +1,12 @@
 package onboarding
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -332,6 +336,34 @@ func TestDecisionEmail(t *testing.T) {
 	subject, body = decisionEmail(approved, "https://artiv.example")
 	assist.Contains(t, subject, "approved")
 	assist.Contains(t, body, "https://artiv.example/studio")
+}
+
+type failingMailer struct{}
+
+func (failingMailer) Send(context.Context, string, string, string) error {
+	return errors.New("smtp: recipient rejected")
+}
+func (failingMailer) SendHTML(context.Context, string, string, string, string) error {
+	return errors.New("smtp: recipient rejected")
+}
+
+func TestNotifyDecision_logsAnEmailThatWasNotSent(t *testing.T) {
+	var logged bytes.Buffer
+	log.SetOutput(&logged)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	applicant := &identity.User{ID: uuid.New(), Email: "sam@example.com"}
+	svc := NewService(&mockOnboardingRepo{}, &userStub{user: applicant}, &mockProfileRepo{}, &mockInstitutionRepo{},
+		WithMailer(failingMailer{}, "https://artiv.example"))
+	app := &domain.OnboardingApplication{ID: uuid.New(), ApplicantID: applicant.ID, Status: domain.ApprovalStatusApproved}
+
+	svc.notifyDecision(context.Background(), app)
+
+	for _, want := range []string{app.ID.String(), "approved", "sam@example.com", "recipient rejected"} {
+		if !strings.Contains(logged.String(), want) {
+			t.Errorf("log %q is missing %q", logged.String(), want)
+		}
+	}
 }
 
 func pendingArtistApp(handle string) *domain.OnboardingApplication {

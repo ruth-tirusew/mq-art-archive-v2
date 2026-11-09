@@ -1,4 +1,5 @@
-// Package richtext sanitises the small subset of HTML that questionnaire answers may contain.
+// Package richtext sanitises the small subset of HTML that rich text (questionnaire answers, and
+// any other field written with the web editor) may contain.
 package richtext
 
 import (
@@ -9,8 +10,9 @@ import (
 	"github.com/mq/api/internal/port/outbound"
 )
 
-// Sanitizer allows paragraphs, line breaks, bold, italic, lists, blockquotes and http(s)/mailto
-// links, and nothing else: no images, tables, styles, classes, ids or scripts.
+// Sanitizer allows paragraphs, line breaks, two heading levels, bold, italic, underline,
+// strikethrough, lists, blockquotes and http(s)/mailto links, and nothing else: no images,
+// tables, styles, classes, ids or scripts. It must match what the web editor can produce.
 type Sanitizer struct {
 	policy *bluemonday.Policy
 	strict *bluemonday.Policy
@@ -19,6 +21,8 @@ type Sanitizer struct {
 func NewSanitizer() outbound.RichTextSanitizer {
 	p := bluemonday.NewPolicy()
 	p.AllowElements("p", "br", "strong", "em", "ul", "ol", "li", "blockquote")
+	// Headings are limited to h2/h3: the page title is the h1, and deeper levels add nothing here.
+	p.AllowElements("h2", "h3", "u", "s")
 	// The editor may emit <b>/<i>; fold them into the canonical tags.
 	p.AllowElements("b", "i")
 	p.AllowStandardURLs()

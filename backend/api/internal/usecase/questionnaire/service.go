@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -582,10 +583,13 @@ func (s *Service) sendNudgeEmail(ctx context.Context, userID uuid.UUID) {
 	}
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil || user == nil || user.Email == "" {
+		log.Printf("questionnaire: no nudge email for user %s (not found or no email): %v", userID, err)
 		return
 	}
 	body := fmt.Sprintf("Hi %s,\n\nWe've added a few new questions to the Artiv artist profile. "+
 		"There's no deadline and your profile stays exactly as it is. If you'd like to answer them, you can do it here:\n%s/studio/answers\n",
 		user.DisplayName, s.webAppURL)
-	_ = s.mailer.Send(ctx, user.Email, "New questions for your Artiv profile", body)
+	if err := s.mailer.Send(ctx, user.Email, "New questions for your Artiv profile", body); err != nil {
+		log.Printf("questionnaire: nudge email to user %s not sent: %v", userID, err)
+	}
 }

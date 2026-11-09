@@ -1,0 +1,474 @@
+{
+  "change_kind": "substantive",
+  "note": "artiv archive and curation questionnaire v1.1 (seeded from the interview guide)",
+  "questions": [
+    {
+      "key": "consent_publication",
+      "type": "choice",
+      "prompt_en": "Consent to publication of your profile",
+      "prompt_am": "",
+      "help_en": "Thank you for taking part. This records verifiable information for artiv's archive and collects your own account of your practice for possible curation. Answer in the language you prefer. You can skip any question, mark a factual question “not documented”, or ask for something to be off record. Editors review answers before anything is published, and you can review, correct or withdraw your information later. Private contact details and private collector identities are never published.",
+      "help_am": "",
+      "required": true,
+      "is_public": false,
+      "max_length": 0,
+      "options": [
+        {
+          "value": "yes",
+          "label_en": "Yes",
+          "label_am": ""
+        },
+        {
+          "value": "no",
+          "label_en": "No",
+          "label_am": ""
+        },
+        {
+          "value": "ask",
+          "label_en": "Ask me first",
+          "label_am": ""
+        }
+      ]
+    },
+    {
+      "key": "consent_curation",
+      "type": "choice",
+      "prompt_en": "Consent to curation features",
+      "prompt_am": "",
+      "help_en": "Whether artiv may feature you in curated collections and notes. You can be more specific in Q13 below.",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 0,
+      "options": [
+        {
+          "value": "yes",
+          "label_en": "Yes",
+          "label_am": ""
+        },
+        {
+          "value": "no",
+          "label_en": "No",
+          "label_am": ""
+        },
+        {
+          "value": "ask",
+          "label_en": "Ask me first",
+          "label_am": ""
+        }
+      ]
+    },
+    {
+      "key": "credit_name",
+      "type": "short_text",
+      "prompt_en": "Credit name",
+      "prompt_am": "",
+      "help_en": "The name artiv should use when crediting you.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 200,
+      "options": []
+    },
+    {
+      "key": "names",
+      "type": "long_text",
+      "prompt_en": "0.1 Names and name variants",
+      "prompt_am": "",
+      "help_en": "Record: verifiable facts. Your full name, display name and any other names you use. Include Amharic or other local-language spellings and transliterations so readers can find you, and say which name you want shown on your profile.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 2000,
+      "options": []
+    },
+    {
+      "key": "languages",
+      "type": "short_text",
+      "prompt_en": "0.2 Languages",
+      "prompt_am": "",
+      "help_en": "Record: verifiable facts. Which languages do you work in, write in, or use in titles and interviews?",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 300,
+      "options": []
+    },
+    {
+      "key": "tagline",
+      "type": "short_text",
+      "prompt_en": "0.3 One-line tagline",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. Say what the work is, not how remarkable it is.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 200,
+      "options": []
+    },
+    {
+      "key": "short_bio",
+      "type": "long_text",
+      "prompt_en": "0.3 Short bio",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. About 100 words (a guide, not a limit). Say what the work is, not how remarkable it is.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 1500,
+      "options": []
+    },
+    {
+      "key": "q1_background",
+      "type": "long_text",
+      "prompt_en": "Q1. Who are you as an artist?",
+      "prompt_am": "",
+      "help_en": "Record: verifiable facts. Where you were born and raised, and where you live and work now, with city and country for each. Note any move between cities or countries that shaped your practice, but only where it is documented. Add a source for each factual claim, or write “not documented”.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "q1_education",
+      "type": "long_text",
+      "prompt_en": "Q1. Education and training",
+      "prompt_am": "",
+      "help_en": "Record: verifiable facts. One entry per line: institution or teacher, city and country, qualification or training, year, whether formal, apprenticeship or informal, and a source. Include Ethiopian schools, local academies and apprenticeships.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "q2_visual_language",
+      "type": "long_text",
+      "prompt_en": "Q2. What does the work look like?",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. Describe the recurring forms, colours, symbols, compositions, materials and atmosphere that make the work recognisable. A first-time visitor to artiv should be able to picture it. Name one or two example works.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "q3_themes",
+      "type": "long_text",
+      "prompt_en": "Q3. What themes does your work engage with?",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. Central subjects and concerns, such as identity, heritage, community, history, faith, land, social change, or others. Separate your own stated intent from interpretation by critics or editors.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "q4_materials_influences",
+      "type": "long_text",
+      "prompt_en": "Q4. Materials, techniques, influences and development",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. What materials and techniques do you use, and who or what shaped you? Include teachers, traditions, collectives, formative events and how the work has changed over time. Name each influence specifically.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "tag_materials",
+      "type": "short_text",
+      "prompt_en": "Quick tags: materials",
+      "prompt_am": "",
+      "help_en": "Separate with commas. Editors use these to link your profile to wiki articles and other artists.",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 300,
+      "options": []
+    },
+    {
+      "key": "tag_techniques",
+      "type": "short_text",
+      "prompt_en": "Quick tags: techniques",
+      "prompt_am": "",
+      "help_en": "Separate with commas. Editors use these to link your profile to wiki articles and other artists.",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 300,
+      "options": []
+    },
+    {
+      "key": "tag_influences",
+      "type": "short_text",
+      "prompt_en": "Quick tags: influences and teachers",
+      "prompt_am": "",
+      "help_en": "Separate with commas. Editors use these to link your profile to wiki articles and other artists.",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 300,
+      "options": []
+    },
+    {
+      "key": "tag_collectives",
+      "type": "short_text",
+      "prompt_en": "Quick tags: collectives",
+      "prompt_am": "",
+      "help_en": "Separate with commas. Editors use these to link your profile to wiki articles and other artists.",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 300,
+      "options": []
+    },
+    {
+      "key": "q5_exhibitions",
+      "type": "long_text",
+      "prompt_en": "Q5. Where has the work been shown, and when?",
+      "prompt_am": "",
+      "help_en": "Record: verifiable facts. One entry per line: title, year, venue, city and country, solo or group, past or confirmed upcoming, and a source. Separate solo from group shows, and local from international ones, and keep confirmed upcoming projects apart from past exhibitions. For one or two key shows, say why they mattered.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "q6_recognition",
+      "type": "long_text",
+      "prompt_en": "Q6. What recognition and press has your work received?",
+      "prompt_am": "",
+      "help_en": "Record: verifiable facts. One entry per line: type (award, grant, residency, publication or press), name, year, who gave or published it, and a source or link so reviewers can verify it. Distinguish awards from selections, shortlists and residencies.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "q7_collections",
+      "type": "long_text",
+      "prompt_en": "Q7. Which museums, galleries or private collections hold the work?",
+      "prompt_am": "",
+      "help_en": "Record: verifiable facts. One entry per line: institution or “private collection”, city and country, the work or works, and whether it is a permanent collection, loan or temporary holding. Say whether we may name the holder. Private collector identities are never published.",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "q8_through_line",
+      "type": "long_text",
+      "prompt_en": "Q8. What ideas connect the body of work?",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. About 200–300 words (a guide, not a limit). Explain the through-line: recurring ideas, visual patterns and conceptual connections. Point to specific works and show how your thinking has developed over time.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 3000,
+      "options": []
+    },
+    {
+      "key": "q9_place",
+      "type": "long_text",
+      "prompt_en": "Q9. How do background, education and place relate to the work?",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. Describe documented connections between your life, education, cultural environment, relocation and your practice. Include a connection only where there is evidence, and mark whether it is your own view or something critics have written.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "q10_significance",
+      "type": "long_text",
+      "prompt_en": "Q10. What is the significance of the work?",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. About 150–250 words (a guide, not a limit). Your contribution to Ethiopian and global art. What should a viewer experience, or ask themselves, in front of the work?",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 2500,
+      "options": []
+    },
+    {
+      "key": "q11_statement_of_intent",
+      "type": "long_text",
+      "prompt_en": "Q11. Statement of intent for artiv",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. About 100–150 words (a guide, not a limit). What do you want artiv visitors to understand about your work? This is your contribution to curating your profile. It should not repeat your bio.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 1800,
+      "options": []
+    },
+    {
+      "key": "q12_selected_works",
+      "type": "long_text",
+      "prompt_en": "Q12. Selected works",
+      "prompt_am": "",
+      "help_en": "Your voice: your own account, in your own words. Choose three to five works and annotate each. One entry per work: title, year, medium, and what you want viewers to notice.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 5000,
+      "options": []
+    },
+    {
+      "key": "consent_feature_profile",
+      "type": "choice",
+      "prompt_en": "Q13. May artiv editors feature your profile?",
+      "prompt_am": "",
+      "help_en": "",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 0,
+      "options": [
+        {
+          "value": "yes",
+          "label_en": "Yes",
+          "label_am": ""
+        },
+        {
+          "value": "no",
+          "label_en": "No",
+          "label_am": ""
+        },
+        {
+          "value": "ask",
+          "label_en": "Ask me first",
+          "label_am": ""
+        }
+      ]
+    },
+    {
+      "key": "consent_thematic_collections",
+      "type": "choice",
+      "prompt_en": "Q13. May artiv editors include you in thematic collections?",
+      "prompt_am": "",
+      "help_en": "",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 0,
+      "options": [
+        {
+          "value": "yes",
+          "label_en": "Yes",
+          "label_am": ""
+        },
+        {
+          "value": "no",
+          "label_en": "No",
+          "label_am": ""
+        },
+        {
+          "value": "ask",
+          "label_en": "Ask me first",
+          "label_am": ""
+        }
+      ]
+    },
+    {
+      "key": "consent_curatorial_note",
+      "type": "choice",
+      "prompt_en": "Q13. May artiv editors write a curatorial note about your work?",
+      "prompt_am": "",
+      "help_en": "",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 0,
+      "options": [
+        {
+          "value": "yes",
+          "label_en": "Yes",
+          "label_am": ""
+        },
+        {
+          "value": "no",
+          "label_en": "No",
+          "label_am": ""
+        },
+        {
+          "value": "ask",
+          "label_en": "Ask me first",
+          "label_am": ""
+        }
+      ]
+    },
+    {
+      "key": "consent_pairing",
+      "type": "choice",
+      "prompt_en": "Q13. May artiv editors pair your work with other artists?",
+      "prompt_am": "",
+      "help_en": "",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 0,
+      "options": [
+        {
+          "value": "yes",
+          "label_en": "Yes",
+          "label_am": ""
+        },
+        {
+          "value": "no",
+          "label_en": "No",
+          "label_am": ""
+        },
+        {
+          "value": "ask",
+          "label_en": "Ask me first",
+          "label_am": ""
+        }
+      ]
+    },
+    {
+      "key": "credit_preferences",
+      "type": "short_text",
+      "prompt_en": "Q13. Credit preferences",
+      "prompt_am": "",
+      "help_en": "Anything we should know about how you want to be credited.",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 300,
+      "options": []
+    },
+    {
+      "key": "q14_availability",
+      "type": "long_text",
+      "prompt_en": "Q14. Availability and collaboration",
+      "prompt_am": "",
+      "help_en": "Are you open to commission, residency, collaboration, group shows or other opportunities? Say which.",
+      "help_am": "",
+      "required": false,
+      "is_public": true,
+      "max_length": 2000,
+      "options": []
+    },
+    {
+      "key": "q15_refresh",
+      "type": "long_text",
+      "prompt_en": "Q15. Anything new since the last review?",
+      "prompt_am": "",
+      "help_en": "Record: verifiable facts. Exhibitions, works, statement or recognition. If this is your first submission you can leave it blank.",
+      "help_am": "",
+      "required": false,
+      "is_public": false,
+      "max_length": 3000,
+      "options": []
+    }
+  ]
+}

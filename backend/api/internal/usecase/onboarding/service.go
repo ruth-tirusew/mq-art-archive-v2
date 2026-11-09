@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -281,12 +282,17 @@ func (s *Service) notifyDecision(ctx context.Context, app *domain.OnboardingAppl
 	if s.mailer == nil {
 		return
 	}
+	// Best-effort: the decision is already saved and shows on the status page. But an applicant
+	// who never hears back is the failure that matters here, so every miss is logged.
 	user, err := s.users.GetByID(ctx, app.ApplicantID)
 	if err != nil || user == nil || user.Email == "" {
+		log.Printf("onboarding: application %s %s, but no decision email (applicant %s not found or has no email): %v", app.ID, app.Status, app.ApplicantID, err)
 		return
 	}
 	subject, body := decisionEmail(app, s.webAppURL)
-	_ = s.mailer.Send(ctx, user.Email, subject, body)
+	if err := s.mailer.Send(ctx, user.Email, subject, body); err != nil {
+		log.Printf("onboarding: application %s %s, but the decision email to %s was not sent: %v", app.ID, app.Status, user.Email, err)
+	}
 }
 
 func decisionEmail(app *domain.OnboardingApplication, webAppURL string) (string, string) {

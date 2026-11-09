@@ -63,7 +63,7 @@ export function detectLang(text: string): AnswerLang {
 export function htmlText(html: string): string {
 	return html
 		.replace(/<br\s*\/?>/gi, ' ')
-		.replace(/<\/(p|li|blockquote)>/gi, ' ')
+		.replace(/<\/(p|li|blockquote|h2|h3)>/gi, ' ')
 		.replace(/<[^>]*>/g, '')
 		.replace(/&nbsp;/g, ' ')
 		.replace(/&lt;/g, '<')

@@ -23,6 +23,8 @@ func TestSanitize(t *testing.T) {
 		{"iframe and form removed", `<iframe src="https://evil"></iframe><form action="/x"><input></form>`, nil, []string{"iframe", "form", "input"}},
 		{"svg and math removed", `<svg onload=alert(1)></svg><math><mi xlink:href="javascript:alert(1)"></mi></math>`, nil, []string{"svg", "onload", "math"}},
 		{"unclosed and nested tricks", `<p><a href="https://ok.example">x<script>alert(1)</script></a>`, []string{"ok.example"}, []string{"script", "alert"}},
+		{"headings, underline and strike kept", `<h2>A</h2><h3>B</h3><p><u>u</u> <s>s</s></p>`, []string{"<h2>A</h2>", "<h3>B</h3>", "<u>u</u>", "<s>s</s>"}, nil},
+		{"other heading levels lose the tag but keep the text", `<h1>Big</h1><h4>Small</h4>`, []string{"Big", "Small"}, []string{"<h1", "<h4"}},
 		{"amharic preserved", `<p>ሰላም ዓለም</p>`, []string{"ሰላም ዓለም"}, nil},
 	}
 	for _, c := range cases {

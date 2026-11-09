@@ -1761,6 +1761,41 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {description: Not one of the caller's works}
         "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/me/application/portrait:
+    get:
+      tags: [onboarding]
+      summary: The applicant's portrait
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: The portrait, content: {application/json: {schema: {$ref: "#/components/schemas/ApplicantPortrait"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: No portrait added yet}
+    put:
+      tags: [onboarding]
+      summary: Set the applicant's portrait, replacing any earlier one
+      description: |
+        An artist needs a portrait to apply. It is not one of the five works, and is never published as an
+        artwork; on approval it becomes the profile photo unless the artist already has one. The image must
+        have been uploaded by the same user through `/me/application/media/sign` and `/complete`. Locked
+        (409) while the application is under review.
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetApplicantPortraitRequest"}}}}
+      responses:
+        "200": {description: The stored portrait, content: {application/json: {schema: {$ref: "#/components/schemas/ApplicantPortrait"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: The image does not exist or is not the caller's}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {description: Rate limited}
+    delete:
+      tags: [onboarding]
+      summary: Remove the applicant's portrait
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "204": {description: Removed}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: No portrait to remove}
+        "409": {$ref: "#/components/responses/Conflict"}
   /api/v1/me/application/media/sign:
     post:
       tags: [media]
@@ -3387,6 +3422,8 @@ components:
           description: The work submitted with the application, as it was at submission.
           items:
             $ref: "#/components/schemas/ApplicantWork"
+        portrait:
+          $ref: "#/components/schemas/ApplicantPortrait"
         created_at:
           type: string
           format: date-time
@@ -3405,6 +3442,19 @@ components:
         medium: {type: string}
         year: {type: integer, nullable: true}
         position: {type: integer}
+
+    ApplicantPortrait:
+      type: object
+      properties:
+        media_asset_id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        blurhash: {type: string, description: Placeholder to show while the image loads}
+
+    SetApplicantPortraitRequest:
+      type: object
+      required: [media_asset_id]
+      properties:
+        media_asset_id: {type: string, format: uuid}
 
     AddApplicantWorkRequest:
       type: object

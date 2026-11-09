@@ -42,6 +42,9 @@ type OnboardingApplication struct {
 	// Works are the pieces of work the applicant submitted with the application, frozen at that
 	// moment. Empty for applications made before works were required.
 	Works []ApplicantWork
+	// Portrait is the applicant's portrait, frozen at submission. Nil for applications made before
+	// portraits were required.
+	Portrait *ApplicantPortrait
 	// InviteID is set when the applicant arrived through an invite link.
 	InviteID  *uuid.UUID
 	CreatedAt time.Time

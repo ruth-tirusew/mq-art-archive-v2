@@ -59,6 +59,12 @@ func (p *ArtistProvisioner) ProvisionApproved(ctx context.Context, app onboardin
 		prof.ApprovedAt = &now
 		changed = true
 	}
+	// The portrait they applied with becomes their profile photo, unless they already chose one:
+	// re-approval must never overwrite a photo the artist picked themselves.
+	if app.Portrait != nil && app.Portrait.URL != "" && prof.PortraitURL == "" {
+		prof.PortraitURL = app.Portrait.URL
+		changed = true
+	}
 	if changed {
 		prof.UpdatedAt = now
 		if prof, err = p.profiles.SaveArtist(ctx, *prof); err != nil {

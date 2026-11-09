@@ -75,3 +75,33 @@ func (s *Service) RemoveWork(ctx context.Context, userID, workID uuid.UUID) erro
 	}
 	return s.works.Delete(ctx, userID, workID)
 }
+
+func (s *Service) GetPortrait(ctx context.Context, userID uuid.UUID) (*domain.ApplicantPortrait, error) {
+	if err := s.requireWorks(); err != nil {
+		return nil, err
+	}
+	return s.works.GetPortrait(ctx, userID)
+}
+
+func (s *Service) SetPortrait(ctx context.Context, userID, mediaAssetID uuid.UUID) (*domain.ApplicantPortrait, error) {
+	if err := s.requireWorks(); err != nil {
+		return nil, err
+	}
+	if mediaAssetID == uuid.Nil {
+		return nil, fmt.Errorf("%w: an uploaded image is required", apperrors.ErrValidation)
+	}
+	if err := s.lockedForReview(ctx, userID); err != nil {
+		return nil, err
+	}
+	return s.works.SetPortrait(ctx, userID, mediaAssetID)
+}
+
+func (s *Service) RemovePortrait(ctx context.Context, userID uuid.UUID) error {
+	if err := s.requireWorks(); err != nil {
+		return err
+	}
+	if err := s.lockedForReview(ctx, userID); err != nil {
+		return err
+	}
+	return s.works.DeletePortrait(ctx, userID)
+}

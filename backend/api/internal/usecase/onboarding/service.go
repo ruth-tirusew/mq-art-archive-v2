@@ -194,6 +194,7 @@ func (s *Service) prepareApplication(
 	}
 
 	var works []domain.ApplicantWork
+	var portrait *domain.ApplicantPortrait
 	if applicantType == domain.ApplicantTypeArtist && s.works != nil {
 		works, err = s.works.ListByUser(ctx, applicantID)
 		if err != nil {
@@ -202,6 +203,15 @@ func (s *Service) prepareApplication(
 		if short := domain.WorksShortfall(len(works)); short > 0 {
 			return nil, fmt.Errorf("%w: add at least %d works to apply (you have %d, add %d more)",
 				apperrors.ErrValidation, domain.MinApplicationWorks, len(works), short)
+		}
+		// A profile needs a face on it, and approval publishes straight away, so the portrait is
+		// collected here instead of leaving the artist to add it afterwards.
+		portrait, err = s.works.GetPortrait(ctx, applicantID)
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return nil, fmt.Errorf("%w: add a portrait photo of yourself to apply", apperrors.ErrValidation)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -217,6 +227,7 @@ func (s *Service) prepareApplication(
 		QuestionnaireRevisionID: revisionID,
 		QuestionnaireAnswers:    answers,
 		Works:                   works,
+		Portrait:                portrait,
 		CreatedAt:               now,
 		UpdatedAt:               now,
 	}, nil

@@ -34,9 +34,12 @@ type OnboardingApplicationResponse struct {
 	QuestionnaireRevisionID *uuid.UUID `json:"questionnaire_revision_id,omitempty"`
 	InviteID                *uuid.UUID `json:"invite_id,omitempty"`
 	// Works are the pieces of work submitted with the application, as they were at submission.
-	Works     []ApplicantWorkResponse `json:"works,omitempty"`
-	CreatedAt time.Time               `json:"created_at"`
-	UpdatedAt time.Time               `json:"updated_at"`
+	Works []ApplicantWorkResponse `json:"works,omitempty"`
+	// Portrait is the applicant's portrait as submitted. Absent on applications from before
+	// portraits were required.
+	Portrait  *ApplicantPortraitResponse `json:"portrait,omitempty"`
+	CreatedAt time.Time                  `json:"created_at"`
+	UpdatedAt time.Time                  `json:"updated_at"`
 }
 
 func ToOnboardingApplicationResponse(app domain.OnboardingApplication) OnboardingApplicationResponse {
@@ -54,6 +57,7 @@ func ToOnboardingApplicationResponse(app domain.OnboardingApplication) Onboardin
 		QuestionnaireRevisionID: app.QuestionnaireRevisionID,
 		InviteID:                app.InviteID,
 		Works:                   ToApplicantWorkResponses(app.Works),
+		Portrait:                ToApplicantPortraitResponse(app.Portrait),
 		CreatedAt:               app.CreatedAt,
 		UpdatedAt:               app.UpdatedAt,
 	}
@@ -72,6 +76,23 @@ type AddWorkRequest struct {
 	Title        string    `json:"title" binding:"required,max=200"`
 	Medium       string    `json:"medium" binding:"max=100"`
 	Year         *int      `json:"year"`
+}
+
+type ApplicantPortraitResponse struct {
+	MediaAssetID uuid.UUID `json:"media_asset_id"`
+	URL          string    `json:"url"`
+	Blurhash     string    `json:"blurhash,omitempty"`
+}
+
+func ToApplicantPortraitResponse(p *domain.ApplicantPortrait) *ApplicantPortraitResponse {
+	if p == nil {
+		return nil
+	}
+	return &ApplicantPortraitResponse{MediaAssetID: p.MediaAssetID, URL: p.URL, Blurhash: p.Blurhash}
+}
+
+type SetPortraitRequest struct {
+	MediaAssetID uuid.UUID `json:"media_asset_id" binding:"required"`
 }
 
 type ApplicantWorkResponse struct {

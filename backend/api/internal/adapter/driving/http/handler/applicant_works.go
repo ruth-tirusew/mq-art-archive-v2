@@ -67,3 +67,45 @@ func (h *ApplicantWorksHandler) Remove(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
+
+func (h *ApplicantWorksHandler) GetPortrait(c *gin.Context) {
+	userID, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	portrait, err := h.works.GetPortrait(c.Request.Context(), userID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.ToApplicantPortraitResponse(portrait))
+}
+
+func (h *ApplicantWorksHandler) SetPortrait(c *gin.Context) {
+	userID, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	var req dto.SetPortraitRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	portrait, err := h.works.SetPortrait(c.Request.Context(), userID, req.MediaAssetID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.ToApplicantPortraitResponse(portrait))
+}
+
+func (h *ApplicantWorksHandler) RemovePortrait(c *gin.Context) {
+	userID, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	if err := h.works.RemovePortrait(c.Request.Context(), userID); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}

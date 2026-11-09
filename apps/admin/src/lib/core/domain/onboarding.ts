@@ -21,6 +21,12 @@ export const APPLICATIONS_PAGE_SIZE = 50;
 /** An artist needs at least this many pieces of work to apply. Mirrors the API's rule. */
 export const MIN_APPLICATION_WORKS = 5;
 
+export interface ApplicantPortrait {
+  media_asset_id: string;
+  url: string;
+  blurhash?: string;
+}
+
 export interface ApplicantWork {
   id: string;
   url: string;
@@ -48,6 +54,8 @@ export interface OnboardingApplication {
   invite_id?: string;
   /** The work submitted with the application, as it was at submission. */
   works?: ApplicantWork[];
+  /** The portrait submitted with the application. Absent on applications from before portraits were required. */
+  portrait?: ApplicantPortrait | null;
   created_at?: string;
   updated_at?: string;
 }

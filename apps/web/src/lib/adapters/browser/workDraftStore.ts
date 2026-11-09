@@ -95,7 +95,50 @@ async function run<T>(mode: IDBTransactionMode, op: (store: IDBObjectStore) => I
 	}
 }
 
+/** The portrait draft is kept under its own key so it never disturbs the works record. */
+interface StoredPortrait {
+	userId: string;
+	savedAt: number;
+	portrait: { file: Blob; name: string; type: string };
+}
+
+const portraitKey = (userId: string) => `${userId}#portrait`;
+
 export const workDraftStore = {
+	async loadPortrait(userId: string): Promise<File | null> {
+		try {
+			const record = await run<StoredPortrait | undefined>('readonly', (s) => s.get(portraitKey(userId)));
+			if (!record) return null;
+			if (!isFresh(record.savedAt)) {
+				await this.savePortrait(userId, null);
+				return null;
+			}
+			const { file, name, type } = record.portrait;
+			return file instanceof File ? file : new File([file], name, { type: type || file.type });
+		} catch {
+			return null;
+		}
+	},
+
+	/** True when the portrait is now safe on this device. Null clears it. */
+	async savePortrait(userId: string, file: File | null): Promise<boolean> {
+		try {
+			if (!file) {
+				await run('readwrite', (s) => s.delete(portraitKey(userId)));
+				return true;
+			}
+			const record: StoredPortrait = {
+				userId: portraitKey(userId),
+				savedAt: Date.now(),
+				portrait: { file, name: file.name, type: file.type }
+			};
+			await run('readwrite', (s) => s.put(record));
+			return true;
+		} catch {
+			return false;
+		}
+	},
+
 	async load(userId: string): Promise<WorkDraft[]> {
 		try {
 			const record = await run<StoredRecord | undefined>('readonly', (s) => s.get(userId));

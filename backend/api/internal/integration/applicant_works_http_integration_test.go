@@ -141,3 +141,57 @@ func TestHTTP_approvedArtistIsPublicWithTheirWork_integration(t *testing.T) {
 	expect(t, archive, http.StatusOK)
 	assist.Contains(t, archive.Body.String(), "Work 1")
 }
+
+func TestHTTP_anArtistNeedsAPortraitToApply_integration(t *testing.T) {
+	app := integration.NewApp(t)
+	c := caller{t, app.Router()}
+	admin := integration.InsertAdminUser(t, app.Pool).String()
+	applicant := insertVerifiedUser(t, app, "portrait@example.com", true)
+	stranger := insertVerifiedUser(t, app, "portrait-stranger@example.com", true)
+	apply := map[string]any{"applicant_type": "artist", "display_name": "Portrait Applicant", "requested_handle": "portrait_1"}
+
+	// Five works but no portrait: refused, and the message says what to do.
+	for i := 0; i < domain.MinApplicationWorks; i++ {
+		expect(t, c.do("POST", "/api/v1/me/application/works", applicant, map[string]any{
+			"media_asset_id": insertAsset(t, app, applicant), "title": "Work",
+		}), http.StatusCreated)
+	}
+	rec := c.do("POST", "/api/v1/applications", applicant, apply)
+	expect(t, rec, http.StatusBadRequest)
+	assist.Contains(t, rec.Body.String(), "portrait")
+	expect(t, c.do("GET", "/api/v1/me/application/portrait", applicant, nil), http.StatusNotFound)
+
+	// Someone else's image can't be your portrait.
+	expect(t, c.do("PUT", "/api/v1/me/application/portrait", applicant, map[string]any{"media_asset_id": insertAsset(t, app, stranger)}), http.StatusNotFound)
+
+	// Setting a second one replaces the first; it is never counted as a work.
+	first := insertAsset(t, app, applicant)
+	second := insertAsset(t, app, applicant)
+	expect(t, c.do("PUT", "/api/v1/me/application/portrait", applicant, map[string]any{"media_asset_id": first}), http.StatusOK)
+	got := c.do("PUT", "/api/v1/me/application/portrait", applicant, map[string]any{"media_asset_id": second})
+	expect(t, got, http.StatusOK)
+	assist.Equal(t, second, decode[map[string]any](t, got)["media_asset_id"].(string))
+	assist.Equal(t, "TESTHASH", decode[map[string]any](t, got)["blurhash"].(string))
+	works := decode[[]map[string]any](t, c.do("GET", "/api/v1/me/application/works", applicant, nil))
+	assist.Len(t, domain.MinApplicationWorks, len(works))
+
+	// Submitting freezes the portrait onto the application, and the reviewer sees it.
+	rec = c.do("POST", "/api/v1/applications", applicant, apply)
+	expect(t, rec, http.StatusCreated)
+	submitted := decode[map[string]any](t, rec)
+	assist.Equal(t, second, submitted["portrait"].(map[string]any)["media_asset_id"].(string))
+	appID := submitted["id"].(string)
+
+	// Under review it is locked like the works.
+	expect(t, c.do("PUT", "/api/v1/me/application/portrait", applicant, map[string]any{"media_asset_id": insertAsset(t, app, applicant)}), http.StatusConflict)
+	expect(t, c.do("DELETE", "/api/v1/me/application/portrait", applicant, nil), http.StatusConflict)
+	review := decode[map[string]any](t, c.do("GET", "/admin/v1/applications/"+appID, admin, nil))
+	assist.Equal(t, second, review["portrait"].(map[string]any)["media_asset_id"].(string))
+
+	// Approval makes it the profile photo.
+	expect(t, c.do("PUT", "/admin/v1/applications/"+appID, admin, map[string]any{"status": "approved"}), http.StatusOK)
+	var url string
+	assist.NoError(t, app.Pool.QueryRow(context.Background(),
+		`SELECT portrait_url FROM artist_profiles WHERE handle = 'portrait_1'`).Scan(&url))
+	assist.Contains(t, url, second)
+}

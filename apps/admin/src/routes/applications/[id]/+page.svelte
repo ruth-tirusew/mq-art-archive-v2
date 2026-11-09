@@ -13,6 +13,7 @@
   import { Textarea } from '$lib/components/ui/textarea';
   import ApplicationAnswers from '$lib/components/questionnaire/ApplicationAnswers.svelte';
   import ApplicationWorks from '$lib/components/onboarding/ApplicationWorks.svelte';
+  import ApplicationPortrait from '$lib/components/onboarding/ApplicationPortrait.svelte';
 
   let { data } = $props();
 
@@ -161,6 +162,7 @@
 </Card>
 
 {#if data.application.applicant_type === 'artist'}
+  <ApplicationPortrait portrait={data.application.portrait} />
   <ApplicationWorks works={data.application.works ?? []} />
 {/if}
 

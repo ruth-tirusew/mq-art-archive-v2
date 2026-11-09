@@ -30,8 +30,10 @@ Signed-in readers see **Apply as artist** in the site header. The application is
 
 1. **About you**: artist name and a requested profile handle (3–30 lowercase letters, numbers or underscores). Availability is checked as you type.
 2. **Your answers** (or **Your work**, see below).
-3. **Your art**: upload **at least five** pieces of your work, each with a title (medium and year are optional). Up to 20 are allowed. You choose and preview them on your device first; nothing is uploaded until you press **Submit** on the last step, when they go to Cloudinary (kept exactly as uploaded, shown to visitors as lossless WebP).
+3. **Your art**: add **a photo of yourself** and upload **at least five** pieces of your work, each with a title (medium and year are optional). Up to 20 are allowed. You choose and preview them on your device first; nothing is uploaded until you press **Submit** on the last step, when they go to Cloudinary (kept exactly as uploaded, shown to visitors as lossless WebP).
 4. **Review**: confirm and submit.
+
+**The portrait.** An artist application also needs a portrait (a clear photo of the applicant). It follows the same path as the works: chosen and previewed on the device, kept in the browser (IndexedDB) if the page is refreshed, uploaded only on **Submit**. It is not one of the five works and is never published as an artwork. It is frozen onto the application like the works, shown to the reviewer, and on approval becomes the profile photo, unless the artist already has one. The API refuses a submission without it (`400`), and it is locked while the application is under review.
 
 **The five-works rule.** An artist application can't be submitted with fewer than five works; the form says how many more are needed and the API refuses the submission (`400`) otherwise. This applies to invited applicants too. The works are copied onto the application when it is submitted, so a reviewer always sees what was sent, even if the applicant later changes their works. While an application is under review the works are locked; after a rejection the applicant can edit them and apply again. Institution applications aren't affected.
 
@@ -70,7 +72,7 @@ Reviewers see the applicant's answers (including those marked team-only) next to
 - each of the (at least five) works they submitted becomes a published artwork on their page, with its blur hash
 - the studio opens with a welcome guide: add a portrait and a short bio, and add more work when they like
 
-Approval is the only gate: an admin has already reviewed the artist and their work, so there is no separate publish step. The profile has no portrait or bio until the artist adds them. An artist can still untick **Make my profile public** in the studio to take the profile offline, and admins can take one down too. Applications that predate the five-works rule go live with no artworks. If publishing fails part-way, the application goes back to pending and approving again finishes the job without duplicating anything.
+Approval is the only gate: an admin has already reviewed the artist and their work, so there is no separate publish step. The profile goes live with the portrait the artist applied with; the bio is still the artist's to add (or shows their questionnaire answers until they do). An artist can still untick **Make my profile public** in the studio to take the profile offline, and admins can take one down too. Applications that predate the five-works rule go live with no artworks. If publishing fails part-way, the application goes back to pending and approving again finishes the job without duplicating anything.
 
 If rejected, the applicant sees the reviewer's reason and can edit and apply again; the form is pre-filled.
 
@@ -88,7 +90,7 @@ The onboarding form must validate all of the following:
 - duplicate handle conflicts are rejected
 - the user must not submit a malformed or empty profile request
 - the application must be traceable to the authenticated user
-- an artist application needs at least five works, each with a title and an image the applicant uploaded themselves
+- an artist application needs at least five works, each with a title and an image the applicant uploaded themselves, and a portrait the applicant uploaded themselves
 
 ## User experience expectations
 

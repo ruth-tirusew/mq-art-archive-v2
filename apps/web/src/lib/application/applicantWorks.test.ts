@@ -22,7 +22,13 @@ function fakes(failOn?: string) {
 			log.push(`add:${input.title}:${input.year ?? '-'}`);
 			return { id: `work-${input.title}`, media_asset_id: input.media_asset_id, url: 'u', title: input.title, position: 0 };
 		},
-		remove: async () => {}
+		remove: async () => {},
+		getPortrait: async () => null,
+		setPortrait: async (id) => {
+			log.push(`portrait:${id}`);
+			return { media_asset_id: id, url: `https://img.test/${id}` };
+		},
+		removePortrait: async () => {}
 	};
 	const upload = async (file: File) => {
 		log.push(`upload:${file.name}`);
@@ -85,5 +91,20 @@ describe('workDraftProblem', () => {
 	});
 	it('caps the title length', () => {
 		expect(workDraftProblem({ title: 'a'.repeat(201), year: '' }, now)).toContain('200');
+	});
+});
+
+describe('uploadPortrait', () => {
+	it('uploads the image then makes it the portrait', async () => {
+		const { service, log } = fakes();
+		const portrait = await service.uploadPortrait(new File(['x'], 'me.jpg', { type: 'image/jpeg' }));
+		expect(log).toEqual(['upload:me.jpg', 'portrait:asset-me.jpg']);
+		expect(portrait.media_asset_id).toBe('asset-me.jpg');
+	});
+
+	it('does not touch the portrait when the upload fails', async () => {
+		const { service, log } = fakes('me.jpg');
+		await expect(service.uploadPortrait(new File(['x'], 'me.jpg', { type: 'image/jpeg' }))).rejects.toThrow('Cloudinary rejected');
+		expect(log).toEqual(['upload:me.jpg']);
 	});
 });

@@ -24,7 +24,7 @@ func NewOnboardingRepository(pool *Pool) outbound.OnboardingRepository {
 const onboardingColumns = `
 	id, applicant_id, applicant_type, display_name, COALESCE(requested_handle, ''), notes, review_notes,
 	status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id,
-	questionnaire_answers, works
+	questionnaire_answers, works, portrait
 `
 
 func (r *OnboardingRepository) ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error) {
@@ -144,12 +144,20 @@ func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.Onboardi
 		}
 		worksJSON = encoded
 	}
+	var portraitJSON []byte
+	if app.Portrait != nil {
+		encoded, err := json.Marshal(app.Portrait)
+		if err != nil {
+			return nil, fmt.Errorf("save onboarding application: encode portrait: %w", err)
+		}
+		portraitJSON = encoded
+	}
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO onboarding_applications (
 			id, applicant_id, applicant_type, display_name, requested_handle, notes, review_notes,
 			status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id,
-			questionnaire_answers, works
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			questionnaire_answers, works, portrait
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		ON CONFLICT (id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
 			requested_handle = EXCLUDED.requested_handle,
@@ -162,11 +170,12 @@ func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.Onboardi
 			questionnaire_revision_id = EXCLUDED.questionnaire_revision_id,
 			invite_id = EXCLUDED.invite_id,
 			questionnaire_answers = EXCLUDED.questionnaire_answers,
-			works = EXCLUDED.works
+			works = EXCLUDED.works,
+			portrait = EXCLUDED.portrait
 		RETURNING `+onboardingColumns,
 		app.ID, app.ApplicantID, string(app.ApplicantType), app.DisplayName, nullableString(app.RequestedHandle), app.Notes, app.ReviewNotes,
 		string(app.Status), app.ReviewedBy, app.ReviewedAt, app.CreatedAt, app.UpdatedAt,
-		app.QuestionnaireRevisionID, app.InviteID, app.QuestionnaireAnswers, worksJSON,
+		app.QuestionnaireRevisionID, app.InviteID, app.QuestionnaireAnswers, worksJSON, portraitJSON,
 	)
 
 	saved, err := scanOnboardingApplication(row)
@@ -208,11 +217,11 @@ func (r *OnboardingRepository) Transition(ctx context.Context, app onboarding.On
 func scanOnboardingApplication(row scannable) (onboarding.OnboardingApplication, error) {
 	var app onboarding.OnboardingApplication
 	var applicantType, status string
-	var worksJSON []byte
+	var worksJSON, portraitJSON []byte
 	err := row.Scan(
 		&app.ID, &app.ApplicantID, &applicantType, &app.DisplayName, &app.RequestedHandle, &app.Notes, &app.ReviewNotes,
 		&status, &app.ReviewedBy, &app.ReviewedAt, &app.CreatedAt, &app.UpdatedAt,
-		&app.QuestionnaireRevisionID, &app.InviteID, &app.QuestionnaireAnswers, &worksJSON,
+		&app.QuestionnaireRevisionID, &app.InviteID, &app.QuestionnaireAnswers, &worksJSON, &portraitJSON,
 	)
 	if err != nil {
 		return onboarding.OnboardingApplication{}, err
@@ -220,6 +229,11 @@ func scanOnboardingApplication(row scannable) (onboarding.OnboardingApplication,
 	if len(worksJSON) > 0 {
 		if err := json.Unmarshal(worksJSON, &app.Works); err != nil {
 			return onboarding.OnboardingApplication{}, fmt.Errorf("decode application works: %w", err)
+		}
+	}
+	if len(portraitJSON) > 0 {
+		if err := json.Unmarshal(portraitJSON, &app.Portrait); err != nil {
+			return onboarding.OnboardingApplication{}, fmt.Errorf("decode application portrait: %w", err)
 		}
 	}
 	app.ApplicantType = onboarding.ApplicantType(applicantType)

@@ -84,8 +84,9 @@ func insertVerifiedUser(t *testing.T, app *integration.App, email string, verifi
 	return id.String()
 }
 
-// addWorks gives an applicant n uploaded works through the API, the way the apply flow does: the
-// image rows stand in for finished Cloudinary uploads, and each is then added as a work. Pass
+// addWorks gives an applicant n uploaded works and a portrait through the API, the way the apply
+// flow does: the image rows stand in for finished Cloudinary uploads, and each is then added as a
+// work (the portrait is replaced if already set, so calling this twice is fine). Pass
 // session headers in `as` when the applicant is signed in by cookie instead of by user id.
 func addWorks(t *testing.T, app *integration.App, c caller, userID string, n int, as ...string) {
 	t.Helper()
@@ -105,6 +106,13 @@ func addWorks(t *testing.T, app *integration.App, c caller, userID string, n int
 			"media_asset_id": assetID.String(), "title": fmt.Sprintf("Work %d", i+1),
 		}, as...), http.StatusCreated)
 	}
+	portrait := uuid.New()
+	_, err := app.Pool.Exec(context.Background(), `
+		INSERT INTO media_assets (id, owner_user_id, public_id, secure_url, resource_type, width, height, bytes, folder, blurhash, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 'image', 100, 100, 1000, 'mq', 'TESTHASH', NOW(), NOW())
+	`, portrait, userID, "mq/"+portrait.String(), "https://res.cloudinary.com/cloud/image/upload/v1/mq/"+portrait.String()+".webp")
+	assist.NoError(t, err)
+	expect(t, c.do("PUT", "/api/v1/me/application/portrait", user, map[string]any{"media_asset_id": portrait.String()}, as...), http.StatusOK)
 }
 
 func questionPayload(withNew bool) map[string]any {
@@ -123,10 +131,10 @@ func TestHTTP_questionnaireInviteLifecycle_integration(t *testing.T) {
 	app := integration.NewApp(t)
 	c := caller{t, app.Router()}
 	admin := integration.InsertAdminUser(t, app.Pool).String()
-	artist := insertVerifiedUser(t, app, "ada@example.com", true)
+	visitor := insertVerifiedUser(t, app, "visitor@example.com", true)
 
 	// Nothing published yet: the form 404s so the client falls back to the plain application.
-	expect(t, c.do("GET", "/api/v1/me/questionnaire", artist, nil), http.StatusNotFound)
+	expect(t, c.do("GET", "/api/v1/me/questionnaire", visitor, nil), http.StatusNotFound)
 
 	// Admin builds and publishes revision 1.
 	expect(t, c.do("PUT", "/admin/v1/questionnaire/draft", admin, questionPayload(false)), http.StatusOK)
@@ -146,6 +154,10 @@ func TestHTTP_questionnaireInviteLifecycle_integration(t *testing.T) {
 	}](t, created)
 	assist.Contains(t, inv.Link, "/apply?invite="+inv.Token)
 	assist.Equal(t, "live", inv.Invite["status"].(string))
+
+	// The invitee signs up after being invited (an address that already has an account can't be
+	// invited at all, see TestHTTP_inviteForAnExistingAccountIsRefused_integration).
+	artist := insertVerifiedUser(t, app, "ada@example.com", true)
 	list := c.do("GET", "/admin/v1/invites", admin, nil)
 	expect(t, list, http.StatusOK)
 	if strings.Contains(list.Body.String(), inv.Token) || strings.Contains(list.Body.String(), "token") {
@@ -272,13 +284,15 @@ func TestHTTP_questionnaireSecurity_integration(t *testing.T) {
 	admin := integration.InsertAdminUser(t, app.Pool).String()
 	reader := insertVerifiedUser(t, app, "reader@example.com", true)
 	stranger := insertVerifiedUser(t, app, "stranger@example.com", true)
-	unverified := insertVerifiedUser(t, app, "ada@example.com", false)
 
 	expect(t, c.do("PUT", "/admin/v1/questionnaire/draft", admin, questionPayload(false)), http.StatusOK)
 	expect(t, c.do("POST", "/admin/v1/questionnaire/draft/publish", admin, nil), http.StatusOK)
 	created := c.do("POST", "/admin/v1/invites", admin, map[string]any{"email": "ada@example.com", "handle": "ada_1"})
 	expect(t, created, http.StatusCreated)
 	token := decode[struct{ Token string }](t, created).Token
+	// Someone signs up with the invited address, but never verifies it. (An address that already has
+	// an account can't be invited, so this account must come after the invite.)
+	unverified := insertVerifiedUser(t, app, "ada@example.com", false)
 	invitedAnswers := map[string]any{"answers": []map[string]any{{"key": "bio", "body": "hello"}}}
 
 	t.Run("admin routes reject non-admins", func(t *testing.T) {
@@ -557,4 +571,20 @@ func TestHTTP_inviteRegistration_createsAVerifiedAccountFromTheInvite_integratio
 
 	// The address now has an account, so registering again is refused.
 	expect(t, c.do("POST", "/api/v1/invites/register", "", map[string]any{"token": inv.Token, "password": "password1"}), http.StatusConflict)
+}
+
+func TestHTTP_inviteForAnExistingAccountIsRefused_integration(t *testing.T) {
+	app := integration.NewApp(t)
+	c := caller{t, app.Router()}
+	admin := integration.InsertAdminUser(t, app.Pool).String()
+	insertVerifiedUser(t, app, "taken@example.com", true)
+
+	for _, email := range []string{"taken@example.com", "Taken@Example.com"} {
+		rec := c.do("POST", "/admin/v1/invites", admin, map[string]any{"email": email})
+		expect(t, rec, http.StatusConflict)
+		assist.Contains(t, rec.Body.String(), "already has an Artiv account")
+	}
+	assist.Len(t, 0, len(app.Mailer.Messages())) // nothing was emailed
+	list := c.do("GET", "/admin/v1/invites?status=all", admin, nil)
+	assist.Contains(t, list.Body.String(), "[]")
 }

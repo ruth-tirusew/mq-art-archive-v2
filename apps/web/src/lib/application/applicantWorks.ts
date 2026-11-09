@@ -1,6 +1,6 @@
 import { uploadImage } from '$lib/application/media';
 import type { UploadedMedia } from '$lib/core/domain/media';
-import type { AddWorkInput, ApplicantWork, WorkDraft } from '$lib/core/domain/onboarding';
+import type { AddWorkInput, ApplicantPortrait, ApplicantWork, WorkDraft } from '$lib/core/domain/onboarding';
 import { MAX_APPLICATION_WORKS } from '$lib/core/domain/onboarding';
 import type { ApplicantWorksPort } from '$lib/core/ports/applicantWorks';
 
@@ -25,6 +25,22 @@ export function createApplicantWorksService(port: ApplicantWorksPort, upload: Up
 		},
 		remove(id: string): Promise<void> {
 			return port.remove(id);
+		},
+		/** The portrait already stored for the applicant (only a re-applicant has one). */
+		getPortrait(): Promise<ApplicantPortrait | null> {
+			return port.getPortrait();
+		},
+		removePortrait(): Promise<void> {
+			return port.removePortrait();
+		},
+		/**
+		 * Uploads the chosen portrait and makes it the applicant's portrait, replacing any earlier
+		 * one. Like the works, this runs only when the applicant submits.
+		 */
+		async uploadPortrait(file: File, options: { signal?: AbortSignal } = {}): Promise<ApplicantPortrait> {
+			const media = await upload(file, { scope: 'applicant', signal: options.signal });
+			if (!media.id) throw new Error('The upload did not return an image id.');
+			return port.setPortrait(media.id);
 		},
 		/**
 		 * Uploads each draft that isn't stored yet, in order, and attaches it as a work. This is the

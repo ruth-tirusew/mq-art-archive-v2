@@ -15,11 +15,14 @@
     parseLinkNotes,
     worksShortfall,
     workDraftProblem,
+    type ApplicantPortrait,
     type ApplicantWork,
+    type PortraitDraft,
     type WorkDraft,
   } from "$lib/core/domain/onboarding";
   import QuestionnaireForm from "$lib/components/questionnaire/QuestionnaireForm.svelte";
   import ApplicantWorks from "$lib/components/onboarding/ApplicantWorks.svelte";
+  import ApplicantPortraitPicker from "$lib/components/onboarding/ApplicantPortraitPicker.svelte";
   import BlurhashImage from "$lib/components/BlurhashImage.svelte";
   import SafeHtml from "$lib/components/SafeHtml.svelte";
   import type { InvitePreview } from "$lib/core/domain/invite";
@@ -41,8 +44,19 @@
   const worksProblem = $derived(drafts.some((d) => workDraftProblem(d)));
   const worksReady = $derived(worksShort === 0 && !worksProblem);
 
+  // The portrait an artist applies with: chosen locally and uploaded on submit, like the works.
+  // `storedPortrait` is one already on the server from an earlier, rejected application.
+  let portraitDraft = $state<PortraitDraft | null>(null);
+  let storedPortrait = $state<ApplicantPortrait | null>(null);
+  let portraitKept = $state(false);
+  const portraitReady = $derived(portraitDraft !== null || storedPortrait !== null);
+  const artReady = $derived(worksReady && portraitReady);
+
   // Preview URLs point at files in memory; let them go when the page does.
-  onDestroy(() => drafts.forEach((d) => URL.revokeObjectURL(d.previewUrl)));
+  onDestroy(() => {
+    drafts.forEach((d) => URL.revokeObjectURL(d.previewUrl));
+    if (portraitDraft) URL.revokeObjectURL(portraitDraft.previewUrl);
+  });
 
   // Chosen pieces are also kept in this browser, per account, until submit: a refresh or a closed
   // tab gives them back instead of losing five or more images. Still nothing is uploaded early.
@@ -63,6 +77,29 @@
       draftsKept = restored.length > 0;
       draftsReady = true;
     });
+    void workDraftStore.loadPortrait(userId).then((file) => {
+      // A photo chosen while this was loading wins over the one that was saved.
+      if (draftsRestoredFor !== userId || !file || portraitDraft) return;
+      portraitDraft = { file, previewUrl: URL.createObjectURL(file) };
+      portraitKept = true;
+    });
+  });
+
+  // Keep the chosen portrait in this browser too, so a refresh doesn't lose it.
+  $effect(() => {
+    const userId = $currentUser?.id;
+    const file = portraitDraft?.file ?? null;
+    if (!userId || !draftsReady) return;
+    void workDraftStore.savePortrait(userId, file).then((ok) => (portraitKept = ok && file !== null));
+  });
+
+  // Someone re-applying after a rejection may already have a portrait stored.
+  $effect(() => {
+    if (!reapplying) return;
+    void applicantWorksService
+      .getPortrait()
+      .then((p) => (storedPortrait ??= p))
+      .catch(() => {});
   });
 
   $effect(() => {
@@ -282,7 +319,7 @@
       return;
     }
     // Step 3: at least five pieces of work.
-    if (step === 3 && !worksReady) return;
+    if (step === 3 && !artReady) return;
     attempted = false;
     step += 1;
   }
@@ -305,6 +342,13 @@
       // The only moment images leave the browser. A failure stops here, before the application is
       // sent, and a retry only uploads the pieces that are left.
       try {
+        // The portrait first: it is one image, and an application can't go without it.
+        if (portraitDraft) {
+          uploadProgress = "Uploading your photo…";
+          storedPortrait = await applicantWorksService.uploadPortrait(portraitDraft.file);
+          URL.revokeObjectURL(portraitDraft.previewUrl);
+          portraitDraft = null;
+        }
         await applicantWorksService.uploadDrafts(drafts, {
           onProgress: (done, total) => (uploadProgress = `Uploading ${Math.min(done + 1, total)} of ${total}…`),
         });
@@ -332,7 +376,10 @@
         });
       }
       // Sent: the pieces are on the server now, so the copy in this browser can go.
-      if ($currentUser) await workDraftStore.clear($currentUser.id);
+      if ($currentUser) {
+        await workDraftStore.clear($currentUser.id);
+        await workDraftStore.savePortrait($currentUser.id, null);
+      }
       drafts.forEach((d) => URL.revokeObjectURL(d.previewUrl));
       drafts = [];
       await goto("/apply/status");
@@ -478,7 +525,10 @@
         {/snippet}
       </Field>
     {:else if step === 3}
-      <ApplicantWorks bind:drafts bind:existing={storedWorks} loadExisting={reapplying} showProblems={attempted} kept={draftsKept} />
+      <div class="space-y-10">
+        <ApplicantPortraitPicker bind:draft={portraitDraft} bind:stored={storedPortrait} showProblem={attempted} kept={portraitKept} disabled={submitting} />
+        <ApplicantWorks bind:drafts bind:existing={storedWorks} loadExisting={reapplying} showProblems={attempted} kept={draftsKept} />
+      </div>
     {:else if step === REVIEW_STEP}
       <div class="rounded-sm border border-border/70 bg-card/30 p-6 text-sm">
         <p class="t-eyebrow text-muted-foreground">Review your application</p>
@@ -507,6 +557,16 @@
         {:else}
           <p class="mt-4 whitespace-pre-wrap text-muted-foreground">{notes}</p>
         {/if}
+        <div class="mt-6 flex items-center gap-4 border-t border-border/60 pt-5" data-testid="apply-review-portrait">
+          <div class="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+            {#if portraitDraft}
+              <img src={portraitDraft.previewUrl} alt="Portrait of you" class="h-full w-full object-cover" />
+            {:else if storedPortrait}
+              <BlurhashImage src={storedPortrait.url} alt="Portrait of you" blurhash={storedPortrait.blurhash} width={64} class="h-full w-full object-cover" />
+            {/if}
+          </div>
+          <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your photo</p>
+        </div>
         <div class="mt-6 border-t border-border/60 pt-5" data-testid="apply-review-works">
           <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your art · {worksTotal} pieces</p>
           <ul class="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
@@ -551,7 +611,7 @@
       <Button
         type="submit"
         loading={submitting || savingStep}
-        disabled={(step === 2 && (formState === "loading" || formState === "error")) || (step === 3 && !worksReady)}
+        disabled={(step === 2 && (formState === "loading" || formState === "error")) || (step === 3 && !artReady)}
       >
         {step < REVIEW_STEP ? (savingStep ? "Saving…" : "Continue") : submitting ? (uploadProgress || "Submitting…") : "Submit application"}
       </Button>

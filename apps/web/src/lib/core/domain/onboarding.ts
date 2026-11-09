@@ -16,6 +16,20 @@ export interface ApplicantWork {
 	position: number;
 }
 
+/** The photo an artist applicant is introduced by; becomes the profile photo on approval. */
+export interface ApplicantPortrait {
+	media_asset_id: string;
+	url: string;
+	blurhash?: string;
+}
+
+/** A portrait chosen but not uploaded yet. Like the works, it only leaves the browser on submit. */
+export interface PortraitDraft {
+	file: File;
+	/** An object URL for previewing the local file. Revoke it when the draft goes away. */
+	previewUrl: string;
+}
+
 export interface AddWorkInput {
 	media_asset_id: string;
 	title: string;
@@ -76,6 +90,8 @@ export interface OnboardingApplication {
 	questionnaire_revision_id?: string | null;
 	/** The work submitted with the application, as it was at submission. */
 	works?: ApplicantWork[];
+	/** The portrait submitted with the application. Absent on applications from before portraits were required. */
+	portrait?: ApplicantPortrait | null;
 	created_at?: string;
 	updated_at?: string;
 }

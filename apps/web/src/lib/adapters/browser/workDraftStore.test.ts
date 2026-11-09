@@ -58,5 +58,8 @@ describe('work draft storage', () => {
 		await expect(workDraftStore.load('u1')).resolves.toEqual([]);
 		await expect(workDraftStore.save('u1', [draft()])).resolves.toBe(false);
 		await expect(workDraftStore.clear('u1')).resolves.toBeUndefined();
+		await expect(workDraftStore.loadPortrait('u1')).resolves.toBeNull();
+		await expect(workDraftStore.savePortrait('u1', file('me.png'))).resolves.toBe(false);
+		await expect(workDraftStore.savePortrait('u1', null)).resolves.toBe(false);
 	});
 });

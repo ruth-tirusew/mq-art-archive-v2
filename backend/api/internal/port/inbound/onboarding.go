@@ -67,6 +67,14 @@ type ApplicantWorksService interface {
 	AddWork(ctx context.Context, userID uuid.UUID, in AddWorkInput) (*onboarding.ApplicantWork, error)
 	// RemoveWork deletes one of the applicant's works, with the same locking as AddWork.
 	RemoveWork(ctx context.Context, userID, workID uuid.UUID) error
+	// GetPortrait returns the applicant's portrait, or ErrNotFound if they have not added one.
+	GetPortrait(ctx context.Context, userID uuid.UUID) (*onboarding.ApplicantPortrait, error)
+	// SetPortrait makes an uploaded image their portrait, replacing any earlier one. ErrNotFound if
+	// the image isn't theirs; ErrConflict if it is already one of their works or the application is
+	// under review.
+	SetPortrait(ctx context.Context, userID, mediaAssetID uuid.UUID) (*onboarding.ApplicantPortrait, error)
+	// RemovePortrait deletes the applicant's portrait, with the same locking as AddWork.
+	RemovePortrait(ctx context.Context, userID uuid.UUID) error
 }
 
 type InviteService interface {

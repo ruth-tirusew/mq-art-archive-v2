@@ -15,6 +15,14 @@ const (
 	MaxApplicationWorks = 20
 )
 
+// ApplicantPortrait is the image an artist applicant is introduced by. Like the works it is frozen
+// onto the application at submission, and becomes the profile photo on approval.
+type ApplicantPortrait struct {
+	MediaAssetID uuid.UUID `json:"media_asset_id"`
+	URL          string    `json:"url"`
+	Blurhash     string    `json:"blurhash,omitempty"`
+}
+
 // ApplicantWork is one piece of work an applicant has uploaded to show with their application.
 // The JSON shape is also what is frozen onto the application at submission, so keep the tags stable:
 // stored applications are read back through them.

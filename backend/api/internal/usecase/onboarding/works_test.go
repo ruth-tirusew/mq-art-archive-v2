@@ -16,11 +16,39 @@ import (
 type fakeWorks struct {
 	byUser map[uuid.UUID][]domain.ApplicantWork
 	// owned is the set of media assets each user may use; anything else is "not found".
-	owned map[uuid.UUID]uuid.UUID
+	owned     map[uuid.UUID]uuid.UUID
+	portraits map[uuid.UUID]domain.ApplicantPortrait
 }
 
 func newFakeWorks() *fakeWorks {
-	return &fakeWorks{byUser: map[uuid.UUID][]domain.ApplicantWork{}, owned: map[uuid.UUID]uuid.UUID{}}
+	return &fakeWorks{
+		byUser: map[uuid.UUID][]domain.ApplicantWork{}, owned: map[uuid.UUID]uuid.UUID{},
+		portraits: map[uuid.UUID]domain.ApplicantPortrait{},
+	}
+}
+
+func (f *fakeWorks) GetPortrait(_ context.Context, u uuid.UUID) (*domain.ApplicantPortrait, error) {
+	if p, ok := f.portraits[u]; ok {
+		return &p, nil
+	}
+	return nil, apperrors.ErrNotFound
+}
+
+func (f *fakeWorks) SetPortrait(_ context.Context, u, media uuid.UUID) (*domain.ApplicantPortrait, error) {
+	if f.owned[media] != u {
+		return nil, apperrors.ErrNotFound
+	}
+	p := domain.ApplicantPortrait{MediaAssetID: media, URL: "https://res.cloudinary.com/c/image/upload/" + media.String()}
+	f.portraits[u] = p
+	return &p, nil
+}
+
+func (f *fakeWorks) DeletePortrait(_ context.Context, u uuid.UUID) error {
+	if _, ok := f.portraits[u]; !ok {
+		return apperrors.ErrNotFound
+	}
+	delete(f.portraits, u)
+	return nil
 }
 
 func (f *fakeWorks) ListByUser(_ context.Context, u uuid.UUID) ([]domain.ApplicantWork, error) {
@@ -90,6 +118,12 @@ func newWorksEnv(t *testing.T) *worksEnv {
 	return e
 }
 
+func (e *worksEnv) addPortrait(t *testing.T, user uuid.UUID) {
+	t.Helper()
+	_, err := e.svc.SetPortrait(context.Background(), user, e.works.upload(user))
+	assist.NoError(t, err)
+}
+
 func (e *worksEnv) addWorks(t *testing.T, user uuid.UUID, n int) {
 	t.Helper()
 	for i := 0; i < n; i++ {
@@ -110,15 +144,77 @@ func TestSubmit_artistNeedsFiveWorks(t *testing.T) {
 	assist.Len(t, 0, len(e.saved)) // nothing was saved
 
 	e.addWorks(t, user, 1)
+	e.addPortrait(t, user)
 	app, err := e.svc.SubmitWithHandle(context.Background(), user, domain.ApplicantTypeArtist, "Ada", "ada_1", "")
 	assist.NoError(t, err)
 	assist.Len(t, 5, len(app.Works)) // frozen onto the application
+}
+
+func TestSubmit_artistNeedsAPortrait(t *testing.T) {
+	e := newWorksEnv(t)
+	user := uuid.New()
+	e.addWorks(t, user, 5)
+
+	_, err := e.svc.SubmitWithHandle(context.Background(), user, domain.ApplicantTypeArtist, "Ada", "ada_1", "")
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+	assist.Contains(t, err.Error(), "portrait")
+	assist.Len(t, 0, len(e.saved))
+
+	e.addPortrait(t, user)
+	app, err := e.svc.SubmitWithHandle(context.Background(), user, domain.ApplicantTypeArtist, "Ada", "ada_1", "")
+	assist.NoError(t, err)
+	if app.Portrait == nil || app.Portrait.URL == "" {
+		t.Fatalf("the portrait must be frozen onto the application, got %+v", app.Portrait)
+	}
+}
+
+func TestPortrait_isNotOneOfTheFiveWorks(t *testing.T) {
+	e := newWorksEnv(t)
+	user := uuid.New()
+	e.addWorks(t, user, 4)
+	e.addPortrait(t, user)
+
+	// Four works and a portrait is still four works.
+	_, err := e.svc.SubmitWithHandle(context.Background(), user, domain.ApplicantTypeArtist, "Ada", "ada_1", "")
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+	assist.Contains(t, err.Error(), "at least 5")
+}
+
+func TestPortrait_setReplaceRemoveAndLock(t *testing.T) {
+	e := newWorksEnv(t)
+	ctx := context.Background()
+	user := uuid.New()
+
+	_, err := e.svc.SetPortrait(ctx, user, e.works.upload(uuid.New())) // someone else's image
+	assist.ErrorIs(t, err, apperrors.ErrNotFound)
+	_, err = e.svc.SetPortrait(ctx, user, uuid.Nil)
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+
+	first := e.works.upload(user)
+	_, err = e.svc.SetPortrait(ctx, user, first)
+	assist.NoError(t, err)
+	second := e.works.upload(user)
+	got, err := e.svc.SetPortrait(ctx, user, second)
+	assist.NoError(t, err)
+	assist.Equal(t, second, got.MediaAssetID) // replaced, not added
+
+	// While the application is being reviewed, what the reviewer sees can't change.
+	e.latest = &domain.OnboardingApplication{Status: domain.ApprovalStatusPending}
+	_, err = e.svc.SetPortrait(ctx, user, e.works.upload(user))
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	assist.ErrorIs(t, e.svc.RemovePortrait(ctx, user), apperrors.ErrConflict)
+
+	e.latest = nil
+	assist.NoError(t, e.svc.RemovePortrait(ctx, user))
+	_, err = e.svc.GetPortrait(ctx, user)
+	assist.ErrorIs(t, err, apperrors.ErrNotFound)
 }
 
 func TestSubmit_freezesTheWorksSoLaterChangesDontRewriteTheApplication(t *testing.T) {
 	e := newWorksEnv(t)
 	user := uuid.New()
 	e.addWorks(t, user, 5)
+	e.addPortrait(t, user)
 	app, err := e.svc.SubmitWithHandle(context.Background(), user, domain.ApplicantTypeArtist, "Ada", "ada_1", "")
 	assist.NoError(t, err)
 

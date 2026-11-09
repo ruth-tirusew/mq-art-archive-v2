@@ -215,3 +215,25 @@ func TestPublishWorksLeavesTheProfileAloneAndRepairsAMissingSet(t *testing.T) {
 		t.Fatalf("running it again must change nothing: err=%v creates=%d", err, posts.creates)
 	}
 }
+
+func TestProvisionApprovedUsesTheApplicationPortraitUnlessTheArtistHasOne(t *testing.T) {
+	p, profiles, _ := newProvisioner()
+	app := application("One")
+	app.Portrait = &onboarding.ApplicantPortrait{MediaAssetID: uuid.New(), URL: "https://img.test/portrait.jpg"}
+
+	if err := p.ProvisionApproved(context.Background(), app); err != nil {
+		t.Fatal(err)
+	}
+	if got := profiles.byUser[app.ApplicantID].PortraitURL; got != "https://img.test/portrait.jpg" {
+		t.Fatalf("the application portrait should become the profile photo, got %q", got)
+	}
+
+	// An artist who already chose their own photo keeps it through a repeated approval.
+	profiles.byUser[app.ApplicantID].PortraitURL = "https://img.test/mine.jpg"
+	if err := p.ProvisionApproved(context.Background(), app); err != nil {
+		t.Fatal(err)
+	}
+	if got := profiles.byUser[app.ApplicantID].PortraitURL; got != "https://img.test/mine.jpg" {
+		t.Fatalf("an existing photo must not be overwritten, got %q", got)
+	}
+}

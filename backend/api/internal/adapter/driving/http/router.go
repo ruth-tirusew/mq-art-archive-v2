@@ -120,6 +120,9 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 			application.GET("/works", handlers.Works.List)
 			application.POST("/works", writeLimit, handlers.Works.Add)
 			application.DELETE("/works/:id", writeLimit, handlers.Works.Remove)
+			application.GET("/portrait", handlers.Works.GetPortrait)
+			application.PUT("/portrait", writeLimit, handlers.Works.SetPortrait)
+			application.DELETE("/portrait", writeLimit, handlers.Works.RemovePortrait)
 			application.POST("/media/sign", writeLimit, handlers.Media.Sign)
 			application.POST("/media/complete", writeLimit, handlers.Media.Complete)
 		}

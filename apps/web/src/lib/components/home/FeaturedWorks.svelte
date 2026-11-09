@@ -13,11 +13,13 @@
 
 	type Props = {
 		works: ArtPost[];
+		/** False when these are simply the latest works because nothing has been featured. */
+		featured?: boolean;
 		/** Works by this artist are already shown in the featured-artist section. */
 		excludeArtistSlug?: string;
 	};
 
-	let { works, excludeArtistSlug }: Props = $props();
+	let { works, excludeArtistSlug, featured = true }: Props = $props();
 
 	// Seeded/legacy media can point at dead URLs; drop those tiles rather than show a broken image.
 	let failed = $state<string[]>([]);
@@ -35,7 +37,7 @@
 	<section class="bg-background" aria-labelledby="works-heading">
 		<div class="mx-auto flex max-w-[1600px] flex-col gap-12 px-6 py-20 md:px-10 md:py-28">
 			<SectionHeader eyebrow="From the archive" id="works-heading" action={{ href: '/archive', label: 'Browse the archive' }}>
-				Featured <em class="italic">works.</em>
+				{featured ? 'Featured' : 'Recent'} <em class="italic">works.</em>
 			</SectionHeader>
 
 			<div class="-mx-6 flex snap-x scroll-px-6 gap-6 overflow-x-auto px-6 pb-2 md:-mx-10 md:scroll-px-10 md:px-10 [scrollbar-width:none]">

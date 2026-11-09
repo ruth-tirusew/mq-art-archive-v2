@@ -35,6 +35,6 @@
 	<FeaturedArtistHero artist={featuredArtist} posts={data.featuredPosts ?? []} />
 {/if}
 
-<FeaturedWorks {works} excludeArtistSlug={featuredArtist?.slug} />
+<FeaturedWorks {works} featured={data.acquisitionsFeatured ?? true} excludeArtistSlug={featuredArtist?.slug} />
 
 <HeldInCommon articles={data.articles ?? []} events={data.upcomingEvents ?? []} />

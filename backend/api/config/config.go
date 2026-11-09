@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -27,7 +28,13 @@ type Config struct {
 	TrustedProxies []string
 	ResendAPIKey   string
 	MailFrom       string
-	WebAppURL      string
+	// SMTP, when SMTPHost is set, takes precedence over Resend. SMTPPort defaults to 587
+	// (STARTTLS); 465 uses implicit TLS.
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	WebAppURL    string
 	// PublicAPIURL is this API's own externally-reachable base URL — needed for links the
 	// API embeds in outbound content that point back at itself, like a digest email's
 	// unsubscribe link (GET {PublicAPIURL}/unsubscribe), as opposed to WebAppURL, which
@@ -76,6 +83,19 @@ func Load() Config {
 		fetchLimit = 50
 	}
 
+	smtpPort, err := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	if err != nil || smtpPort <= 0 || smtpPort > 65535 {
+		smtpPort = 587
+	}
+
+	smtpUser := getEnv("SMTP_USERNAME", getEnv("SMTP_USER", ""))
+	// Most SMTP providers only accept mail from the logged-in account's own address, so that is
+	// the sensible sender when MAIL_FROM is not set.
+	mailFrom := getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>")
+	if os.Getenv("MAIL_FROM") == "" && strings.Contains(smtpUser, "@") {
+		mailFrom = "Artiv <" + smtpUser + ">"
+	}
+
 	webAppURL := getEnv("WEB_APP_URL", "http://localhost:5173")
 	corsOrigins := mergeCORSOrigins(splitCSV(getEnv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174")), webAppURL)
 
@@ -99,7 +119,11 @@ func Load() Config {
 		AuthDevMode:         getEnv("AUTH_DEV_MODE", "false") == "true",
 		TrustedProxies:      parseTrustedProxies(getEnv("TRUSTED_PROXIES", "")),
 		ResendAPIKey:        getEnv("RESEND_API_KEY", ""),
-		MailFrom:            getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>"),
+		MailFrom:            mailFrom,
+		SMTPHost:            getEnv("SMTP_HOST", ""),
+		SMTPPort:            smtpPort,
+		SMTPUsername:        smtpUser,
+		SMTPPassword:        getEnv("SMTP_PASSWORD", getEnv("SMTP_PASS", "")),
 		WebAppURL:           webAppURL,
 		PublicAPIURL:        getEnv("PUBLIC_API_URL", fmt.Sprintf("http://localhost:%d", port)),
 		ErrorMonitorDSN:     getEnv("ERROR_MONITOR_DSN", ""),

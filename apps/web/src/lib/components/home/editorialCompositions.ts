@@ -134,14 +134,30 @@ function shuffle<T>(items: T[], seed: number): T[] {
 	return out;
 }
 
+/** Enough works to fill one spread: a feature plus three supporting. */
+const MIN_POOL = 4;
+
+/**
+ * One work per artist, so a spread shows a range of people. When there are too few artists to
+ * fill a spread, their other works are added after, so the spreads still have something to
+ * rearrange instead of repeating the same single work on every load.
+ */
 function uniqueByArtist(posts: ArtPost[]): ArtPost[] {
 	const seen = new Set<string>();
 	const out: ArtPost[] = [];
+	const rest: ArtPost[] = [];
 	for (const post of posts) {
 		if (!hasImage(post)) continue;
 		const key = artistKey(post);
-		if (seen.has(key)) continue;
+		if (seen.has(key)) {
+			rest.push(post);
+			continue;
+		}
 		seen.add(key);
+		out.push(post);
+	}
+	for (const post of rest) {
+		if (out.length >= MIN_POOL) break;
 		out.push(post);
 	}
 	return out;

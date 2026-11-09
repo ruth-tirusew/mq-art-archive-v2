@@ -194,3 +194,24 @@ func TestWorkPostIDIsStable(t *testing.T) {
 		t.Fatal("the artwork id must depend only on the work id")
 	}
 }
+
+func TestPublishWorksLeavesTheProfileAloneAndRepairsAMissingSet(t *testing.T) {
+	p, profiles, posts := newProvisioner()
+	app := application("One", "Two", "Three")
+	// An artist approved before approval published their work: live profile, no artworks.
+	live := &profile.ArtistProfile{ID: uuid.New(), UserID: app.ApplicantID, Slug: "ada_1", Handle: "ada_1", Status: profile.ProfileStatusApproved}
+	profiles.byUser[app.ApplicantID] = live
+
+	if err := p.PublishWorks(context.Background(), live.ID, app.Works); err != nil {
+		t.Fatal(err)
+	}
+	if len(posts.byID) != 3 {
+		t.Fatalf("want the 3 missing artworks created, got %d", len(posts.byID))
+	}
+	if profiles.saves != 0 {
+		t.Errorf("repairing artworks must not rewrite the profile, saves = %d", profiles.saves)
+	}
+	if err := p.PublishWorks(context.Background(), live.ID, app.Works); err != nil || posts.creates != 3 {
+		t.Fatalf("running it again must change nothing: err=%v creates=%d", err, posts.creates)
+	}
+}

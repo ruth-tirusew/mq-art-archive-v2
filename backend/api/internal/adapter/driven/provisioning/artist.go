@@ -66,7 +66,15 @@ func (p *ArtistProvisioner) ProvisionApproved(ctx context.Context, app onboardin
 		}
 	}
 
-	for i, work := range app.Works {
+	return p.PublishWorks(ctx, prof.ID, app.Works)
+}
+
+// PublishWorks creates a published artwork for each submitted work that doesn't have one yet. It
+// never touches the profile, so it is also what repairs an artist who was approved before approval
+// published their work (see cmd/backfill-artworks). Repeating it is harmless.
+func (p *ArtistProvisioner) PublishWorks(ctx context.Context, artistID uuid.UUID, works []onboarding.ApplicantWork) error {
+	now := p.now()
+	for i, work := range works {
 		id := WorkPostID(work.ID)
 		if _, err := p.posts.GetByID(ctx, id); err == nil {
 			continue
@@ -76,7 +84,7 @@ func (p *ArtistProvisioner) ProvisionApproved(ctx context.Context, app onboardin
 		// The first work is the newest, so it leads the artist's page.
 		publishedAt := now.Add(-time.Duration(i) * time.Millisecond)
 		if _, err := p.posts.Create(ctx, art.ArtPost{
-			ID: id, ArtistID: prof.ID, Title: work.Title, Medium: work.Medium, Year: work.Year,
+			ID: id, ArtistID: artistID, Title: work.Title, Medium: work.Medium, Year: work.Year,
 			Status: art.ArtStatusPublished, PublishedAt: &publishedAt, CreatedAt: now, UpdatedAt: now,
 			Media: []art.MediaAsset{{ID: uuid.New(), URL: work.URL, SortOrder: 0}},
 		}); err != nil {

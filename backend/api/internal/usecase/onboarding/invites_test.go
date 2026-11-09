@@ -113,6 +113,16 @@ func (f *fakeInvites) Revoke(ctx context.Context, id uuid.UUID, now time.Time) e
 type userStub struct {
 	mockUserRepo
 	user *identity.User
+	// taken is the stored (lower-case) email of an existing account; every other address is free.
+	// The match is exact, like the database lookup, so callers must normalise case themselves.
+	taken string
+}
+
+func (u *userStub) GetByEmail(ctx context.Context, email string) (*identity.User, error) {
+	if u.taken != "" && u.taken == email {
+		return &identity.User{ID: uuid.New(), Email: u.taken}, nil
+	}
+	return nil, apperrors.ErrNotFound
 }
 
 func (u *userStub) GetByID(ctx context.Context, id uuid.UUID) (*identity.User, error) {
@@ -152,6 +162,7 @@ func (r *registrarStub) RegisterInvited(ctx context.Context, email, password str
 type inviteEnv struct {
 	registrar *registrarStub
 	svc       *Service
+	users     *userStub
 	invites   *fakeInvites
 	saved     []domain.OnboardingApplication
 	saveErr   error
@@ -181,7 +192,8 @@ func newInviteEnv(t *testing.T, gate inbound.ApplicationQuestionnaireGate) *invi
 	if gate != nil {
 		opts = append(opts, WithQuestionnaire(gate))
 	}
-	env.svc = NewService(apps, &userStub{user: env.user}, &mockProfileRepo{}, &mockInstitutionRepo{}, opts...)
+	env.users = &userStub{user: env.user}
+	env.svc = NewService(apps, env.users, &mockProfileRepo{}, &mockInstitutionRepo{}, opts...)
 	env.svc.now = func() time.Time { return env.now }
 	return env
 }
@@ -212,6 +224,22 @@ func TestCreateInvite_storesOnlyHashAndReservesHandle(t *testing.T) {
 
 	_, err = env.svc.CreateInvite(context.Background(), uuid.New(), inbound.CreateInviteInput{Email: "b@example.com", Handle: "ADA_1"})
 	assist.ErrorIs(t, err, apperrors.ErrConflict)
+}
+
+func TestCreateInvite_refusesAnAddressThatAlreadyHasAnAccount(t *testing.T) {
+	env := newInviteEnv(t, nil)
+	env.users.taken = "taken@example.com"
+
+	// Typed in a different case than the stored account, which must not slip past the check.
+	_, err := env.svc.CreateInvite(context.Background(), uuid.New(), inbound.CreateInviteInput{Email: "Taken@Example.com", Handle: "tk_1"})
+	assist.ErrorIs(t, err, apperrors.ErrConflict)
+	if len(env.invites.byID) != 0 {
+		t.Errorf("no invite may be stored for an existing account, got %d", len(env.invites.byID))
+	}
+	// Nothing was reserved either, so the handle is still free for someone else.
+	ok, err := env.svc.CheckHandleAvailable(context.Background(), "tk_1")
+	assist.NoError(t, err)
+	assist.Equal(t, true, ok)
 }
 
 func TestCreateInvite_validation(t *testing.T) {

@@ -3,24 +3,18 @@
 	import type { PageData } from './$types';
 	import { recordPageView } from '$lib/application/analytics';
 	import ArtistAnswers from '$lib/components/artist/ArtistAnswers.svelte';
-	import ArtistTimeline from '$lib/components/artist/ArtistTimeline.svelte';
 	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import {
 		acquisitionBlurhash,
 		acquisitionImage,
-		acquisitionPalette,
 		acquisitionTitle,
-		artistBorn,
 		artistDiscipline,
 		artistHandle,
-		artistInfluences,
-		artistLocation,
 		artistName,
 		artistPortrait,
-		artistPortraitBlurhash,
-		artistTagline,
-		artistYearsActive
+		artistPortraitBlurhash
 	} from '$lib/utils/fields';
+	import { HEADER_ANSWER_KEYS, summarizeArtist } from '$lib/utils/artistSummary';
 
 	let { data }: { data: PageData } = $props();
 
@@ -36,32 +30,15 @@
 		firstWork ? acquisitionImage(firstWork) ?? artistPortrait(artist) : artistPortrait(artist)
 	);
 
-	const timeline = $derived(
-		galleryItems.map((item) => {
-			const image = acquisitionImage(item);
-			const title = acquisitionTitle(item);
-			return {
-				year: item.year ?? new Date().getFullYear(),
-				kind: 'work' as const,
-				title,
-				detail: item.medium,
-				work: image
-					? {
-							image,
-							title,
-							palette: acquisitionPalette(item)
-						}
-					: undefined
-			};
-		})
-	);
+	const summary = $derived(summarizeArtist(artist, data.answers));
+	const bodyAnswers = $derived(data.answers.filter((a) => !HEADER_ANSWER_KEYS.test(a.key)));
 
 	onMount(() => recordPageView('artist', artist.id));
 </script>
 
 <svelte:head>
 	<title>{artistName(artist)} — Artiv</title>
-	<meta name="description" content={(artistTagline(artist) || '').slice(0, 160)} />
+	<meta name="description" content={summary.tagline.slice(0, 160)} />
 </svelte:head>
 
 <section class="relative overflow-hidden border-b border-border/60 bg-ink text-cream">
@@ -75,7 +52,7 @@
 				<br />
 				<em class="not-italic text-cream/90">{artistName(artist).split(' ').slice(1).join(' ')}</em>
 			</h1>
-			<p class="mt-8 max-w-xl text-balance text-lg leading-relaxed text-cream/85">{artistTagline(artist)}</p>
+			<p class="mt-8 max-w-xl text-balance text-lg leading-relaxed text-cream/85">{summary.tagline}</p>
 			<div class="mt-6">
 				<a
 					href="/@{handle}"
@@ -84,29 +61,30 @@
 					Shareable profile · @{handle} →
 				</a>
 			</div>
-			<div
-				class="mt-10 grid max-w-lg grid-cols-2 gap-x-6 gap-y-4 border-t border-cream/15 pt-6 font-mono text-[10px] uppercase tracking-[0.2em] text-cream/70"
-			>
-				<div><span class="text-cream/40">Born · </span>{artistBorn(artist) ?? '—'}</div>
-				<div><span class="text-cream/40">Based · </span>{artistLocation(artist) || '—'}</div>
-				<div><span class="text-cream/40">Discipline · </span>{artistDiscipline(artist) ?? '—'}</div>
-				<div><span class="text-cream/40">Active · </span>{artistYearsActive(artist) ?? '—'}</div>
-			</div>
+			{#if summary.facts.length > 0}
+				<div
+					class="mt-10 grid max-w-lg grid-cols-2 gap-x-6 gap-y-4 border-t border-cream/15 pt-6 font-mono text-[10px] uppercase tracking-[0.2em] text-cream/70"
+				>
+					{#each summary.facts as f}
+						<div><span class="text-cream/40">{f.label} · </span>{f.value}</div>
+					{/each}
+				</div>
+			{/if}
 		</div>
 		<div class="col-span-12 md:col-span-5">
 			<div class="grain relative aspect-[4/5] overflow-hidden rounded-sm bg-card">
 				{#if heroImage}
 					<BlurhashImage src={heroImage} alt={artistName(artist)} blurhash={heroBlurhash} loading="eager" class="h-full w-full object-cover" />
 				{/if}
-				<div class="absolute left-4 top-4 h-16 w-16 overflow-hidden rounded-full ring-2 ring-cream/70">
-					{#if artistPortrait(artist)}
+				{#if artistPortrait(artist)}
+					<div class="absolute left-4 top-4 h-16 w-16 overflow-hidden rounded-full ring-2 ring-cream/70">
 						<BlurhashImage src={artistPortrait(artist) ?? ""} alt="" blurhash={artistPortraitBlurhash(artist)} width={64} class="h-full w-full object-cover" />
-					{/if}
-				</div>
+					</div>
+				{/if}
 			</div>
-			{#if artistInfluences(artist).length > 0}
+			{#if summary.tags.length > 0}
 				<div class="mt-4 flex flex-wrap gap-2">
-					{#each artistInfluences(artist) as i}
+					{#each summary.tags as i}
 						<span
 							class="rounded-full border border-cream/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.15em] text-cream/80"
 						>
@@ -119,23 +97,41 @@
 	</div>
 </section>
 
-<ArtistAnswers answers={data.answers} artistName={artistName(artist)} />
+<ArtistAnswers answers={bodyAnswers} artistName={artistName(artist)} />
 
-{#if timeline.length > 0}
-	<ArtistTimeline entries={timeline} artistName={artistName(artist)} />
-{:else}
-	<section class="border-b border-border/60">
-		<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-24">
-			<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">Works</p>
-			<p class="mt-4 font-display text-2xl text-foreground md:text-3xl">
-				No works archived for this file yet.
-			</p>
-			<p class="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-				Check back as new acquisitions land, or visit the shareable profile for contact.
-			</p>
-		</div>
-	</section>
-{/if}
+<section class="border-b border-border/60" aria-label="Works">
+	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-24">
+		<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">Works</p>
+		{#if galleryItems.length > 0}
+			<ul class="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6">
+				{#each galleryItems as item (item.id)}
+					{@const image = acquisitionImage(item)}
+					<li>
+						<div class="grain aspect-[4/5] overflow-hidden rounded-sm bg-card">
+							{#if image}
+								<BlurhashImage
+									src={image}
+									alt={acquisitionTitle(item)}
+									blurhash={acquisitionBlurhash(item)}
+									loading="lazy"
+									class="h-full w-full object-cover"
+								/>
+							{/if}
+						</div>
+						<p class="mt-3 font-display text-base italic text-foreground">{acquisitionTitle(item)}</p>
+						{#if item.medium || item.year}
+							<p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+								{[item.medium, item.year].filter(Boolean).join(' · ')}
+							</p>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="mt-4 font-display text-2xl text-foreground md:text-3xl">No works published yet.</p>
+		{/if}
+	</div>
+</section>
 
 <section class="bg-card/40">
 	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-24">

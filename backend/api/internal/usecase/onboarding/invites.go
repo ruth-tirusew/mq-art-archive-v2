@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"net/mail"
 	"strings"
 	"time"
@@ -45,6 +46,16 @@ func (s *Service) CreateInvite(ctx context.Context, adminID uuid.UUID, in inboun
 	email := strings.TrimSpace(in.Email)
 	if addr, err := mail.ParseAddress(email); err != nil || addr.Address != email || len(email) > 254 {
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "a valid email address is required")
+	}
+	// Accounts are stored lower-case, and the user lookup is an exact match.
+	email = strings.ToLower(email)
+	// Fail here, not when the invitee opens the link: an invite to someone who already has an
+	// account can never be used (invited registration refuses existing addresses), and the admin
+	// should hear that before an email goes out.
+	if _, err := s.users.GetByEmail(ctx, email); err == nil {
+		return nil, fmt.Errorf("%w: %s already has an Artiv account", apperrors.ErrConflict, email)
+	} else if !errors.Is(err, apperrors.ErrNotFound) {
+		return nil, err
 	}
 	handle := strings.ToLower(strings.TrimSpace(in.Handle))
 	if handle != "" {
@@ -256,5 +267,9 @@ func (s *Service) sendInviteEmail(ctx context.Context, inv *domain.Invite, token
 	fmt.Fprintf(&b, "Open this link to create your account and tell us about your work:\n%s/apply?invite=%s\n\n", s.webAppURL, token)
 	fmt.Fprintf(&b, "You'll set a password for %s, answer a few questions, and our team will review your application.\n\n", inv.Email)
 	fmt.Fprintf(&b, "The link works once and expires on %s.\n", inv.ExpiresAt.UTC().Format("2 January 2006"))
-	_ = s.mailer.Send(ctx, inv.Email, "You're invited to Artiv", b.String())
+	// The invite exists either way and an admin can resend it, so a failed send is logged, not
+	// returned. The error never contains the message body, so the link stays out of the log.
+	if err := s.mailer.Send(ctx, inv.Email, "You're invited to Artiv", b.String()); err != nil {
+		log.Printf("invite %s: email to %s not sent: %v", inv.ID, inv.Email, err)
+	}
 }

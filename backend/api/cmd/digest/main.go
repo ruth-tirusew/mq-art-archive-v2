@@ -47,7 +47,14 @@ func main() {
 	telegramLinkRepo := postgres.NewTelegramLinkRepository(pool)
 
 	var mailer outbound.Mailer = maileradapter.NewLogMailer(strings.EqualFold(cfg.AppEnv, "development"))
-	if cfg.ResendAPIKey != "" {
+	switch {
+	case cfg.SMTPHost != "":
+		smtpMailer, err := maileradapter.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.MailFrom)
+		if err != nil {
+			log.Fatalf("mailer: %v", err)
+		}
+		mailer = smtpMailer
+	case cfg.ResendAPIKey != "":
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}
 

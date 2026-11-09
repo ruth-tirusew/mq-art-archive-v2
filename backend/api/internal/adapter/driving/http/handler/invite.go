@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -69,7 +70,7 @@ func (h *InviteHandler) Create(c *gin.Context) {
 		TTL: time.Duration(req.TTLDays) * 24 * time.Hour,
 	})
 	if err != nil {
-		writeError(c, err)
+		writeInviteError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, h.created(out))
@@ -86,7 +87,7 @@ func (h *InviteHandler) Resend(c *gin.Context) {
 	}
 	out, err := h.invites.ResendInvite(c.Request.Context(), adminID, id)
 	if err != nil {
-		writeError(c, err)
+		writeInviteError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, h.created(out))
@@ -154,4 +155,19 @@ func (h *InviteHandler) Register(c *gin.Context) {
 	}
 	writeAuthCookie(c, h.cookieName, registered.AccessToken)
 	c.JSON(http.StatusCreated, toUserResponse(registered.User))
+}
+
+// writeInviteError is writeError for the admin-only create and resend calls, which also tell the
+// admin why an invite conflicts ("already has an account", "handle already taken"). writeError
+// hides conflict text because on public endpoints it would reveal which emails are registered; an
+// admin already sees that. Only text the use case wrote itself (the sentinel followed by ": ") is
+// shown, never a wrapped repository error.
+func writeInviteError(c *gin.Context, err error) {
+	if errors.Is(err, apperrors.ErrConflict) {
+		if reason, ok := strings.CutPrefix(err.Error(), apperrors.ErrConflict.Error()+": "); ok {
+			c.JSON(http.StatusConflict, dto.ErrorResponse{Error: reason})
+			return
+		}
+	}
+	writeError(c, err)
 }

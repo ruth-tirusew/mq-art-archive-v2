@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -241,4 +242,78 @@ func TestService_UpdateArtist_takedownSetsHoldAndApprovalReleasesIt(t *testing.T
 	_, err = svc.UpdateArtist(context.Background(), domain.ArtistProfile{ID: id, Status: domain.ProfileStatusApproved})
 	assist.NoError(t, err)
 	assist.Equal(t, false, saved.ModerationHold)
+}
+
+// stubSanitizer stands in for the real one: it tags what it was given, so a test can tell the
+// stored value came from the sanitizer, and reports `text` as the visible text.
+type stubSanitizer struct{ text func(string) string }
+
+func (s stubSanitizer) Sanitize(in string) (string, string) {
+	if strings.TrimSpace(in) == "" || in == "<p></p>" {
+		return "", ""
+	}
+	return "CLEAN(" + in + ")", s.text(in)
+}
+
+func TestService_UpdateOwnProfile_cleansTheBio(t *testing.T) {
+	userID := uuid.New()
+	var saved domain.ArtistProfile
+	repo := &mockProfileRepo{
+		getByUserID: func(context.Context, uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist", Status: domain.ProfileStatusDraft}, nil
+		},
+		getBySlug:   func(context.Context, string) (*domain.ArtistProfile, error) { return nil, apperrors.ErrNotFound },
+		getByHandle: func(context.Context, string) (*domain.ArtistProfile, error) { return nil, apperrors.ErrNotFound },
+		save: func(_ context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) {
+			saved = p
+			return &p, nil
+		},
+	}
+	svc := NewService(repo, nil, nil, WithRichText(stubSanitizer{text: func(s string) string { return s }}))
+
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{Bio: "<p>hi</p><script>x</script>"})
+	assist.NoError(t, err)
+	assist.Equal(t, "CLEAN(<p>hi</p><script>x</script>)", saved.Bio) // what is stored is the sanitizer's output
+
+	// A bio that is only empty markup is blank again, so it can't satisfy "add a bio before publishing".
+	_, err = svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{Bio: "<p></p>"})
+	assist.NoError(t, err)
+	assist.Equal(t, "", saved.Bio)
+}
+
+func TestService_UpdateOwnProfile_emptyMarkupDoesNotCountAsABioWhenPublishing(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockProfileRepo{
+		getByUserID: func(context.Context, uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist", Status: domain.ProfileStatusDraft}, nil
+		},
+		getBySlug:   func(context.Context, string) (*domain.ArtistProfile, error) { return nil, apperrors.ErrNotFound },
+		getByHandle: func(context.Context, string) (*domain.ArtistProfile, error) { return nil, apperrors.ErrNotFound },
+	}
+	svc := NewService(repo, nil, nil, WithRichText(stubSanitizer{text: func(s string) string { return s }}))
+
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{
+		Bio: "<p></p>", PortraitURL: "https://example.com/p.jpg", Status: domain.ProfileStatusApproved,
+	})
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
+}
+
+func TestService_UpdateOwnProfile_boundsTheVisibleBioLength(t *testing.T) {
+	userID := uuid.New()
+	repo := &mockProfileRepo{
+		getByUserID: func(context.Context, uuid.UUID) (*domain.ArtistProfile, error) {
+			return &domain.ArtistProfile{ID: uuid.New(), UserID: userID, Slug: "artist", DisplayName: "Artist", Status: domain.ProfileStatusDraft}, nil
+		},
+		getBySlug:   func(context.Context, string) (*domain.ArtistProfile, error) { return nil, apperrors.ErrNotFound },
+		getByHandle: func(context.Context, string) (*domain.ArtistProfile, error) { return nil, apperrors.ErrNotFound },
+		save:        func(_ context.Context, p domain.ArtistProfile) (*domain.ArtistProfile, error) { return &p, nil },
+	}
+	// Amharic letters are 3 bytes each: the limit counts characters, not bytes.
+	svc := NewService(repo, nil, nil, WithRichText(stubSanitizer{text: func(string) string { return strings.Repeat("ሰ", maxBioText) }}))
+	_, err := svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{Bio: "<p>x</p>"})
+	assist.NoError(t, err)
+
+	svc = NewService(repo, nil, nil, WithRichText(stubSanitizer{text: func(string) string { return strings.Repeat("ሰ", maxBioText+1) }}))
+	_, err = svc.UpdateOwnProfile(context.Background(), userID, domain.OwnProfileUpdate{Bio: "<p>x</p>"})
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
 }

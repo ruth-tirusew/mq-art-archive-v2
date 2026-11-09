@@ -119,8 +119,8 @@ func main() {
 
 	// Use cases
 	contentSvc := contentuc.NewService(articleRepo)
-	artSvc := artuc.NewService(artPostRepo)
-	profileSvc := profileuc.NewService(profileRepo, userRepo, artPostRepo)
+	artSvc := artuc.NewService(artPostRepo, artuc.WithRichText(richtextadapter.NewSanitizer()))
+	profileSvc := profileuc.NewService(profileRepo, userRepo, artPostRepo, profileuc.WithRichText(richtextadapter.NewSanitizer()))
 	institutionSvc := institutionuc.NewService(institutionRepo)
 	searchSvc := searchuc.NewService(articleRepo, eventRepo, profileRepo, artPostRepo)
 	identitySvc := identityuc.NewService(userRepo)

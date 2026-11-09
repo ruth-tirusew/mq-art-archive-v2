@@ -22,8 +22,10 @@ function splitTags(text: string): string[] {
 
 export type ArtistSummary = {
 	tagline: string;
-	/** A longer blurb: the profile bio, else the short bio answer. */
+	/** A longer blurb as plain text (for previews and meta tags): the profile bio, else the short bio answer. */
 	bio: string;
+	/** The profile bio as sanitised HTML, for showing in full. Empty when the artist has not written one. */
+	bioHtml: string;
 	tags: string[];
 	facts: { label: string; value: string }[];
 };
@@ -34,7 +36,8 @@ export type ArtistSummary = {
  * and falls back to the profile fields an artist may have filled in later.
  */
 export function summarizeArtist(artist: ArtistProfile, answers: PublicAnswer[]): ArtistSummary {
-	const bio = artist.bio || plainAnswer(answers, 'short_bio');
+	// The profile bio is rich text, so its words come out of the HTML.
+	const bio = (artist.bio ? htmlText(artist.bio) : '') || plainAnswer(answers, 'short_bio');
 	const tagline = artist.tagline || plainAnswer(answers, 'tagline') || bio;
 	const tags = [
 		...artistInfluences(artist),
@@ -52,5 +55,5 @@ export function summarizeArtist(artist: ArtistProfile, answers: PublicAnswer[]):
 		{ label: 'Languages', value: plainAnswer(answers, 'languages') }
 	].filter((f) => f.value);
 
-	return { tagline, bio, tags, facts };
+	return { tagline, bio, bioHtml: artist.bio ?? '', tags, facts };
 }

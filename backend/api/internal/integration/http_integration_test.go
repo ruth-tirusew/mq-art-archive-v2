@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -318,4 +319,72 @@ func TestHTTP_eventsAndSearch_integration(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	assist.Equal(t, http.StatusOK, rec.Code)
 	assist.Contains(t, rec.Body.String(), "Ceramic Fair Integration")
+}
+
+func TestHTTP_bioAndDescriptionAreSanitisedRichText_integration(t *testing.T) {
+	app := integration.NewApp(t)
+	c := caller{t, app.Router()}
+	_, userID := integration.InsertArtistProfile(t, app.Pool, "rich-artist", "Rich Artist")
+	user := userID.String()
+	dirty := `<h2>About</h2><p onclick="x()">I paint <strong>light</strong> &amp; <u>shadow</u></p><script>alert(1)</script><img src=x onerror=alert(1)><h1>Big</h1>`
+
+	// The bio is stored as clean HTML: allowed formatting kept, everything else gone.
+	rec := c.do("PUT", "/api/v1/me/profile", user, map[string]any{"bio": dirty})
+	expect(t, rec, http.StatusOK)
+	bio := decode[map[string]any](t, rec)["bio"].(string)
+	assist.Contains(t, bio, "<h2>About</h2>")
+	assist.Contains(t, bio, "<strong>light</strong>")
+	assist.Contains(t, bio, "<u>shadow</u>")
+	for _, bad := range []string{"<script", "onclick", "<img", "onerror", "<h1"} {
+		if strings.Contains(bio, bad) {
+			t.Errorf("bio %q must not contain %q", bio, bad)
+		}
+	}
+	// ...and reads back the same way from the public page.
+	public := c.do("GET", "/api/v1/artists/rich-artist", "", nil)
+	expect(t, public, http.StatusOK)
+	assist.Equal(t, bio, decode[map[string]any](t, public)["bio"].(string))
+
+	// A bio that is only empty markup is blank, so it can't be used to go public.
+	rec = c.do("PUT", "/api/v1/me/profile", user, map[string]any{"bio": "<p></p>"})
+	expect(t, rec, http.StatusOK)
+	blank, _ := decode[map[string]any](t, rec)["bio"].(string) // omitted from the JSON when empty
+	assist.Equal(t, "", blank)
+
+	// Artwork descriptions get the same treatment, on create and on edit.
+	created := c.do("POST", "/api/v1/posts", user, map[string]any{"title": "Work", "description": dirty})
+	expect(t, created, http.StatusCreated)
+	post := decode[map[string]any](t, created)
+	desc := post["description"].(string)
+	assist.Contains(t, desc, "<strong>light</strong>")
+	if strings.Contains(desc, "<script") || strings.Contains(desc, "onerror") {
+		t.Errorf("description %q must be sanitised", desc)
+	}
+	edited := c.do("PUT", "/api/v1/me/posts/"+post["id"].(string), user, map[string]any{"title": "Work", "description": `<p>x</p><iframe src="https://evil"></iframe>`})
+	expect(t, edited, http.StatusOK)
+	assist.Equal(t, "<p>x</p>", decode[map[string]any](t, edited)["description"].(string))
+
+	// Too long (visible text) is refused with a message, not silently cut.
+	tooLong := c.do("PUT", "/api/v1/me/profile", user, map[string]any{"bio": "<p>" + strings.Repeat("a", 5001) + "</p>"})
+	expect(t, tooLong, http.StatusBadRequest)
+	assist.Contains(t, tooLong.Body.String(), "5000")
+}
+
+func TestMigration_plainBiosBecomeEscapedParagraphs_integration(t *testing.T) {
+	app := integration.NewApp(t)
+	ctx := context.Background()
+	artistID, _ := integration.InsertArtistProfile(t, app.Pool, "plain-bio", "Plain Bio")
+
+	// The 00048 SQL, run against a value written the old way (plain text with markup-like characters).
+	_, err := app.Pool.Exec(ctx, `UPDATE artist_profiles SET bio = $2 WHERE id = $1`, artistID, "Tom & Jerry <b>x</b>\nsecond line\n\nnew paragraph")
+	assist.NoError(t, err)
+	migration, err := os.ReadFile("../../migrations/00048_rich_text_bio_description.sql")
+	assist.NoError(t, err)
+	up := strings.Split(strings.Split(string(migration), "-- +goose Down")[0], "-- +goose Up")[1]
+	_, err = app.Pool.Exec(ctx, up)
+	assist.NoError(t, err)
+
+	var bio string
+	assist.NoError(t, app.Pool.QueryRow(ctx, `SELECT bio FROM artist_profiles WHERE id = $1`, artistID).Scan(&bio))
+	assist.Equal(t, "<p>Tom &amp; Jerry &lt;b&gt;x&lt;/b&gt;<br>second line</p><p>new paragraph</p>", bio)
 }

@@ -1,5 +1,6 @@
 import type { ArtPost } from '$lib/core/domain/art';
 import type { ArtistProfile } from '$lib/core/domain/profile';
+import { htmlText } from '$lib/utils/answers';
 import { postBlurhash, postImageUrl, splitDisplayName } from '$lib/utils/display';
 
 export { postImageUrl, splitDisplayName };
@@ -21,7 +22,8 @@ export function artistLocation(artist: ArtistProfile): string {
 }
 
 export function artistTagline(artist: ArtistProfile): string {
-	return artist.tagline ?? artist.bio ?? '';
+	// The bio is rich text (HTML); as a stand-in for a tagline only its words are wanted.
+	return artist.tagline ?? (artist.bio ? htmlText(artist.bio) : '');
 }
 
 export function artistBorn(artist: ArtistProfile): string | undefined {

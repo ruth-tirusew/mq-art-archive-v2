@@ -4,6 +4,7 @@
 	import { recordPageView } from '$lib/application/analytics';
 	import ArtistAnswers from '$lib/components/artist/ArtistAnswers.svelte';
 	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
+	import SafeHtml from '$lib/components/SafeHtml.svelte';
 	import {
 		acquisitionBlurhash,
 		acquisitionImage,
@@ -97,6 +98,19 @@
 	</div>
 </section>
 
+{#if summary.bioHtml}
+	<section class="border-b border-border/60" aria-label="About" data-testid="artist-bio">
+		<div class="mx-auto grid max-w-[1600px] grid-cols-12 gap-6 px-6 py-16 md:px-10 md:py-24">
+			<div class="col-span-12 md:col-span-4">
+				<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">About</p>
+			</div>
+			<div class="col-span-12 max-w-2xl text-base leading-relaxed text-foreground/90 md:col-span-8 md:text-lg">
+				<SafeHtml html={summary.bioHtml} />
+			</div>
+		</div>
+	</section>
+{/if}
+
 <ArtistAnswers answers={bodyAnswers} artistName={artistName(artist)} />
 
 <section class="border-b border-border/60" aria-label="Works">
@@ -123,6 +137,11 @@
 							<p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
 								{[item.medium, item.year].filter(Boolean).join(' · ')}
 							</p>
+						{/if}
+						{#if item.description}
+							<div class="mt-2 text-sm leading-relaxed text-foreground/80" data-testid="work-description">
+								<SafeHtml html={item.description} />
+							</div>
 						{/if}
 					</li>
 				{/each}

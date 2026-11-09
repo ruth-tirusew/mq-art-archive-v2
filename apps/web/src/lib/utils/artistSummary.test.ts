@@ -9,7 +9,7 @@ const answer = (key: string, body: string, format: 'plain' | 'rich' = 'plain'): 
 
 describe('summarizeArtist', () => {
 	it('shows nothing for an artist with no profile fields and no answers', () => {
-		expect(summarizeArtist(artist, [])).toEqual({ tagline: '', bio: '', tags: [], facts: [] });
+		expect(summarizeArtist(artist, [])).toEqual({ tagline: '', bio: '', bioHtml: '', tags: [], facts: [] });
 	});
 
 	it('fills the tagline, bio, tags and languages from public answers', () => {
@@ -28,5 +28,12 @@ describe('summarizeArtist', () => {
 	it('prefers what the artist typed on their profile', () => {
 		const s = summarizeArtist({ ...artist, tagline: 'Typed' }, [answer('tagline', 'Answered')]);
 		expect(s.tagline).toBe('Typed');
+	});
+
+	it('reads a rich-text bio as plain words for previews, and keeps the HTML for the full bio', () => {
+		const s = summarizeArtist({ ...artist, bio: '<h2>About</h2><p>I paint <strong>light</strong> &amp; shadow.</p>' }, []);
+		expect(s.bio).toBe('About I paint light & shadow.');
+		expect(s.bioHtml).toBe('<h2>About</h2><p>I paint <strong>light</strong> &amp; shadow.</p>');
+		expect(s.tagline).toBe('About I paint light & shadow.'); // the bio stands in for a missing tagline
 	});
 });

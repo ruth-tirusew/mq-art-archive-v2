@@ -9,7 +9,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
-  import { Textarea } from '$lib/components/ui/textarea';
+  import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 
   let email = $state('');
   let displayName = $state('');
@@ -109,7 +109,7 @@
 
       <div class="space-y-2">
         <Label for="bio">Bio</Label>
-        <Textarea id="bio" rows={5} bind:value={bio} />
+        <RichTextEditor value={bio} label="Bio" onchange={(html) => (bio = html)} />
       </div>
 
       <div class="space-y-2">

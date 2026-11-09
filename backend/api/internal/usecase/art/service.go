@@ -2,6 +2,7 @@ package art
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,11 +13,46 @@ import (
 )
 
 type Service struct {
-	posts outbound.ArtPostRepository
+	posts     outbound.ArtPostRepository
+	sanitizer outbound.RichTextSanitizer
 }
 
-func NewService(posts outbound.ArtPostRepository) inbound.ArtService {
-	return &Service{posts: posts}
+// Option customises optional collaborators of the art Service.
+type Option func(*Service)
+
+// WithRichText makes the service clean every description it saves. Descriptions are rich text shown
+// to visitors with {@html}, so production wiring must always pass this; without it a description is
+// stored as given.
+func WithRichText(s outbound.RichTextSanitizer) Option {
+	return func(svc *Service) { svc.sanitizer = s }
+}
+
+func NewService(posts outbound.ArtPostRepository, opts ...Option) inbound.ArtService {
+	svc := &Service{posts: posts}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+// maxDescriptionText bounds what a reader sees (markup does not count); maxDescriptionHTML bounds
+// what is stored.
+const (
+	maxDescriptionText = 5000
+	maxDescriptionHTML = 30000
+)
+
+// cleanDescription returns the description as safe HTML, or "" for a blank one. ErrValidation if
+// it is too long.
+func (s *Service) cleanDescription(in string) (string, error) {
+	if s.sanitizer == nil {
+		return in, nil
+	}
+	clean, text := s.sanitizer.Sanitize(in)
+	if len([]rune(text)) > maxDescriptionText || len(clean) > maxDescriptionHTML {
+		return "", fmt.Errorf("%w: the description must be %d characters or fewer", apperrors.ErrValidation, maxDescriptionText)
+	}
+	return clean, nil
 }
 
 func (s *Service) ListByArtist(ctx context.Context, artistID uuid.UUID) ([]domain.ArtPost, error) {
@@ -55,12 +91,17 @@ func (s *Service) CreateDraft(ctx context.Context, artistID uuid.UUID, write dom
 		return nil, err
 	}
 
+	description, err := s.cleanDescription(write.Description)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC()
 	post := domain.ArtPost{
 		ID:          uuid.New(),
 		ArtistID:    artistID,
 		Title:       write.Title,
-		Description: write.Description,
+		Description: description,
 		Medium:      write.Medium,
 		Year:        write.Year,
 		Dimensions:  write.Dimensions,
@@ -87,8 +128,13 @@ func (s *Service) UpdateOwned(ctx context.Context, artistID, postID uuid.UUID, w
 		return nil, err
 	}
 
+	description, err := s.cleanDescription(write.Description)
+	if err != nil {
+		return nil, err
+	}
+
 	post.Title = write.Title
-	post.Description = write.Description
+	post.Description = description
 	post.Medium = write.Medium
 	post.Year = write.Year
 	post.Dimensions = write.Dimensions
@@ -158,6 +204,11 @@ func (s *Service) AdminCreate(ctx context.Context, artistID uuid.UUID, write dom
 		return nil, err
 	}
 
+	description, err := s.cleanDescription(write.Description)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC()
 	st := domain.ArtStatusDraft
 	if status != nil && *status != "" {
@@ -167,7 +218,7 @@ func (s *Service) AdminCreate(ctx context.Context, artistID uuid.UUID, write dom
 		ID:          uuid.New(),
 		ArtistID:    artistID,
 		Title:       write.Title,
-		Description: write.Description,
+		Description: description,
 		Medium:      write.Medium,
 		Year:        write.Year,
 		Dimensions:  write.Dimensions,
@@ -197,8 +248,13 @@ func (s *Service) AdminUpdateContent(ctx context.Context, postID uuid.UUID, writ
 		return nil, err
 	}
 
+	description, err := s.cleanDescription(write.Description)
+	if err != nil {
+		return nil, err
+	}
+
 	post.Title = write.Title
-	post.Description = write.Description
+	post.Description = description
 	post.Medium = write.Medium
 	post.Year = write.Year
 	post.Dimensions = write.Dimensions

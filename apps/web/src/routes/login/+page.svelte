@@ -12,6 +12,7 @@
 
 	const requestedReturnTo = safeReturnPath($page.url.searchParams.get('return_to'));
 	const accountExists = $page.url.searchParams.get('error') === 'account_exists';
+	const googleFailed = $page.url.searchParams.get('error') === 'google_failed';
 	// Artist entry points (?intent=artist, or heading to /apply) pre-select the artist flow.
 	let audience = $state<Audience>(
 		$page.url.searchParams.get('intent') === 'artist' || requestedReturnTo.startsWith('/apply')
@@ -90,8 +91,17 @@
 		{/each}
 	</div>
 
+	{#if googleFailed}
+		<div class="mt-6 rounded-sm border border-destructive/40 bg-destructive/5 p-4 text-sm leading-relaxed" role="alert" data-testid="google-failed">
+			<p class="text-foreground">We couldn't sign you in with Google.</p>
+			<p class="mt-1 text-muted-foreground">
+				The sign-in may have expired, or your browser blocked the cookie it needs. Try again, or sign in with your email and password below.
+			</p>
+		</div>
+	{/if}
+
 	{#if accountExists}
-		<div class="mt-6 rounded-sm border border-accent/40 bg-accent/5 p-4 text-sm leading-relaxed" role="alert">
+		<div class="mt-6 rounded-sm border border-accent/40 bg-accent/5 p-4 text-sm leading-relaxed" role="alert" data-testid="account-exists">
 			<p class="text-foreground">An Artiv account already uses that Google email.</p>
 			<p class="mt-1 text-muted-foreground">
 				Sign in with your email and password below. Then open Account settings and choose

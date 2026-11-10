@@ -21,6 +21,7 @@ import (
 	"github.com/mq/api/internal/adapter/driving/http/middleware"
 	"github.com/mq/api/internal/domain/identity"
 	"github.com/mq/api/internal/port/inbound"
+	"github.com/mq/api/internal/port/outbound"
 	artuc "github.com/mq/api/internal/usecase/art"
 	authuc "github.com/mq/api/internal/usecase/auth"
 	contentuc "github.com/mq/api/internal/usecase/content"
@@ -53,6 +54,8 @@ type App struct {
 	Digest        inbound.DigestService
 	TokenSvc      *auth.TokenService
 	StaffInvites  inbound.StaffInviteService
+	// Google is the stand-in identity provider behind /api/v1/auth/google.
+	Google *StubGoogle
 }
 
 func NewApp(t *testing.T) *App {
@@ -81,13 +84,14 @@ func NewApp(t *testing.T) *App {
 	stateSvc := auth.NewOAuthStateService("integration-test-secret", config.Load().JWTAccessTTL)
 	identitySvc := identityuc.NewService(userRepo)
 	settingsSvc := settingsuc.NewService(scrapeSettingsRepo, nil, "")
+	google := NewStubGoogle()
 	authSvc := authuc.NewService(
 		userRepo,
 		oauthAccountRepo,
 		tokenSvc,
 		auth.NewBcryptPasswordHasher(),
 		stateSvc,
-		nil,
+		[]outbound.OAuthProvider{google},
 		[]string{"http://localhost:5173"},
 		nil,
 		passwordResetRepo,
@@ -133,6 +137,7 @@ func NewApp(t *testing.T) *App {
 			maileradapter.NewLogMailer(true), nil, "http://localhost:5173", "http://localhost:8080",
 		),
 		TokenSvc:     tokenSvc,
+		Google:       google,
 		StaffInvites: authuc.NewStaffInviteService(userRepo, auth.NewBcryptPasswordHasher(), tokenSvc, postgres.NewStaffInviteRepository(pool), mailer, "http://localhost:5174"),
 	}
 }

@@ -54,6 +54,20 @@ An email invite can only create a *moderator*. Making an admin is a deliberate s
 never create one. Set `ADMIN_APP_URL` to where the admin app is served, because the invite email links there (default
 `http://localhost:5174`), and make sure that origin is in `CORS_ORIGINS`.
 
+## Google sign-in
+
+Google sign-in needs three things to line up: the API's `OAUTH_CALLBACK_URL`, the OAuth client's **Authorized redirect URIs** in the Google
+Cloud console, and the app's allowed return origins (`CORS_ORIGINS`). If any one is off, a sign-in ends back on the login page.
+
+- **Production / UAT:** `OAUTH_CALLBACK_URL` is the public API address, e.g. `https://<api-host>/api/v1/auth/google/callback`, and the
+  same address is listed in the Google console.
+- **Local development:** `docker-compose.override.yml` points the API's `OAUTH_CALLBACK_URL` at `http://localhost:8080/api/v1/auth/google/callback`
+  (the root `.env` holds the production value). Add that address to the OAuth client's Authorized redirect URIs in the Google Cloud console,
+  or Google refuses the sign-in with *redirect_uri_mismatch*.
+- **A person whose email already has a password account** is never signed in by Google automatically (that would let anyone take over an
+  account by registering its address). They are sent back to the sign-in page with an explanation; they sign in with their password, then
+  choose *Connect Google* in Account settings (admin app: Settings, then Account). From then on Google signs them in to the same account.
+
 ## Migrations
 
 Back up the database before applying migrations. From `backend/api`, run `goose -dir migrations postgres "$DATABASE_URL" status`, then `goose -dir migrations postgres "$DATABASE_URL" up`. Apply migrations once per release, before starting the new API instances. Inspect and resolve a failed migration rather than forcing its version.

@@ -4,8 +4,13 @@
 # its CORS_ORIGINS/AUTH_DEV_MODE/AUTH_COOKIE_SECURE/WEB_APP_URL values are production-only
 # (Vercel origins, real cookie/session behavior) — those break every client-side call from
 # the local frontends (apps/web on :8082, apps/admin on :5174, Playwright preview builds on
-# :4173/:4174) with CORS errors. This file overrides just those four vars back to local-dev
+# :4173/:4174) with CORS errors. This file overrides just those vars back to local-dev
 # values for the containerized `api` service, without touching the production .env at all.
+#
+# OAUTH_CALLBACK_URL is one of them: the root .env points Google at the production API, so without the
+# override a local "Continue with Google" returns to production and can never sign anyone in here. The local
+# address below must ALSO be listed under "Authorized redirect URIs" for the OAuth client in the Google Cloud
+# console, or Google refuses the sign-in with redirect_uri_mismatch.
 services:
   api:
     environment:
@@ -14,3 +19,4 @@ services:
       AUTH_DEV_MODE: "true"
       AUTH_COOKIE_SECURE: "false"
       WEB_APP_URL: http://localhost:8082
+      OAUTH_CALLBACK_URL: http://localhost:8080/api/v1/auth/google/callback

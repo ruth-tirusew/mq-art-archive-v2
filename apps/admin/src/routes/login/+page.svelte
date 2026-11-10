@@ -12,7 +12,11 @@
   import { Separator } from '$lib/components/ui/separator';
 
   const loginUrl = $derived(googleLoginUrl($page.url.origin));
-  const accessDenied = $derived($page.url.searchParams.get('error') === 'access_denied');
+  const reason = $derived($page.url.searchParams.get('error'));
+  const accessDenied = $derived(reason === 'access_denied');
+  // Why Google sign-in sent the person back here (see the OAuth callback page).
+  const accountExists = $derived(reason === 'account_exists');
+  const googleFailed = $derived(reason === 'google_failed');
 
   let email = $state('');
   let password = $state('');
@@ -66,6 +70,18 @@
     <CardContent class="space-y-4">
       {#if accessDenied}
         <Alert variant="destructive">Access denied. Your account does not have admin or moderator access.</Alert>
+      {/if}
+      {#if accountExists}
+        <div data-testid="account-exists"><Alert variant="destructive">
+          An Artiv account already uses that Google email. Sign in with your email and password below, then open
+          Settings, then Account, and choose <strong>Connect Google</strong>. After that you can use Google to sign in.
+          If you've forgotten your password, use “Forgot password” on the Artiv website.
+        </Alert></div>
+      {/if}
+      {#if googleFailed}
+        <div data-testid="google-failed"><Alert variant="destructive">
+          We couldn’t sign you in with Google. Try again, or sign in with your email and password.
+        </Alert></div>
       {/if}
       {#if error}
         <Alert variant="destructive">{error}</Alert>

@@ -20,8 +20,12 @@
 
   let { data } = $props();
 
+  // The integrations section exists only for admins (the loader sends null to everyone else).
+  const isAdmin = $derived(data.scrape !== null);
+
   const activeSection = $derived.by((): SectionId => {
     const hash = $page.url.hash.replace(/^#/, '') as SectionId;
+    if (hash === 'integrations' && !isAdmin) return 'profile';
     return sectionIds.includes(hash) ? hash : 'profile';
   });
 
@@ -103,18 +107,25 @@
   let notifError = $state('');
 
   // Integrations
-  let scrape = $state<ScrapeSettings>(data.scrape);
-  let scrapeEnabled = $state(data.scrape.scrape_enabled);
-  let scrapeSources = $state(data.scrape.scrape_sources.join(', '));
-  let scrapeUserAgent = $state(data.scrape.scrape_user_agent);
-  let scrapeTimeout = $state(String(data.scrape.scrape_timeout_seconds));
-  let scrapeInterval = $state(String(data.scrape.scrape_interval_seconds));
-  let telegramEnabled = $state(data.scrape.telegram_enabled);
-  let telegramApiId = $state(String(data.scrape.telegram_api_id || ''));
+  // A moderator never sees these; the defaults only keep the state well-formed.
+  const EMPTY_SCRAPE: ScrapeSettings = {
+    scrape_enabled: false, scrape_sources: [], scrape_user_agent: '', scrape_timeout_seconds: 30, scrape_interval_seconds: 21600,
+    telegram_enabled: false, telegram_api_id: 0, telegram_api_hash_set: false, telegram_channels: [], telegram_keywords: [],
+    telegram_fetch_limit: 50, session_authorized: false, last_run_at: null, last_success_at: null, last_error: null
+  };
+  const initialScrape: ScrapeSettings = data.scrape ?? EMPTY_SCRAPE;
+  let scrape = $state<ScrapeSettings>(initialScrape);
+  let scrapeEnabled = $state(initialScrape.scrape_enabled);
+  let scrapeSources = $state(initialScrape.scrape_sources.join(', '));
+  let scrapeUserAgent = $state(initialScrape.scrape_user_agent);
+  let scrapeTimeout = $state(String(initialScrape.scrape_timeout_seconds));
+  let scrapeInterval = $state(String(initialScrape.scrape_interval_seconds));
+  let telegramEnabled = $state(initialScrape.telegram_enabled);
+  let telegramApiId = $state(String(initialScrape.telegram_api_id || ''));
   let telegramApiHash = $state('');
-  let telegramChannels = $state(data.scrape.telegram_channels.join(', '));
-  let telegramKeywords = $state(data.scrape.telegram_keywords.join(', '));
-  let telegramFetchLimit = $state(String(data.scrape.telegram_fetch_limit));
+  let telegramChannels = $state(initialScrape.telegram_channels.join(', '));
+  let telegramKeywords = $state(initialScrape.telegram_keywords.join(', '));
+  let telegramFetchLimit = $state(String(initialScrape.telegram_fetch_limit));
   let scrapeSaving = $state(false);
   let scrapeMessage = $state('');
   let scrapeError = $state('');
@@ -257,7 +268,9 @@
 <PageHeader
   eyebrow="Settings"
   title="Settings"
-  description="Manage your admin profile, account security, notifications, and scrape integrations."
+  description={isAdmin
+    ? "Manage your admin profile, account security, notifications, and scrape integrations."
+    : "Manage your profile, account security and notifications."}
 />
 
 {#if activeSection === 'profile'}

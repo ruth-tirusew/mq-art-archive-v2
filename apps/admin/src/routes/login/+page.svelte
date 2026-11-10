@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { googleLoginUrl } from '$lib/core/domain/auth';
   import { authService } from '$lib/application/auth';
+  import { isStaffRole } from '$lib/utils/adminGate';
   import { ApiError } from '$lib/adapters/api/client';
   import { Alert } from '$lib/components/ui/alert';
   import { Button } from '$lib/components/ui/button';
@@ -25,7 +26,7 @@
     try {
       const user = await authService.login(email, password);
 
-      if (user.role === 'admin') {
+      if (isStaffRole(user.role)) {
         await goto('/applications');
       } else {
         await authService.logout();
@@ -59,12 +60,12 @@
       <p class="font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">Artiv admin</p>
       <CardTitle>Sign in</CardTitle>
       <CardDescription>
-        Use email and password or Google. Admin privileges are required to continue.
+        Use email and password or Google. You need an admin or moderator account to continue.
       </CardDescription>
     </CardHeader>
     <CardContent class="space-y-4">
       {#if accessDenied}
-        <Alert variant="destructive">Access denied. Your account does not have admin privileges.</Alert>
+        <Alert variant="destructive">Access denied. Your account does not have admin or moderator access.</Alert>
       {/if}
       {#if error}
         <Alert variant="destructive">{error}</Alert>

@@ -25,7 +25,8 @@ Ethiopian artists lack a shared, trustworthy place to publish verified profiles,
 |---|---|
 | Reader (anonymous or signed-in) | Browses public wiki articles, artist profiles, artwork, and events; can search across all public content |
 | Contributor (signed-in artist/institution) | Submits new wiki articles or revisions to existing ones from their studio; favorites, highlights, and comments on articles; manages their own artwork and profile |
-| Admin reviewer | Reviews onboarding applications, moderates wiki submissions (approve/reject with diff view), moderates artwork/artist profiles, manages users/roles, configures scrape settings |
+| Moderator | Staff who do the review and content work in the admin app: onboarding applications, wiki submissions, artwork and artist moderation, events, invites, the questionnaire. Cannot manage users or roles, change system settings, or invite other staff |
+| Admin | Everything a moderator can do, plus manages users/roles, invites moderators, and configures scrape settings |
 | System (scraper / digest) | Long-running background services that ingest events and send scheduled email/Telegram digests |
 
 ## 4. Domain contexts (implemented)

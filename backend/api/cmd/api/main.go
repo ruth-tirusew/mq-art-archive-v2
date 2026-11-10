@@ -218,15 +218,18 @@ func main() {
 		Onboarding:    handler.NewOnboardingHandler(onboardingSvc),
 		Questionnaire: handler.NewQuestionnaireHandler(questionnaireSvc, questionnaireSvc),
 		Invite:        handler.NewInviteHandler(onboardingSvc, cfg.AuthCookieName, cfg.WebAppURL),
-		Works:         handler.NewApplicantWorksHandler(onboardingSvc),
-		Auth:          handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
-		Settings:      handler.NewSettingsHandler(settingsSvc),
-		Media:         handler.NewMediaHandler(mediaSvc),
-		Wiki:          handler.NewWikiHandler(wikiSvc),
-		Engagement:    handler.NewEngagementHandler(engagementSvc),
-		Analytics:     handler.NewAnalyticsHandler(analyticsSvc),
-		UserAdmin:     handler.NewUserAdminHandler(authSvc),
-		Digest:        handler.NewDigestHandler(digestSvc, cfg.TelegramBotUsername),
+		StaffInvite: handler.NewStaffInviteHandler(
+			authuc.NewStaffInviteService(userRepo, passwordHasher, tokenSvc, postgres.NewStaffInviteRepository(pool), mailer, cfg.AdminAppURL),
+			cfg.AuthCookieName),
+		Works:      handler.NewApplicantWorksHandler(onboardingSvc),
+		Auth:       handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
+		Settings:   handler.NewSettingsHandler(settingsSvc),
+		Media:      handler.NewMediaHandler(mediaSvc),
+		Wiki:       handler.NewWikiHandler(wikiSvc),
+		Engagement: handler.NewEngagementHandler(engagementSvc),
+		Analytics:  handler.NewAnalyticsHandler(analyticsSvc),
+		UserAdmin:  handler.NewUserAdminHandler(authSvc),
+		Digest:     handler.NewDigestHandler(digestSvc, cfg.TelegramBotUsername),
 	}
 
 	router := httpadapter.NewRouter(cfg, handlers, httpadapter.RouterDeps{

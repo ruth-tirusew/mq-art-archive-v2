@@ -36,6 +36,24 @@ The `digest` service (`cmd/digest`) is a long-lived process, like `scraper` — 
 - Uses the same mail settings as the rest of the API (`SMTP_*` or `RESEND_API_KEY`, and `MAIL_FROM`), and `TELEGRAM_BOT_TOKEN` from the section above for the Telegram side. Both are optional independently: with no bot token, Telegram-linked recipients are simply skipped; with no `RESEND_API_KEY`, email falls back to the log mailer (nothing actually sent — fine for local dev, not for production).
 - `WEB_APP_URL` and `PUBLIC_API_URL` are used to build the links inside the digest (event/article/artist pages point at `WEB_APP_URL`; the unsubscribe link points at `PUBLIC_API_URL`, since that's served by the API, not the frontend).
 
+## Staff: admins and moderators
+
+Two roles may use the admin app. **Moderators** do the review and content work (applications, wiki submissions, artworks and
+artist profiles, events, artist invites, the questionnaire). **Admins** can also manage users and roles, invite other staff, and
+change the scrape and Telegram settings. The split is enforced by the API, not just hidden in the UI: those routes sit in a
+separate admin-only group in `router.go`, so add a new admin route to the group that matches who should use it.
+
+An admin makes a moderator in either of two ways:
+
+- **Promote an account that already exists:** Admin → Users, change the person's role to *Moderator*.
+- **Invite someone new by email:** Admin → Users → *Invite a moderator*. The person gets a one-time link to the admin app
+  (`/accept-invite`), chooses a password, and has a verified moderator account. The link works once, expires after 7 days,
+  and can be resent (the old link stops working) or cancelled. An address that already has an account is refused; promote it instead.
+
+An email invite can only create a *moderator*. Making an admin is a deliberate step on the Users page, so a leaked invite link can
+never create one. Set `ADMIN_APP_URL` to where the admin app is served, because the invite email links there (default
+`http://localhost:5174`), and make sure that origin is in `CORS_ORIGINS`.
+
 ## Migrations
 
 Back up the database before applying migrations. From `backend/api`, run `goose -dir migrations postgres "$DATABASE_URL" status`, then `goose -dir migrations postgres "$DATABASE_URL" up`. Apply migrations once per release, before starting the new API instances. Inspect and resolve a failed migration rather than forcing its version.

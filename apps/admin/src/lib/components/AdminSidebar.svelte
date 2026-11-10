@@ -28,6 +28,7 @@
     activeSectionId,
     isItemActive,
     email,
+    role,
     onlogout
   }: {
     topSections: NavSection[];
@@ -35,6 +36,8 @@
     activeSectionId: string;
     isItemActive: (href: string) => boolean;
     email?: string;
+    /** The signed-in user's role, shown under their address. */
+    role?: string;
     onlogout: () => void;
   } = $props();
 
@@ -148,7 +151,7 @@
         </span>
         <div class="min-w-0 flex-1">
           <p class="truncate text-xs text-foreground" title={email}>{email ?? 'Not signed in'}</p>
-          <p class="text-[11px] text-muted-foreground">Admin</p>
+          <p class="text-[11px] capitalize text-muted-foreground">{role ?? 'Admin'}</p>
         </div>
         <button
           type="button"

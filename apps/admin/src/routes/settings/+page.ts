@@ -6,15 +6,16 @@ import { settingsService } from '$lib/application/settings';
 
 export const load: PageLoad = async () => {
   try {
-    const [user, notifications, scrape] = await Promise.all([
-      authService.load(),
-      authService.getNotifications(),
-      settingsService.getScrape()
-    ]);
-
+    const user = await authService.load();
     if (!user) {
       redirect(303, '/login');
     }
+    // Moderators use this page for their own profile, password and notifications. The scrape and Telegram
+    // settings are admin-only on the API, so asking for them would only fail.
+    const [notifications, scrape] = await Promise.all([
+      authService.getNotifications(),
+      user.role === 'admin' ? settingsService.getScrape() : Promise.resolve(null)
+    ]);
 
     return { user, notifications, scrape };
   } catch (err) {

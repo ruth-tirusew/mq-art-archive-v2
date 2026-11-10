@@ -649,7 +649,7 @@ func (s *Service) ListUsers(ctx context.Context, role *identity.Role, limit, off
 
 func (s *Service) UpdateUserRole(ctx context.Context, actorID, userID uuid.UUID, role identity.Role) (*identity.User, error) {
 	switch role {
-	case identity.RolePublic, identity.RoleArtist, identity.RoleInstitution, identity.RoleContributor, identity.RoleAdmin:
+	case identity.RolePublic, identity.RoleArtist, identity.RoleInstitution, identity.RoleContributor, identity.RoleModerator, identity.RoleAdmin:
 	default:
 		return nil, apperrors.ErrValidation
 	}

@@ -52,6 +52,7 @@ type App struct {
 	Settings      inbound.SettingsService
 	Digest        inbound.DigestService
 	TokenSvc      *auth.TokenService
+	StaffInvites  inbound.StaffInviteService
 }
 
 func NewApp(t *testing.T) *App {
@@ -131,7 +132,8 @@ func NewApp(t *testing.T) *App {
 			notifPrefsRepo, telegramLinkRepo, "integration-test-unsubscribe-secret",
 			maileradapter.NewLogMailer(true), nil, "http://localhost:5173", "http://localhost:8080",
 		),
-		TokenSvc: tokenSvc,
+		TokenSvc:     tokenSvc,
+		StaffInvites: authuc.NewStaffInviteService(userRepo, auth.NewBcryptPasswordHasher(), tokenSvc, postgres.NewStaffInviteRepository(pool), mailer, "http://localhost:5174"),
 	}
 }
 
@@ -161,9 +163,11 @@ func (a *App) Router() *gin.Engine {
 		Onboarding:    handler.NewOnboardingHandler(a.Onboarding),
 		Questionnaire: handler.NewQuestionnaireHandler(a.Questionnaire, a.Questionnaire),
 		Invite:        handler.NewInviteHandler(a.Onboarding, cfg.AuthCookieName, "http://localhost:5173"),
+		StaffInvite:   handler.NewStaffInviteHandler(a.StaffInvites, cfg.AuthCookieName),
 		Works:         handler.NewApplicantWorksHandler(a.Onboarding),
 		Auth:          handler.NewAuthHandler(a.Auth, cfg.AuthCookieName),
 		Settings:      handler.NewSettingsHandler(a.Settings),
+		UserAdmin:     handler.NewUserAdminHandler(a.Auth),
 	}
 	return httpadapter.NewRouter(cfg, handlers, httpadapter.RouterDeps{
 		Identity: a.Identity,

@@ -3089,6 +3089,9 @@ components:
         status:
           type: string
           enum: [draft, pending, approved]
+        moderation_hold:
+          type: boolean
+          description: True when an editor took the profile down, so the artist cannot make it public again until the team restores it. Only present (true) on the artist's own and admin responses, never on a public page.
         created_at:
           type: string
           format: date-time

@@ -165,19 +165,32 @@
 		<Button type="submit" loading={profileSaving}>{profileSaving ? 'Saving…' : 'Save profile'}</Button>
 	</form>
 
-	<form class="space-y-5 border-t border-border/60 pt-10" onsubmit={saveEmail}>
-		<h2 class="t-h3">Email address</h2>
-		<Field label="Email" required>
-			{#snippet children({ id, required })}<Input {id} {required} type="email" autocomplete="email" bind:value={email} />{/snippet}
-		</Field>
-		<Field label="Confirm with your password" required>
-			{#snippet children({ id, required })}
-				<PasswordInput {id} {required} autocomplete="current-password" bind:value={emailCurrentPassword} />
-			{/snippet}
-		</Field>
-		{#if emailError}<Alert tone="error">{emailError}</Alert>{/if}
-		<Button type="submit" loading={emailSaving}>{emailSaving ? 'Saving…' : 'Update email'}</Button>
-	</form>
+	{#if $currentUser?.has_password}
+		<form class="space-y-5 border-t border-border/60 pt-10" onsubmit={saveEmail}>
+			<h2 class="t-h3">Email address</h2>
+			<Field label="Email" required>
+				{#snippet children({ id, required })}<Input {id} {required} type="email" autocomplete="email" bind:value={email} />{/snippet}
+			</Field>
+			<Field label="Confirm with your password" required>
+				{#snippet children({ id, required })}
+					<PasswordInput {id} {required} autocomplete="current-password" bind:value={emailCurrentPassword} />
+				{/snippet}
+			</Field>
+			{#if emailError}<Alert tone="error">{emailError}</Alert>{/if}
+			<Button type="submit" loading={emailSaving}>{emailSaving ? 'Saving…' : 'Update email'}</Button>
+		</form>
+	{:else}
+		<!-- Changing the email needs the current password. A Google-only account has none, so a form here would
+		     only ever fail. Say why, and how to get to the point where it works. -->
+		<div class="space-y-3 border-t border-border/60 pt-10" data-testid="email-needs-password">
+			<h2 class="t-h3">Email address</h2>
+			<p class="t-body text-foreground">{$currentUser?.email}</p>
+			<p class="t-body text-muted-foreground">
+				You sign in with Google, so there's no password to confirm a change with. To change this address, set a password first:
+				<a href="/forgot-password" class="text-accent underline underline-offset-4">send me a password link</a>, then come back here.
+			</p>
+		</div>
+	{/if}
 
 	<div class="space-y-5 border-t border-border/60 pt-10">
 		<h2 class="t-h3">Password</h2>

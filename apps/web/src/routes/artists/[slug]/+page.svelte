@@ -6,6 +6,9 @@
 	import ArtworkCard from '$lib/components/art/ArtworkCard.svelte';
 	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import SafeHtml from '$lib/components/SafeHtml.svelte';
+	import SocialMeta from '$lib/components/SocialMeta.svelte';
+	import { page } from '$app/stores';
+	import { shareDescription } from '$lib/utils/share';
 	import {
 		acquisitionBlurhash,
 		acquisitionImage,
@@ -40,8 +43,16 @@
 
 <svelte:head>
 	<title>{artistName(artist)} — Artiv</title>
-	<meta name="description" content={summary.tagline || truncateText(summary.bio, 160)} />
+	<meta name="description" content={shareDescription(summary.tagline, summary.bio)} />
 </svelte:head>
+
+<!-- This page leads with the work, so its preview card does too (the portrait if there are no works yet). -->
+<SocialMeta
+	title="{artistName(artist)} — Artiv"
+	description={shareDescription(summary.tagline, summary.bio)}
+	url="{$page.url.origin}/artists/{artist.slug}"
+	image={heroImage}
+/>
 
 <section class="relative overflow-hidden border-b border-border/60 bg-ink text-cream">
 	<div class="mx-auto grid max-w-[1600px] grid-cols-12 gap-6 px-6 py-12 md:px-10 md:py-20">

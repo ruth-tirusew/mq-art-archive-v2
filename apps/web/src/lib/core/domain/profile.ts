@@ -35,6 +35,8 @@ export interface ArtistProfile {
   contact?: ContactInfo;
   social?: SocialLinks;
   status?: ProfileStatus;
+  /** True when an editor took the profile down; the artist cannot make it public until the team restores it. */
+  moderation_hold?: boolean;
   approved_at?: string | null;
   created_at?: string;
   updated_at?: string;

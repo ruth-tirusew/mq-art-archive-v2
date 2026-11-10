@@ -1,8 +1,11 @@
 <script lang="ts">
+	import { page } from '$app/stores';
+	import CopyLinkButton from '$lib/components/CopyLinkButton.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
 	import type { ArtistProfile } from '$lib/core/domain/profile';
 	import type { PublicAnswer } from '$lib/core/domain/questionnaire';
 	import { summarizeArtist } from '$lib/utils/artistSummary';
+	import { profileUrl } from '$lib/utils/share';
 	import {
 		acquisitionImage,
 		acquisitionTitle,
@@ -112,7 +115,10 @@
 		{#if showHeader}
 			<div class="flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
 				<span class="truncate">artiv..et / @{handle}</span>
-				<span>⌘ share</span>
+				<!-- Only for a real, public profile: a sample, a demo or an unpublished page has no link worth copying. -->
+				{#if !demo && !sample && artist.status === 'approved'}
+					<CopyLinkButton url={profileUrl($page.url.origin, handle)} label="Copy link" />
+				{/if}
 			</div>
 		{/if}
 

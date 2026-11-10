@@ -41,9 +41,13 @@ type ArtistProfileResponse struct {
 	Contact           ContactInfoResponse `json:"contact"`
 	Social            SocialLinksResponse `json:"social"`
 	Status            string              `json:"status"`
-	ApprovedAt        *time.Time          `json:"approved_at,omitempty"`
-	CreatedAt         time.Time           `json:"created_at"`
-	UpdatedAt         time.Time           `json:"updated_at"`
+	// ModerationHold is true when an editor took the profile down, so the artist can be told why they
+	// cannot make it public again. Only ever true for a profile that is not public, so it never appears
+	// on a public page.
+	ModerationHold bool       `json:"moderation_hold,omitempty"`
+	ApprovedAt     *time.Time `json:"approved_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 func ToArtistProfileResponse(p domain.ArtistProfile) ArtistProfileResponse {
@@ -80,10 +84,11 @@ func ToArtistProfileResponse(p domain.ArtistProfile) ArtistProfileResponse {
 			Twitter:   p.Social.Twitter,
 			Telegram:  p.Social.Telegram,
 		},
-		Status:     string(p.Status),
-		ApprovedAt: p.ApprovedAt,
-		CreatedAt:  p.CreatedAt,
-		UpdatedAt:  p.UpdatedAt,
+		Status:         string(p.Status),
+		ModerationHold: p.ModerationHold,
+		ApprovedAt:     p.ApprovedAt,
+		CreatedAt:      p.CreatedAt,
+		UpdatedAt:      p.UpdatedAt,
 	}
 }
 

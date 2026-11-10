@@ -56,6 +56,7 @@ export function normalizeProfile(raw: RawRecord): ArtistProfile {
         }
       : undefined,
     status: (raw.status ?? raw.Status) as ArtistProfile['status'],
+    moderation_hold: bool(raw.moderation_hold ?? raw.ModerationHold) ?? false,
     created_at: str(raw.created_at ?? raw.CreatedAt),
     updated_at: str(raw.updated_at ?? raw.UpdatedAt)
   };

@@ -1,5 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import CopyLinkButton from '$lib/components/CopyLinkButton.svelte';
+	import ModerationHoldNotice from '$lib/components/ModerationHoldNotice.svelte';
+	import { profileUrl } from '$lib/utils/share';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { profileService } from '$lib/application/profiles';
 	import { artPostService } from '$lib/application/artPosts';
@@ -114,7 +118,9 @@
 			</Alert>
 		{/if}
 
-		{#if !isPublic}
+		{#if profile.moderation_hold}
+			<ModerationHoldNotice class="mt-8" />
+		{:else if !isPublic}
 			<div class="mt-8 rounded-sm border border-accent/40 bg-accent/5 p-6">
 				<p class="font-display text-xl text-foreground">
 					{firstRun ? "You're approved — let's get you set up" : 'Your profile is still private'}
@@ -166,9 +172,6 @@
 			<Badge tone={isPublic ? 'success' : 'neutral'}>{isPublic ? 'Public' : (profile.status ?? 'draft')}</Badge>
 			{#if profile.featured}<Badge tone="accent">Featured</Badge>{/if}
 			{#if profile.open_for_commission}<Badge>Open for commission</Badge>{/if}
-			{#if profile.in_residence}
-				<Badge>In residence{#if profile.residency_place} · {profile.residency_place}{/if}</Badge>
-			{/if}
 		</div>
 
 		{#if !firstRun}
@@ -249,12 +252,12 @@
 					Public profile
 				</p>
 				{#if isPublic}
-					<a
-						href="/@{profile.handle || profile.slug}"
-						class="mt-2 inline-block text-accent underline underline-offset-4"
-					>
-						View @{profile.handle || profile.slug}
-					</a>
+					<div class="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2">
+						<a href="/@{profile.handle || profile.slug}" class="text-accent underline underline-offset-4">
+							View @{profile.handle || profile.slug}
+						</a>
+						<CopyLinkButton url={profileUrl($page.url.origin, profile.handle || profile.slug)} label="Copy link to share" />
+					</div>
 				{:else}
 					<p class="mt-2 text-sm text-muted-foreground">
 						@{profile.handle || profile.slug} — not public yet.

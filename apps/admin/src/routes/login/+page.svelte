@@ -102,13 +102,13 @@
           {submitting ? 'Please wait…' : 'Sign in'}
         </Button>
       </form>
-      <div class="flex items-center gap-3">
+      <!-- <div class="flex items-center gap-3">
         <Separator class="flex-1" />
         <span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">or</span>
         <Separator class="flex-1" />
-      </div>
+      </div> -->
 
-      <Button href={loginUrl} variant="outline" class="w-full">Continue with Google</Button>
+      <!-- <Button href={loginUrl} variant="outline" class="w-full">Continue with Google</Button> -->
     </CardContent>
   </Card>
 </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { onMount } from 'svelte';
+	import ModerationHoldNotice from '$lib/components/ModerationHoldNotice.svelte';
 	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 	import ShareableProfile from '$lib/components/ShareableProfile.svelte';
 	import MediaUploader from '$lib/components/MediaUploader.svelte';
@@ -19,12 +20,15 @@
 	let loadError = $state('');
 	let fieldErrors = $state<{ displayName?: string; handle?: string; slug?: string }>({});
 	const confirm = createConfirm();
+	const held = $derived(profile?.moderation_hold === true);
 
 	// Flat draft fields — source of truth for both inputs and live preview.
 	let displayName = $state('');
 	let slug = $state('');
 	let handle = $state('');
 	let bio = $state('');
+	// Born, years active, residency and Twitter are no longer asked for here, but a profile that already has them
+	// keeps them: they are loaded and sent back unchanged on every save, so saving never wipes them.
 	let born = $state('');
 	let discipline = $state('');
 	let tagline = $state('');
@@ -193,6 +197,7 @@
 
 <section class="container-page py-14 md:py-20">
 	<PageHeader eyebrow="Studio · Profile">Edit <em class="italic">profile</em></PageHeader>
+	{#if held}<ModerationHoldNotice class="mt-8 max-w-2xl" />{/if}
 
 	{#if loadError}
 		<div class="mt-8 max-w-2xl"><ErrorState message={loadError} onretry={load} /></div>
@@ -231,16 +236,8 @@
 						<RichTextEditor value={bio} label="Bio" onchange={(html) => (bio = html)} />
 					{/snippet}
 				</Field>
-				<div class="grid gap-4 sm:grid-cols-2">
-					<Field label="Discipline">
-						{#snippet children({ id })}<Input {id} bind:value={discipline} />{/snippet}
-					</Field>
-					<Field label="Years active">
-						{#snippet children({ id })}<Input {id} bind:value={yearsActive} />{/snippet}
-					</Field>
-				</div>
-				<Field label="Born">
-					{#snippet children({ id })}<Input {id} bind:value={born} placeholder="e.g. 1989, Bahir Dar" />{/snippet}
+				<Field label="Discipline" hint="For example painter, sculptor, photographer.">
+					{#snippet children({ id })}<Input {id} bind:value={discipline} />{/snippet}
 				</Field>
 				<Field label="Influences" hint="Comma-separated, e.g. Afewerk Tekle, Skunder Boghossian">
 					{#snippet children({ id, describedby })}<Input {id} aria-describedby={describedby} bind:value={influencesText} />{/snippet}
@@ -255,12 +252,6 @@
 
 				<fieldset class="space-y-4 rounded-sm border border-border/60 p-4">
 					<legend class="t-eyebrow px-1 text-muted-foreground">Availability</legend>
-					<Checkbox bind:checked={inResidence}>In residence abroad</Checkbox>
-					{#if inResidence}
-						<Field label="Residency place">
-							{#snippet children({ id })}<Input {id} bind:value={residencyPlace} />{/snippet}
-						</Field>
-					{/if}
 					<Checkbox bind:checked={openForCommission}>Open for commission</Checkbox>
 				</fieldset>
 
@@ -275,18 +266,20 @@
 				<fieldset class="space-y-4 rounded-sm border border-border/60 p-4">
 					<legend class="t-eyebrow px-1 text-muted-foreground">Social</legend>
 					<Field label="Instagram">{#snippet children({ id })}<Input {id} bind:value={socialInstagram} />{/snippet}</Field>
-					<Field label="Twitter">{#snippet children({ id })}<Input {id} bind:value={socialTwitter} />{/snippet}</Field>
 					<Field label="Telegram">{#snippet children({ id })}<Input {id} bind:value={socialTelegram} />{/snippet}</Field>
 				</fieldset>
 
 				<div class="rounded-sm border border-border/60 p-4">
 					<Checkbox
 						checked={visibility === 'approved'}
+						disabled={held}
 						onchange={(e) => (visibility = e.currentTarget.checked ? 'approved' : 'draft')}
 					>
 						<span class="block text-foreground">Make my profile public</span>
 						<span class="mt-1 block text-xs text-muted-foreground">
-							{#if visibility === 'approved'}
+							{#if held}
+								Locked while the profile is offline. The team can restore it.
+							{:else if visibility === 'approved'}
 								Anyone can see your profile and published works. Untick to take it offline.
 							{:else}
 								Only you can see your profile right now. Add a portrait and a short bio, then tick this

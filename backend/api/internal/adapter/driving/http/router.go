@@ -24,6 +24,7 @@ type Handlers struct {
 	Onboarding    *handler.OnboardingHandler
 	Questionnaire *handler.QuestionnaireHandler
 	Invite        *handler.InviteHandler
+	StaffInvite   *handler.StaffInviteHandler
 	Works         *handler.ApplicantWorksHandler
 	Auth          *handler.AuthHandler
 	Settings      *handler.SettingsHandler
@@ -66,7 +67,7 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 	{
 		v1.GET("/articles", handlers.Article.List)
 		v1.GET("/articles/:slug", handlers.Article.GetBySlug)
-		v1.POST("/articles", middleware.Authenticate(deps.Auth), middleware.RequireRole("admin"), handlers.Article.Create)
+		v1.POST("/articles", middleware.Authenticate(deps.Auth), middleware.RequireAnyRole("admin", "moderator"), handlers.Article.Create)
 
 		v1.GET("/favorites/:id", middleware.OptionalAuthenticate(deps.Auth), handlers.Engagement.GetFavoriteStatus)
 		v1.POST("/me/favorites/:id", middleware.Authenticate(deps.Auth), writeLimit, handlers.Engagement.ToggleFavorite)
@@ -110,6 +111,11 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		// account can join straight from the link. Account creation is rate limited like register.
 		v1.POST("/invites/register", registerLimit, handlers.Invite.Register)
 		v1.POST("/applications/invite", writeLimit, middleware.Authenticate(deps.Auth), handlers.Invite.Claim)
+
+		// Moderator invites: the invitee has no account yet, so preview and accept are public (token in the
+		// POST body, never the URL). Accepting creates the account, so it is rate limited like register.
+		v1.POST("/staff-invites/preview", lookupLimit, handlers.StaffInvite.Preview)
+		v1.POST("/staff-invites/accept", registerLimit, handlers.StaffInvite.Accept)
 
 		// The work an applicant shows with their application (an artist needs at least five). Any
 		// signed-in user, since applicants aren't artists yet, so uploads get their own sign/complete
@@ -191,8 +197,11 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		}
 	}
 
+	// Everything in the admin app that is moderation or content work is open to admins AND moderators.
+	// What a moderator cannot do lives in adminOnly below: manage users and roles, change system
+	// settings, and invite other staff. Add a route to adminOnly, not here, when in doubt.
 	admin := r.Group("/admin/v1")
-	admin.Use(middleware.Authenticate(deps.Auth), middleware.RequireRole("admin"))
+	admin.Use(middleware.Authenticate(deps.Auth), middleware.RequireAnyRole("admin", "moderator"))
 	{
 		admin.GET("/applications", handlers.Onboarding.List)
 		admin.GET("/applications/:id", handlers.Onboarding.GetByID)
@@ -220,8 +229,6 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		admin.POST("/wiki/submissions/:id/approve", handlers.Wiki.Approve)
 		admin.POST("/wiki/submissions/:id/reject", handlers.Wiki.Reject)
 		admin.GET("/analytics", handlers.Analytics.Query)
-		admin.GET("/users", handlers.UserAdmin.List)
-		admin.PATCH("/users/:id", handlers.UserAdmin.UpdateRole)
 
 		admin.GET("/artists", handlers.Profile.ListArtistsAdmin)
 		admin.POST("/artists", handlers.Profile.CreateArtistAdmin)
@@ -253,9 +260,21 @@ func NewRouter(cfg config.Config, handlers Handlers, deps RouterDeps) *gin.Engin
 		admin.PATCH("/events/:id", handlers.Event.Review)
 		admin.DELETE("/events/:id", handlers.Event.DeleteAdmin)
 		admin.POST("/events/sync", handlers.Event.Sync)
+	}
 
-		admin.GET("/settings/scrape", handlers.Settings.GetScrape)
-		admin.PUT("/settings/scrape", handlers.Settings.UpdateScrape)
+	adminOnly := r.Group("/admin/v1")
+	adminOnly.Use(middleware.Authenticate(deps.Auth), middleware.RequireRole("admin"))
+	{
+		adminOnly.GET("/users", handlers.UserAdmin.List)
+		adminOnly.PATCH("/users/:id", handlers.UserAdmin.UpdateRole)
+
+		adminOnly.GET("/staff-invites", handlers.StaffInvite.List)
+		adminOnly.POST("/staff-invites", handlers.StaffInvite.Create)
+		adminOnly.POST("/staff-invites/:id/resend", handlers.StaffInvite.Resend)
+		adminOnly.DELETE("/staff-invites/:id", handlers.StaffInvite.Revoke)
+
+		adminOnly.GET("/settings/scrape", handlers.Settings.GetScrape)
+		adminOnly.PUT("/settings/scrape", handlers.Settings.UpdateScrape)
 	}
 
 	return r

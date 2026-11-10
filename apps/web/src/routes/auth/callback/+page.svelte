@@ -19,7 +19,9 @@
 
 		const user = await authService.load();
 		if (!user) {
-			await goto(`/login?return_to=${encodeURIComponent(returnTo)}`);
+			// Google said yes but there is no session: the sign-in expired, or the browser dropped the cookie.
+			// Say so on the sign-in page instead of showing a plain login form as if nothing had happened.
+			await goto(`/login?error=google_failed&return_to=${encodeURIComponent(returnTo)}`);
 			return;
 		}
 

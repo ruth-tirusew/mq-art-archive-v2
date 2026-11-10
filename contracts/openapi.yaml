@@ -2088,7 +2088,7 @@ paths:
               type: object
               required: [role]
               properties:
-                role: {type: string, enum: [public, artist, institution, contributor, admin]}
+                role: {type: string, enum: [public, artist, institution, contributor, moderator, admin]}
       responses:
         "200":
           description: Updated user
@@ -2380,6 +2380,91 @@ paths:
           $ref: "#/components/responses/InternalError"
 
 
+  /admin/v1/staff-invites:
+    get:
+      tags: [identity]
+      summary: List moderator invites
+      description: Admin only, newest first. The total is in the `X-Total-Count` header. Tokens are never listed.
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, default: 0}}
+      responses:
+        "200":
+          description: Invites
+          headers:
+            X-Total-Count: {schema: {type: integer}}
+          content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/StaffInvite"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+    post:
+      tags: [identity]
+      summary: Invite a moderator by email
+      description: |
+        Admin only. Emails the person a one-time link to the admin app and also returns it once, for copying. Only
+        `moderator` can be invited this way; an admin is made by changing a user's role. 409 (with the reason) if the
+        address already has an account: change that person's role instead.
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateStaffInviteRequest"}}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/StaffInviteCreated"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {description: The address already has an account}
+  /admin/v1/staff-invites/{id}/resend:
+    post:
+      tags: [identity]
+      summary: Replace a moderator invite with a fresh link
+      description: Admin only. The old link stops working; the lifetime is kept. 409 if the invite was already used.
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "201": {description: New link, content: {application/json: {schema: {$ref: "#/components/schemas/StaffInviteCreated"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {description: Already used}
+  /admin/v1/staff-invites/{id}:
+    delete:
+      tags: [identity]
+      summary: Revoke a moderator invite
+      description: Admin only. 409 if it was already used.
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204": {description: Revoked}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {description: Already used}
+  /api/v1/staff-invites/preview:
+    post:
+      tags: [identity]
+      summary: Preview a moderator invite
+      description: Public, so the accept page can show who the invite is for. The token is sent in the body, never the URL. Rate limited.
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/StaffInvitePreviewRequest"}}}}
+      responses:
+        "200": {description: Invite, content: {application/json: {schema: {$ref: "#/components/schemas/StaffInvitePreview"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {description: Rate limited}
+  /api/v1/staff-invites/accept:
+    post:
+      tags: [identity]
+      summary: Accept a moderator invite
+      description: |
+        Public. Creates the invitee's account with the invited role and a verified email (the link proves control of
+        the inbox), and signs them in with the session cookie. The address and role come from the invite, never the
+        request. A weak password is rejected without using up the link. 409 if the invite was used, revoked or expired.
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/StaffInviteAcceptRequest"}}}}
+      responses:
+        "201": {description: Account created and signed in, content: {application/json: {schema: {$ref: "#/components/schemas/User"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {description: Used, revoked or expired}
+        "429": {description: Rate limited}
   /admin/v1/invites:
     get:
       tags: [onboarding]
@@ -2865,7 +2950,7 @@ components:
           format: email
         role:
           type: string
-          enum: [public, artist, institution, contributor, admin]
+          enum: [public, artist, institution, contributor, moderator, admin]
         display_name:
           type: string
         avatar_url:
@@ -3089,6 +3174,9 @@ components:
         status:
           type: string
           enum: [draft, pending, approved]
+        moderation_hold:
+          type: boolean
+          description: True when an editor took the profile down, so the artist cannot make it public again until the team restores it. Only present (true) on the artist's own and admin responses, never on a public page.
         created_at:
           type: string
           format: date-time
@@ -3442,6 +3530,52 @@ components:
         medium: {type: string}
         year: {type: integer, nullable: true}
         position: {type: integer}
+
+    StaffInvite:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        role: {type: string, enum: [moderator]}
+        status: {type: string, enum: [live, claimed, revoked, expired]}
+        expires_at: {type: string, format: date-time}
+        claimed_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+
+    StaffInviteCreated:
+      type: object
+      properties:
+        invite: {$ref: "#/components/schemas/StaffInvite"}
+        link: {type: string, format: uri, description: The one-time link to the admin app. Shown once; only a hash is stored.}
+
+    CreateStaffInviteRequest:
+      type: object
+      required: [email]
+      properties:
+        email: {type: string, format: email}
+        role: {type: string, enum: [moderator], default: moderator}
+        ttl_days: {type: integer, minimum: 1, maximum: 30, description: "Defaults to 7."}
+
+    StaffInvitePreviewRequest:
+      type: object
+      required: [token]
+      properties:
+        token: {type: string}
+
+    StaffInvitePreview:
+      type: object
+      properties:
+        email: {type: string, format: email}
+        role: {type: string, enum: [moderator]}
+        status: {type: string, enum: [live, claimed, revoked, expired]}
+        expires_at: {type: string, format: date-time}
+
+    StaffInviteAcceptRequest:
+      type: object
+      required: [token, password]
+      properties:
+        token: {type: string}
+        password: {type: string, minLength: 8, maxLength: 72}
 
     ApplicantPortrait:
       type: object

@@ -4,6 +4,7 @@
   import { usersService } from '$lib/composition';
   import { ROLES, USERS_PAGE_SIZE, type Role, type User } from '$lib/core/domain/user';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import StaffInvitesPanel from '$lib/components/team/StaffInvitesPanel.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import { Button, ConfirmDialog, toast } from '$ui';
   import { Alert } from '$lib/components/ui/alert';
@@ -25,6 +26,7 @@
   const roles = ROLES;
   const roleBadge: Record<Role, 'default' | 'success' | 'muted' | 'warning' | 'outline'> = {
     admin: 'default',
+    moderator: 'default',
     artist: 'success',
     contributor: 'warning',
     institution: 'outline',
@@ -35,7 +37,8 @@
     artist: 'Gets a studio to manage a public profile and works.',
     institution: 'Institution account.',
     contributor: 'Can submit wiki articles through the studio.',
-    admin: 'Full access to this admin panel.'
+    moderator: 'Reviews and moderates content in this admin panel. Cannot manage users or change system settings.',
+    admin: 'Full access to this admin panel, including users and settings.'
   };
 
   // The first page comes from the route loader; only "load more" and retries fetch here.
@@ -116,6 +119,8 @@
   title="Users"
   description="Search accounts and manage who has access to what. Role changes take effect immediately."
 />
+
+<StaffInvitesPanel />
 
 {#if error}
   <Alert variant="destructive" class="mb-4 flex items-center justify-between gap-4">

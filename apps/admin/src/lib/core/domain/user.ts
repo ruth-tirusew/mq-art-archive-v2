@@ -1,6 +1,6 @@
-export type Role = 'public' | 'artist' | 'institution' | 'contributor' | 'admin';
+export type Role = 'public' | 'artist' | 'institution' | 'contributor' | 'moderator' | 'admin';
 
-export const ROLES: readonly Role[] = ['public', 'artist', 'institution', 'contributor', 'admin'];
+export const ROLES: readonly Role[] = ['public', 'artist', 'institution', 'contributor', 'moderator', 'admin'];
 
 export interface User {
   id: string;

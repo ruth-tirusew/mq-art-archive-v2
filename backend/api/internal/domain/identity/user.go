@@ -13,7 +13,9 @@ const (
 	RoleArtist      Role = "artist"
 	RoleInstitution Role = "institution"
 	RoleContributor Role = "contributor"
-	RoleAdmin       Role = "admin"
+	// RoleModerator reviews and moderates content but cannot manage users or change system settings.
+	RoleModerator Role = "moderator"
+	RoleAdmin     Role = "admin"
 )
 
 type User struct {
@@ -51,3 +53,7 @@ func DefaultNotificationPreferences(userID uuid.UUID) NotificationPreferences {
 		UpdatedAt:               time.Now().UTC(),
 	}
 }
+
+// IsStaff reports whether the role may use the admin app. Staff can do different things inside it: see the
+// admin routes in the HTTP router for which are admin-only.
+func (r Role) IsStaff() bool { return r == RoleAdmin || r == RoleModerator }

@@ -36,6 +36,38 @@ The `digest` service (`cmd/digest`) is a long-lived process, like `scraper` — 
 - Uses the same mail settings as the rest of the API (`SMTP_*` or `RESEND_API_KEY`, and `MAIL_FROM`), and `TELEGRAM_BOT_TOKEN` from the section above for the Telegram side. Both are optional independently: with no bot token, Telegram-linked recipients are simply skipped; with no `RESEND_API_KEY`, email falls back to the log mailer (nothing actually sent — fine for local dev, not for production).
 - `WEB_APP_URL` and `PUBLIC_API_URL` are used to build the links inside the digest (event/article/artist pages point at `WEB_APP_URL`; the unsubscribe link points at `PUBLIC_API_URL`, since that's served by the API, not the frontend).
 
+## Staff: admins and moderators
+
+Two roles may use the admin app. **Moderators** do the review and content work (applications, wiki submissions, artworks and
+artist profiles, events, artist invites, the questionnaire). **Admins** can also manage users and roles, invite other staff, and
+change the scrape and Telegram settings. The split is enforced by the API, not just hidden in the UI: those routes sit in a
+separate admin-only group in `router.go`, so add a new admin route to the group that matches who should use it.
+
+An admin makes a moderator in either of two ways:
+
+- **Promote an account that already exists:** Admin → Users, change the person's role to *Moderator*.
+- **Invite someone new by email:** Admin → Users → *Invite a moderator*. The person gets a one-time link to the admin app
+  (`/accept-invite`), chooses a password, and has a verified moderator account. The link works once, expires after 7 days,
+  and can be resent (the old link stops working) or cancelled. An address that already has an account is refused; promote it instead.
+
+An email invite can only create a *moderator*. Making an admin is a deliberate step on the Users page, so a leaked invite link can
+never create one. Set `ADMIN_APP_URL` to where the admin app is served, because the invite email links there (default
+`http://localhost:5174`), and make sure that origin is in `CORS_ORIGINS`.
+
+## Google sign-in
+
+Google sign-in needs three things to line up: the API's `OAUTH_CALLBACK_URL`, the OAuth client's **Authorized redirect URIs** in the Google
+Cloud console, and the app's allowed return origins (`CORS_ORIGINS`). If any one is off, a sign-in ends back on the login page.
+
+- **Production / UAT:** `OAUTH_CALLBACK_URL` is the public API address, e.g. `https://<api-host>/api/v1/auth/google/callback`, and the
+  same address is listed in the Google console.
+- **Local development:** `docker-compose.override.yml` points the API's `OAUTH_CALLBACK_URL` at `http://localhost:8080/api/v1/auth/google/callback`
+  (the root `.env` holds the production value). Add that address to the OAuth client's Authorized redirect URIs in the Google Cloud console,
+  or Google refuses the sign-in with *redirect_uri_mismatch*.
+- **A person whose email already has a password account** is never signed in by Google automatically (that would let anyone take over an
+  account by registering its address). They are sent back to the sign-in page with an explanation; they sign in with their password, then
+  choose *Connect Google* in Account settings (admin app: Settings, then Account). From then on Google signs them in to the same account.
+
 ## Migrations
 
 Back up the database before applying migrations. From `backend/api`, run `goose -dir migrations postgres "$DATABASE_URL" status`, then `goose -dir migrations postgres "$DATABASE_URL" up`. Apply migrations once per release, before starting the new API instances. Inspect and resolve a failed migration rather than forcing its version.

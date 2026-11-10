@@ -35,6 +35,8 @@ type Config struct {
 	SMTPUsername string
 	SMTPPassword string
 	WebAppURL    string
+	// AdminAppURL is where the admin app lives, for links in staff emails (moderator invites).
+	AdminAppURL string
 	// PublicAPIURL is this API's own externally-reachable base URL — needed for links the
 	// API embeds in outbound content that point back at itself, like a digest email's
 	// unsubscribe link (GET {PublicAPIURL}/unsubscribe), as opposed to WebAppURL, which
@@ -125,6 +127,7 @@ func Load() Config {
 		SMTPUsername:        smtpUser,
 		SMTPPassword:        getEnv("SMTP_PASSWORD", getEnv("SMTP_PASS", "")),
 		WebAppURL:           webAppURL,
+		AdminAppURL:         getEnv("ADMIN_APP_URL", "http://localhost:5174"),
 		PublicAPIURL:        getEnv("PUBLIC_API_URL", fmt.Sprintf("http://localhost:%d", port)),
 		ErrorMonitorDSN:     getEnv("ERROR_MONITOR_DSN", ""),
 		CloudinaryCloudName: getEnv("CLOUDINARY_CLOUD_NAME", ""),

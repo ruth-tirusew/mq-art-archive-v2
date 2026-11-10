@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,4 +178,21 @@ func TestArtPostMappers(t *testing.T) {
 
 	withArtists := ToArtPostWithArtistResponses([]art.ArtPostWithArtist{{ArtPost: post, ArtistSlug: "artist"}})
 	assist.Len(t, 1, len(withArtists))
+}
+
+func TestToArtistProfileResponse_exposesTheModerationHoldOnlyWhenSet(t *testing.T) {
+	held := ToArtistProfileResponse(profile.ArtistProfile{ID: uuid.New(), Slug: "a", Status: profile.ProfileStatusDraft, ModerationHold: true})
+	assist.Equal(t, true, held.ModerationHold)
+
+	normal := ToArtistProfileResponse(profile.ArtistProfile{ID: uuid.New(), Slug: "b", Status: profile.ProfileStatusApproved})
+	assist.Equal(t, false, normal.ModerationHold)
+	// omitempty: an ordinary, public profile carries no "moderation_hold" key at all.
+	raw, err := json.Marshal(normal)
+	assist.NoError(t, err)
+	if strings.Contains(string(raw), "moderation_hold") {
+		t.Errorf("a normal profile must not carry the key: %s", raw)
+	}
+	raw, err = json.Marshal(held)
+	assist.NoError(t, err)
+	assist.Contains(t, string(raw), `"moderation_hold":true`)
 }

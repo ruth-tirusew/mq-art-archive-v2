@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authService, currentUser } from '$lib/application/auth';
+  import { isPublicPath } from '$lib/utils/adminGate';
   import { BrandLoader, ErrorBoundary, NavProgress, Toaster } from '$ui';
   import AdminSidebar from '$lib/components/AdminSidebar.svelte';
   import { SidebarProvider, SidebarTrigger } from '$lib/components/ui/sidebar';
@@ -179,8 +180,15 @@
     }
   ];
 
-  const topSections = sections.filter((s) => s.position !== 'bottom');
-  const bottomSections = sections.filter((s) => s.position === 'bottom');
+  // What a moderator sees: everything except Users, and Settings without the admin-only Integrations group.
+  const isAdmin = $derived(data.user?.role === 'admin');
+  const visibleSections = $derived(
+    sections
+      .filter((s) => isAdmin || s.id !== 'users')
+      .map((s) => (s.id === 'settings' && !isAdmin ? { ...s, groups: s.groups.filter((g) => g.heading !== 'Integrations') } : s))
+  );
+  const topSections = $derived(visibleSections.filter((s) => s.position !== 'bottom'));
+  const bottomSections = $derived(visibleSections.filter((s) => s.position === 'bottom'));
 
   // The route guard lives in +layout.ts. Here the session only feeds the shared store that pages
   // (and the login screen) read; effects never run on the server, so requests can't share it.
@@ -229,7 +237,7 @@
   }
 
   const activeSection = $derived(
-    sections.find((s) => s.match($page.url.pathname, $page.url.searchParams)) ?? sections[0]
+    visibleSections.find((s) => s.match($page.url.pathname, $page.url.searchParams)) ?? visibleSections[0]
   );
 
   const breadcrumbLeaf = $derived.by(() => {
@@ -249,9 +257,9 @@
     return activeSection.title;
   });
 
-  const isAuthRoute = $derived(
-    $page.url.pathname === '/login' || $page.url.pathname.startsWith('/auth/')
-  );
+  // The pages that need no session (sign-in, accepting an invite, the OAuth callback) are shown bare, without the
+  // admin navigation. Use the gate's own list, so a new public page can't be let in but left inside the shell.
+  const isAuthRoute = $derived(isPublicPath($page.url.pathname));
 </script>
 
 <svelte:head>
@@ -279,6 +287,7 @@
       activeSectionId={activeSection.id}
       {isItemActive}
       email={data.user?.email ?? $currentUser?.email}
+      role={data.user?.role ?? $currentUser?.role}
       onlogout={logout}
     />
 

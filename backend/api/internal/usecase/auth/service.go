@@ -127,6 +127,9 @@ func (s *Service) CompleteOAuth(ctx context.Context, provider, code, state strin
 	if !info.EmailVerified {
 		return "", nil, "", apperrors.ErrUnauthorized
 	}
+	if err := normalizeProviderEmail(info); err != nil {
+		return "", nil, "", err
+	}
 
 	user, err := s.findOrCreateUser(ctx, provider, info)
 	if err != nil {
@@ -198,6 +201,9 @@ func (s *Service) CompleteOAuthLink(ctx context.Context, provider, code, state s
 	}
 	if !info.EmailVerified {
 		return returnTo, apperrors.ErrUnauthorized
+	}
+	if err := normalizeProviderEmail(info); err != nil {
+		return returnTo, err
 	}
 
 	if existing, err := s.oauthAccounts.GetByProviderSubject(ctx, provider, info.ProviderUserID); err == nil {
@@ -649,7 +655,7 @@ func (s *Service) ListUsers(ctx context.Context, role *identity.Role, limit, off
 
 func (s *Service) UpdateUserRole(ctx context.Context, actorID, userID uuid.UUID, role identity.Role) (*identity.User, error) {
 	switch role {
-	case identity.RolePublic, identity.RoleArtist, identity.RoleInstitution, identity.RoleContributor, identity.RoleAdmin:
+	case identity.RolePublic, identity.RoleArtist, identity.RoleInstitution, identity.RoleContributor, identity.RoleModerator, identity.RoleAdmin:
 	default:
 		return nil, apperrors.ErrValidation
 	}
@@ -700,6 +706,19 @@ func (s *Service) validateReturnTo(returnTo string) error {
 	if _, ok := s.allowedReturn[origin]; !ok {
 		return apperrors.ErrForbidden
 	}
+	return nil
+}
+
+// normalizeProviderEmail lower-cases and trims the address an identity provider reports. Accounts are stored
+// lower-case and looked up by exact match, so without this "Grace@Gmail.com" from Google would not find
+// grace@gmail.com, and would create a second account for the same person (and slip past the rule that a
+// Google sign-in never takes over an existing account).
+func normalizeProviderEmail(info *outbound.OAuthUserInfo) error {
+	normalized, err := normalizeEmail(info.Email)
+	if err != nil {
+		return apperrors.ErrUnauthorized // a provider that gives no usable address cannot sign anyone in
+	}
+	info.Email = normalized
 	return nil
 }
 

@@ -234,6 +234,12 @@ func (s *Service) prepareApplication(
 }
 
 func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID, status domain.ApprovalStatus, notes string) (*domain.OnboardingApplication, error) {
+	return s.review(ctx, id, &reviewerID, status, notes)
+}
+
+// review is Review with an optional reviewer, so a decision taken by the system (an invited
+// artist, vetted when the invite was issued) can be recorded without a reviewing user.
+func (s *Service) review(ctx context.Context, id uuid.UUID, reviewerID *uuid.UUID, status domain.ApprovalStatus, notes string) (*domain.OnboardingApplication, error) {
 	if status != domain.ApprovalStatusApproved && status != domain.ApprovalStatusRejected {
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "status must be approved or rejected")
 	}
@@ -254,7 +260,7 @@ func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID
 	decided := *app
 	decided.Status = status
 	decided.ReviewNotes = reviewNotes
-	decided.ReviewedBy = &reviewerID
+	decided.ReviewedBy = reviewerID
 	decided.ReviewedAt = &now
 	decided.UpdatedAt = now
 

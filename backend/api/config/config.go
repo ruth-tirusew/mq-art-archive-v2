@@ -93,7 +93,7 @@ func Load() Config {
 	smtpUser := getEnv("SMTP_USERNAME", getEnv("SMTP_USER", ""))
 	// Most SMTP providers only accept mail from the logged-in account's own address, so that is
 	// the sensible sender when MAIL_FROM is not set.
-	mailFrom := getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>")
+	mailFrom := getEnv("MAIL_FROM", "Artiv <noreply@artiv.studio>")
 	if os.Getenv("MAIL_FROM") == "" && strings.Contains(smtpUser, "@") {
 		mailFrom = "Artiv <" + smtpUser + ">"
 	}

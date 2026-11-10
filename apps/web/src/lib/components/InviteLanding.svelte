@@ -102,8 +102,8 @@
 		<p class="text-sm text-muted-foreground">
 			Already have an account?
 			<a href={signInHref} class="text-accent underline underline-offset-4">Sign in</a>
-			<span aria-hidden="true"> · </span>
-			<a href={googleHref} class="text-accent underline underline-offset-4">Continue with Google</a>
+			<!-- <span aria-hidden="true"> · </span>
+			<a href={googleHref} class="text-accent underline underline-offset-4">Continue with Google</a> -->
 		</p>
 	</form>
 </section>

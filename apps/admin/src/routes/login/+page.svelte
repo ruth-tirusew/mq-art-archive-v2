@@ -108,7 +108,7 @@
         <Separator class="flex-1" />
       </div>
 
-      <Button href={loginUrl} variant="outline" class="w-full">Continue with Google</Button>
+      <!-- <Button href={loginUrl} variant="outline" class="w-full">Continue with Google</Button> -->
     </CardContent>
   </Card>
 </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CtaLink from '$lib/components/CtaLink.svelte';
 	import ShareableProfile from '$lib/components/ShareableProfile.svelte';
+	import { SAMPLE_ARTIST, SAMPLE_WORKS } from '$lib/components/portfolio/sampleProfile';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -66,12 +67,13 @@
 				<div class="transition hover:opacity-95">
 					<ShareableProfile artist={data.artist} works={data.posts} demo framed />
 				</div>
+				<p class="mt-4 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Featured artist</p>
 			{:else}
-				<div class="flex min-h-[420px] items-center justify-center rounded-sm border border-border bg-card/40 p-8 text-center">
-					<p class="max-w-xs text-sm leading-relaxed text-muted-foreground">
-						The featured artist preview is temporarily unavailable.
-					</p>
+				<!-- Nobody is featured yet (or the archive can't be reached): show what a profile looks like. -->
+				<div data-testid="sample-profile">
+					<ShareableProfile artist={SAMPLE_ARTIST} works={SAMPLE_WORKS} demo sample framed />
 				</div>
+				<p class="mt-4 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Sample profile</p>
 			{/if}
 		</div>
 	</div>

@@ -5,7 +5,7 @@
 	import { errorKind } from '$lib/core/domain/errors';
 	import { MIN_PASSWORD_LENGTH } from '$lib/core/domain/onboarding';
 	import type { InvitePreview } from '$lib/core/domain/invite';
-	import { Alert, Button, Field, Input, PageHeader } from '$ui';
+	import { Alert, Button, Field, PageHeader, PasswordInput } from '$ui';
 
 	type Props = {
 		invite: InvitePreview;
@@ -76,11 +76,10 @@
 
 		<Field label="Choose a password" required error={passwordError} hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}>
 			{#snippet children({ id, describedby, invalid, required })}
-				<Input
+				<PasswordInput
 					{id}
 					{required}
 					{invalid}
-					type="password"
 					aria-describedby={describedby}
 					autocomplete="new-password"
 					bind:value={password}

@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { replaceState } from '$app/navigation';
-	import { Alert, Button, Checkbox, ConfirmDialog, createConfirm, Field, Input, PageHeader, toast } from '$ui';
+	import { Alert, Button, Checkbox, ConfirmDialog, createConfirm, Field, Input, PageHeader, PasswordInput, toast } from '$ui';
 	import { authService, currentUser } from '$lib/application/auth';
 	import type { NotificationPreferences } from '$lib/core/domain/auth';
 
@@ -172,7 +172,7 @@
 		</Field>
 		<Field label="Confirm with your password" required>
 			{#snippet children({ id, required })}
-				<Input {id} {required} type="password" autocomplete="current-password" bind:value={emailCurrentPassword} />
+				<PasswordInput {id} {required} autocomplete="current-password" bind:value={emailCurrentPassword} />
 			{/snippet}
 		</Field>
 		{#if emailError}<Alert tone="error">{emailError}</Alert>{/if}
@@ -185,12 +185,12 @@
 			<form class="space-y-5" onsubmit={savePassword}>
 				<Field label="Current password" required>
 					{#snippet children({ id, required })}
-						<Input {id} {required} type="password" autocomplete="current-password" bind:value={currentPassword} />
+						<PasswordInput {id} {required} autocomplete="current-password" bind:value={currentPassword} />
 					{/snippet}
 				</Field>
 				<Field label="New password" required hint="At least 8 characters.">
 					{#snippet children({ id, describedby, required })}
-						<Input {id} {required} aria-describedby={describedby} type="password" minlength={8} autocomplete="new-password" bind:value={newPassword} />
+						<PasswordInput {id} {required} aria-describedby={describedby} minlength={8} autocomplete="new-password" bind:value={newPassword} />
 					{/snippet}
 				</Field>
 				{#if passwordError}<Alert tone="error">{passwordError}</Alert>{/if}

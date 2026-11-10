@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { PasswordInput } from '$ui';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { googleLoginUrl, safeReturnPath } from '$lib/core/domain/auth';
@@ -143,13 +144,13 @@
 			<span class="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground"
 				>Password</span
 			>
-			<input
-				type="password"
+			<PasswordInput
 				required
-				minlength="8"
+				minlength={8}
 				autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
 				bind:value={password}
-				class="mt-2 w-full rounded-sm border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground/40"
+				wrapperClass="mt-2"
+				class="w-full rounded-sm border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground/40"
 			/>
 		</label>
 

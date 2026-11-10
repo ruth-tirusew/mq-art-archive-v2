@@ -19,6 +19,7 @@ export { default as Input } from './components/Input.svelte';
 export { default as ListFooter } from './components/ListFooter.svelte';
 export { default as NavProgress } from './components/NavProgress.svelte';
 export { default as PageHeader } from './components/PageHeader.svelte';
+export { default as PasswordInput } from './components/PasswordInput.svelte';
 export { default as Select } from './components/Select.svelte';
 export { default as Skeleton } from './components/Skeleton.svelte';
 export { default as Textarea } from './components/Textarea.svelte';

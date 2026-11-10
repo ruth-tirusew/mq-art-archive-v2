@@ -20,11 +20,13 @@
 		framed?: boolean;
 		showHeader?: boolean;
 		demo?: boolean;
+		/** A made-up template profile: contact buttons show what they would look like but go nowhere. */
+		sample?: boolean;
 		/** Public questionnaire answers; they fill the bio and tags an artist has not typed in. */
 		answers?: PublicAnswer[];
 	};
 
-	let { artist, works, framed = false, showHeader = true, demo = false, answers = [] }: Props = $props();
+	let { artist, works, framed = false, showHeader = true, demo = false, sample = false, answers = [] }: Props = $props();
 
 	const handle = $derived(artistHandle(artist));
 	const name = $derived(artistName(artist));
@@ -42,6 +44,14 @@
 	};
 
 	const contactButtons = $derived.by(() => {
+		if (sample) {
+			// No href: a sample must never link to a real address, account or inbox.
+			return [
+				{ label: 'Request a commission', sub: 'Open for commission', primary: true },
+				{ label: 'Telegram', sub: '@yourname' },
+				{ label: 'Instagram', sub: '@yourname' }
+			] satisfies ContactButton[];
+		}
 		const buttons: ContactButton[] = [];
 		const email = artist.contact?.email;
 		const open = artistOpenForCommission(artist);

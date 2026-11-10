@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ConfirmDialog, createConfirm, fieldClass as inputClass, toast } from '$ui';
+  import { ConfirmDialog, createConfirm, fieldClass as inputClass, PasswordInput, toast } from '$ui';
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { replaceState } from '$app/navigation';
@@ -319,10 +319,8 @@
             </div>
             <div class="space-y-2">
               <Label for="email-password">Current password</Label>
-              <input
+              <PasswordInput
                 id="email-password"
-                type="password"
-                class={inputClass}
                 bind:value={emailPassword}
                 required
                 autocomplete="current-password"
@@ -387,10 +385,8 @@
             {/if}
             <div class="space-y-2">
               <Label for="current-password">Current password</Label>
-              <input
+              <PasswordInput
                 id="current-password"
-                type="password"
-                class={inputClass}
                 bind:value={currentPassword}
                 required
                 autocomplete="current-password"
@@ -399,10 +395,8 @@
             <div class="grid gap-4 md:grid-cols-2">
               <div class="space-y-2">
                 <Label for="new-password">New password</Label>
-                <input
+                <PasswordInput
                   id="new-password"
-                  type="password"
-                  class={inputClass}
                   bind:value={newPassword}
                   required
                   minlength={8}
@@ -411,10 +405,8 @@
               </div>
               <div class="space-y-2">
                 <Label for="confirm-password">Confirm new password</Label>
-                <input
+                <PasswordInput
                   id="confirm-password"
-                  type="password"
-                  class={inputClass}
                   bind:value={confirmPassword}
                   required
                   minlength={8}
@@ -534,10 +526,8 @@
           </div>
           <div class="space-y-2">
             <Label for="api-hash">API hash</Label>
-            <input
+            <PasswordInput
               id="api-hash"
-              type="password"
-              class={inputClass}
               bind:value={telegramApiHash}
               placeholder={scrape.telegram_api_hash_set ? '•••••••• (unchanged if blank)' : ''}
               autocomplete="off"

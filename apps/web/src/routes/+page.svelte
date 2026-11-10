@@ -1,6 +1,6 @@
 <script lang="ts">
 	import FeaturedArtistHero from '$lib/components/home/FeaturedArtistHero.svelte';
-	import HomeFallbackHero from '$lib/components/home/HomeFallbackHero.svelte';
+	import HomeEmptyHero from '$lib/components/home/HomeEmptyHero.svelte';
 	import EditorialCanvas from '$lib/components/home/EditorialCanvas.svelte';
 	import MarqueeStrip from '$lib/components/home/MarqueeStrip.svelte';
 	import HeldInCommon from '$lib/components/home/HeldInCommon.svelte';
@@ -26,7 +26,7 @@
 {#if heroSpreads.length > 0}
 	<EditorialCanvas spreads={heroSpreads} />
 {:else}
-	<HomeFallbackHero />
+	<HomeEmptyHero />
 {/if}
 
 <MarqueeStrip items={marqueeItems} />
@@ -35,6 +35,6 @@
 	<FeaturedArtistHero artist={featuredArtist} posts={data.featuredPosts ?? []} />
 {/if}
 
-<FeaturedWorks {works} excludeArtistSlug={featuredArtist?.slug} />
+<FeaturedWorks {works} featured={data.acquisitionsFeatured ?? true} excludeArtistSlug={featuredArtist?.slug} />
 
 <HeldInCommon articles={data.articles ?? []} events={data.upcomingEvents ?? []} />

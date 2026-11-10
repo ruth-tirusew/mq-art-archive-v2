@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
 	import {
+		acquisitionBlurhash,
 		acquisitionImage,
 		acquisitionPalette,
 		artistDiscipline,
@@ -10,6 +12,8 @@
 		artistLocation,
 		artistName,
 		artistPortrait,
+		artistPortraitBlurhash,
+		artistBioExcerpt,
 		artistTagline,
 		artistYearsActive
 	} from '$lib/utils/fields';
@@ -37,6 +41,13 @@
 		const works = worksFor(slug);
 		const fromWork = works[0] ? acquisitionImage(works[0]) : undefined;
 		return fromWork ?? artistPortrait(artist);
+	}
+
+	/** The blur hash of whichever image coverFor picked. */
+	function coverBlurhashFor(slug: string, artist: (typeof roster)[number]): string | undefined {
+		const works = worksFor(slug);
+		if (works[0] && acquisitionImage(works[0])) return acquisitionBlurhash(works[0]);
+		return artistPortraitBlurhash(artist);
 	}
 
 	const disciplines = $derived(
@@ -124,7 +135,7 @@
 				The <em class="italic text-accent">roster</em>.
 			</h1>
 			<p class="mt-6 max-w-xl text-balance text-lg leading-relaxed text-muted-foreground">
-				Painters, printmakers, and image-keepers working in Ethiopia and across the diaspora — held
+				Painters, printmakers, and image-keepers working in Ethiopia held
 				together by a shared inheritance and a stubborn refusal to inherit quietly.
 			</p>
 		</div>
@@ -158,9 +169,10 @@
 				class="grain relative aspect-[4/5] max-h-[min(56vh,520px)] overflow-hidden rounded-sm bg-card md:aspect-auto md:h-full md:max-h-none"
 			>
 				{#if featuredCover}
-					<img
+					<BlurhashImage
 						src={featuredCover}
 						alt={artistName(featured)}
+						blurhash={featured ? coverBlurhashFor(featured.slug, featured) : undefined}
 						class="h-full w-full object-cover transition duration-700 group-hover:scale-[1.03]"
 					/>
 				{/if}
@@ -190,6 +202,8 @@
 					<p class="mt-3 max-w-lg text-balance font-display text-lg italic text-cream/85 md:text-xl">
 						"{artistTagline(featured)}"
 					</p>
+				{:else if artistBioExcerpt(featured, 160)}
+					<p class="mt-3 max-w-lg text-balance text-base leading-relaxed text-cream/75">{artistBioExcerpt(featured, 160)}</p>
 				{/if}
 			</div>
 			<div class="mt-5 flex flex-wrap items-end justify-between gap-4">
@@ -269,9 +283,10 @@
 					<a href="/artists/{a.slug}" class="flex min-h-0 flex-1 flex-col">
 						<div class="relative overflow-hidden {isLarge ? 'flex-1' : 'aspect-[5/3]'} bg-muted">
 							{#if cover}
-								<img
+								<BlurhashImage
 									src={cover}
 									alt={artistName(a)}
+									blurhash={coverBlurhashFor(a.slug, a)}
 									loading="lazy"
 									class="h-full w-full object-cover grayscale transition duration-700 group-hover:scale-[1.04] group-hover:grayscale-0"
 								/>
@@ -324,6 +339,8 @@
 							<p class="border-t border-border/60 px-3 py-2 font-display text-sm italic text-foreground/75">
 								"{artistTagline(a)}"
 							</p>
+						{:else if isLarge && artistBioExcerpt(a)}
+							<p class="line-clamp-3 border-t border-border/60 px-3 py-2 text-sm leading-relaxed text-foreground/75">{artistBioExcerpt(a)}</p>
 						{/if}
 					</a>
 					<div class="border-t border-border/60 px-3 py-1.5">

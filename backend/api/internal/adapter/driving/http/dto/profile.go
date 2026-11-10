@@ -32,6 +32,7 @@ type ArtistProfileResponse struct {
 	Tagline           string              `json:"tagline,omitempty"`
 	YearsActive       string              `json:"years_active,omitempty"`
 	PortraitURL       string              `json:"portrait_url,omitempty"`
+	PortraitBlurhash  string              `json:"portrait_blurhash,omitempty"`
 	Featured          bool                `json:"featured"`
 	Influences        []string            `json:"influences"`
 	InResidence       bool                `json:"in_residence"`
@@ -62,6 +63,7 @@ func ToArtistProfileResponse(p domain.ArtistProfile) ArtistProfileResponse {
 		Tagline:           p.Tagline,
 		YearsActive:       p.YearsActive,
 		PortraitURL:       p.PortraitURL,
+		PortraitBlurhash:  p.PortraitBlurhash,
 		Featured:          p.Featured,
 		Influences:        influences,
 		InResidence:       p.InResidence,

@@ -7,7 +7,7 @@
   import { Alert } from '$lib/components/ui/alert';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
-  import { Field, Input } from '$ui';
+  import { Field, Input, PasswordInput } from '$ui';
   import { Separator } from '$lib/components/ui/separator';
 
   const loginUrl = $derived(googleLoginUrl($page.url.origin));
@@ -78,7 +78,7 @@
         </Field>
         <Field label="Password" required>
           {#snippet children({ id, required })}
-            <Input {id} {required} type="password" minlength={8} autocomplete="current-password" bind:value={password} />
+            <PasswordInput {id} {required} minlength={8} autocomplete="current-password" bind:value={password} />
           {/snippet}
         </Field>
         <Button type="submit" class="w-full" disabled={submitting}>

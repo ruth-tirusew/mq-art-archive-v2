@@ -1,5 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
 import { ApiError } from '$lib/adapters/api/client';
+import { ACCESS_DENIED_PATH, LOGIN_PATH } from '$lib/utils/adminGate';
 
 /**
  * Run an admin loader: 401/403 redirect to login, 404 is a real 404, anything else is a retryable 503. Sending unauthenticated/forbidden responses to the login page.
@@ -13,9 +14,9 @@ export async function requireAdmin<T>(load: () => Promise<T>): Promise<T> {
     return await load();
   } catch (err) {
     if (err instanceof ApiError) {
-      if (err.status === 401 || err.status === 403) {
-        redirect(302, '/login');
-      }
+      if (err.status === 401) redirect(302, LOGIN_PATH);
+      // A signed-in non-admin should be told why, not shown a bare login page.
+      if (err.status === 403) redirect(302, ACCESS_DENIED_PATH);
       // 404 and other 4xx carry a useful message; 5xx text is not user-facing.
       if (err.status >= 500) error(503, 'The API is having trouble. Try again in a moment.');
       error(err.status, err.status === 404 ? 'We could not find that record.' : err.message);

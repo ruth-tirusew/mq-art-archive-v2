@@ -38,6 +38,14 @@ export const authService = {
 		return user;
 	},
 
+	verifyEmail(token: string): Promise<void> {
+		return api.verifyEmail(token);
+	},
+
+	resendVerification(): Promise<void> {
+		return api.resendVerification();
+	},
+
 	async unlinkGoogle(): Promise<void> {
 		await api.unlinkGoogle();
 		await this.load();

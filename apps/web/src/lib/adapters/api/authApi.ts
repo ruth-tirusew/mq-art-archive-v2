@@ -23,6 +23,22 @@ export class AuthApi implements AuthPort {
     });
   }
 
+  /** Emails a fresh verification link to the signed-in user. */
+  resendVerification(): Promise<void> {
+    return apiFetch<void>('/api/v1/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  verifyEmail(token: string): Promise<void> {
+    return apiFetch<void>('/api/v1/auth/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+  }
+
   unlinkGoogle(): Promise<void> {
     return apiFetch<void>('/api/v1/auth/google/link', { method: 'DELETE' });
   }

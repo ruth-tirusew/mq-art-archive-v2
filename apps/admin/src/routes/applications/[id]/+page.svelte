@@ -1,15 +1,19 @@
 <script lang="ts">
+  import { reviewBlocker } from '$lib/core/domain/onboarding';
   import { ConfirmDialog, createConfirm, toast } from '$ui';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import { goto } from '$app/navigation';
   import PageHeader from '$lib/components/PageHeader.svelte';
-  import { onboardingService } from '$lib/application/onboarding';
+  import { onboardingService } from '$lib/composition';
   import { Alert } from '$lib/components/ui/alert';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
+  import ApplicationAnswers from '$lib/components/questionnaire/ApplicationAnswers.svelte';
+  import ApplicationWorks from '$lib/components/onboarding/ApplicationWorks.svelte';
+  import ApplicationPortrait from '$lib/components/onboarding/ApplicationPortrait.svelte';
 
   let { data } = $props();
 
@@ -31,15 +35,19 @@
 
   function askReview(status: 'approved' | 'rejected') {
     errorMessage = '';
-    if (status === 'rejected' && !notes.trim()) {
-      errorMessage = 'Add a reason before rejecting. The applicant will see it.';
+    const blocker = reviewBlocker(status, notes);
+    if (blocker) {
+      errorMessage = blocker;
       return;
     }
     confirm.ask(
       status === 'approved'
         ? {
             title: 'Approve this application?',
-            description: 'The applicant is notified of the decision and gets access to the studio.',
+            description:
+              data.application.applicant_type === 'artist'
+                ? 'This publishes them straight away: their profile and submitted work go live on the site, and they are notified and get access to the studio.'
+                : 'The applicant is notified of the decision and gets access to the studio.',
             confirmLabel: 'Approve',
             run: () => review(status)
           }
@@ -83,6 +91,7 @@
     <div class="flex flex-wrap items-center gap-2">
       <Badge variant="secondary">{data.application.applicant_type}</Badge>
       <StatusBadge status={data.application.status} />
+      {#if data.application.invite_id}<Badge variant="success">Invited</Badge>{/if}
     </div>
     <CardTitle class="pt-2">{data.application.display_name}</CardTitle>
   </CardHeader>
@@ -151,4 +160,14 @@
     {/if}
   </CardContent>
 </Card>
+
+{#if data.application.applicant_type === 'artist'}
+  <ApplicationPortrait portrait={data.application.portrait} />
+  <ApplicationWorks works={data.application.works ?? []} />
+{/if}
+
+{#if data.answers}
+  <ApplicationAnswers view={data.answers} />
+{/if}
+
 <ConfirmDialog bind:open={confirm.open} {...confirm.dialog} />

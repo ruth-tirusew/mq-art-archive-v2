@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mq/api/internal/adapter/driving/http/dto"
@@ -20,12 +19,8 @@ func (h *EventHandler) ListAdmin(c *gin.Context) {
 		s := events.EventStatusPending
 		filter.Status = &s
 	}
-	if lim, err := strconv.Atoi(c.Query("limit")); err == nil && lim > 0 {
-		filter.Limit = lim
-	}
-	if off, err := strconv.Atoi(c.Query("offset")); err == nil && off > 0 {
-		filter.Offset = off
-	}
+	filter.Limit = queryLimit(c, 100) // capped
+	filter.Offset = queryOffset(c)
 
 	items, err := h.events.List(c.Request.Context(), filter)
 	if err != nil {

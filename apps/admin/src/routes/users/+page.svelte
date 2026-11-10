@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { apiFetch } from '$lib/adapters/api/client';
+  import { untrack } from 'svelte';
   import { currentUser } from '$lib/application/auth';
+  import { usersService } from '$lib/composition';
+  import { ROLES, USERS_PAGE_SIZE, type Role, type User } from '$lib/core/domain/user';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import { Button, ConfirmDialog, toast } from '$ui';
@@ -19,10 +20,9 @@
   import { cn } from '$lib/utils';
   import { plural } from '$lib/utils/plural';
 
-  type Role = 'public' | 'artist' | 'institution' | 'contributor' | 'admin';
-  type User = { id: string; email: string; role: Role; display_name?: string };
+  let { data } = $props();
 
-  const roles: Role[] = ['public', 'artist', 'institution', 'contributor', 'admin'];
+  const roles = ROLES;
   const roleBadge: Record<Role, 'default' | 'success' | 'muted' | 'warning' | 'outline'> = {
     admin: 'default',
     artist: 'success',
@@ -38,13 +38,13 @@
     admin: 'Full access to this admin panel.'
   };
 
-  let users = $state<User[]>([]);
-  let loading = $state(true);
+  // The first page comes from the route loader; only "load more" and retries fetch here.
+  let users = $state<User[]>(untrack(() => data.users));
+  let loading = $state(false);
   let error = $state('');
   let loadFailed = $state(false);
   let loadingMore = $state(false);
-  let hasMore = $state(false);
-  const PAGE = 200;
+  let hasMore = $state(untrack(() => data.users.length === USERS_PAGE_SIZE));
   let query = $state('');
   let roleFilter = $state<Role | 'all'>('all');
 
@@ -58,9 +58,9 @@
     if (more) loadingMore = true;
     else loading = true;
     try {
-      const page = await apiFetch<User[]>(`/admin/v1/users?limit=${PAGE}&offset=${more ? users.length : 0}`);
+      const page = await usersService.listPage(more ? users.length : 0);
       users = more ? [...users, ...page] : page;
-      hasMore = page.length === PAGE;
+      hasMore = page.length === USERS_PAGE_SIZE;
     } catch (cause) {
       loadFailed = true;
       error = cause instanceof Error ? cause.message : 'Could not load users';
@@ -69,8 +69,6 @@
       loadingMore = false;
     }
   }
-
-  onMount(() => load());
 
   const counts = $derived.by(() => {
     const result: Record<string, number> = { all: users.length };
@@ -98,11 +96,7 @@
     saving = true;
     error = '';
     try {
-      const updated = await apiFetch<User>(`/admin/v1/users/${pending.user.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: pending.role })
-      });
+      const updated = await usersService.changeRole(pending.user.id, pending.role);
       users = users.map((item) => (item.id === updated.id ? updated : item));
       toast.success(`${updated.email} is now ${updated.role}.`);
     } catch (cause) {

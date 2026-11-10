@@ -7,6 +7,13 @@ import (
 	"github.com/mq/api/internal/domain/identity"
 )
 
+// InvitedRegistrar is the one account-creation capability invite registration needs.
+type InvitedRegistrar interface {
+	// RegisterInvited creates an already-verified account for an address proven by an invite. The
+	// email must come from a live invite on the server, never from the requester.
+	RegisterInvited(ctx context.Context, email, password string) (accessToken string, user *identity.User, err error)
+}
+
 type AuthService interface {
 	BeginOAuth(ctx context.Context, provider, returnTo string) (authURL string, state string, err error)
 	CompleteOAuth(ctx context.Context, provider, code, state string) (accessToken string, user *identity.User, returnTo string, err error)
@@ -17,6 +24,9 @@ type AuthService interface {
 	CompleteOAuthLink(ctx context.Context, provider, code, state string, actorID uuid.UUID) (returnTo string, err error)
 	UnlinkOAuth(ctx context.Context, userID uuid.UUID, provider string) error
 	Register(ctx context.Context, email, password string) (accessToken string, user *identity.User, err error)
+	// RegisterInvited creates an already-verified account for an address proven by an invite. The
+	// email must come from a live invite on the server, never from the requester.
+	RegisterInvited(ctx context.Context, email, password string) (accessToken string, user *identity.User, err error)
 	Login(ctx context.Context, email, password string) (accessToken string, user *identity.User, err error)
 	ForgotPassword(ctx context.Context, email string) error
 	ResetPassword(ctx context.Context, token, newPassword string) error

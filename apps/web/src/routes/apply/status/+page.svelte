@@ -1,15 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { onboardingService } from '$lib/application/onboarding';
+	import { onboardingService, questionnaireService } from '$lib/composition';
+	import QuestionnaireForm from '$lib/components/questionnaire/QuestionnaireForm.svelte';
+	import type { QuestionnaireForm as QuestionnaireFormData } from '$lib/core/domain/questionnaire';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { OnboardingApplication } from '$lib/core/domain/onboarding';
-	import { ApiError } from '$lib/adapters/api/client';
+	import { isErrorKind } from '$lib/core/domain/errors';
 	import { Badge, Button, EmptyState, ErrorState, PageHeader } from '$ui';
 
 	let application = $state<OnboardingApplication | null>(null);
 	let loading = $state(true);
 	let error = $state('');
 	let notFound = $state(false);
+	// While an application is pending its answers are locked; show what was sent, read-only.
+	let submittedAnswers = $state<QuestionnaireFormData | null>(null);
 
 	const steps = ['Submitted', 'In review', 'Decision'];
 	const headline = {
@@ -26,8 +30,13 @@
 		notFound = false;
 		try {
 			application = await onboardingService.getMyApplication();
+			submittedAnswers = null;
+			if (application.status === 'pending' && application.questionnaire_revision_id) {
+				// Best effort: the status page works without it.
+				submittedAnswers = await questionnaireService.getForm().catch(() => null);
+			}
 		} catch (e) {
-			if (e instanceof ApiError && e.status === 404) {
+			if (isErrorKind(e, 'not_found')) {
 				notFound = true;
 			} else {
 				error = e instanceof Error ? e.message : 'Could not load application';
@@ -123,6 +132,12 @@
 				as there’s a decision. Meanwhile, feel free to explore the site.
 			</p>
 			<div class="mt-4"><Button variant="link" href="/">Browse Artiv →</Button></div>
+			{#if submittedAnswers}
+				<details class="mt-10 rounded-sm border border-border/70 p-6" data-testid="submitted-answers">
+					<summary class="t-eyebrow cursor-pointer text-muted-foreground">Your answers</summary>
+					<div class="mt-6"><QuestionnaireForm form={submittedAnswers} readonly /></div>
+				</details>
+			{/if}
 		{/if}
 	{/if}
 </section>

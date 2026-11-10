@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { ArtPost } from '$lib/core/domain/art';
 	import type { ArtistProfile } from '$lib/core/domain/profile';
+	import type { PublicAnswer } from '$lib/core/domain/questionnaire';
+	import { summarizeArtist } from '$lib/utils/artistSummary';
 	import {
 		acquisitionImage,
 		acquisitionTitle,
@@ -18,13 +20,18 @@
 		framed?: boolean;
 		showHeader?: boolean;
 		demo?: boolean;
+		/** A made-up template profile: contact buttons show what they would look like but go nowhere. */
+		sample?: boolean;
+		/** Public questionnaire answers; they fill the bio and tags an artist has not typed in. */
+		answers?: PublicAnswer[];
 	};
 
-	let { artist, works, framed = false, showHeader = true, demo = false }: Props = $props();
+	let { artist, works, framed = false, showHeader = true, demo = false, sample = false, answers = [] }: Props = $props();
 
 	const handle = $derived(artistHandle(artist));
 	const name = $derived(artistName(artist));
 	const portrait = $derived(artistPortrait(artist));
+	const summary = $derived(summarizeArtist(artist, answers));
 	const discipline = $derived(artistDiscipline(artist) ?? '');
 	const location = $derived(artistLocation(artist));
 	const archiveHref = $derived(`/artists/${artist.slug}`);
@@ -37,6 +44,14 @@
 	};
 
 	const contactButtons = $derived.by(() => {
+		if (sample) {
+			// No href: a sample must never link to a real address, account or inbox.
+			return [
+				{ label: 'Request a commission', sub: 'Open for commission', primary: true },
+				{ label: 'Telegram', sub: '@yourname' },
+				{ label: 'Instagram', sub: '@yourname' }
+			] satisfies ContactButton[];
+		}
 		const buttons: ContactButton[] = [];
 		const email = artist.contact?.email;
 		const open = artistOpenForCommission(artist);
@@ -86,7 +101,10 @@
 		return buttons;
 	});
 
-	const bioPreview = $derived((artist.bio ?? artist.tagline ?? '').slice(0, 110));
+	const bioPreview = $derived.by(() => {
+		const text = summary.bio || summary.tagline;
+		return text.length > 140 ? `${text.slice(0, 140).trimEnd()}…` : text;
+	});
 </script>
 
 {#snippet profileInner()}
@@ -117,7 +135,15 @@
 		</div>
 
 		{#if bioPreview}
-			<p class="mt-4 text-sm leading-relaxed text-foreground/85">{bioPreview}…</p>
+			<p class="mt-4 text-sm leading-relaxed text-foreground/85">{bioPreview}</p>
+		{/if}
+
+		{#if summary.tags.length > 0}
+			<div class="mt-3 flex flex-wrap gap-1.5">
+				{#each summary.tags.slice(0, 6) as tag}
+					<span class="rounded-full border border-border px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground">{tag}</span>
+				{/each}
+			</div>
 		{/if}
 
 		{#if contactButtons.length > 0}

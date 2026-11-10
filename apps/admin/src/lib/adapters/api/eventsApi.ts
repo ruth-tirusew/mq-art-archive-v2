@@ -1,10 +1,10 @@
 import { apiFetch } from '$lib/adapters/api/client';
+import { pageQuery, type PageParams } from '$lib/adapters/api/pageQuery';
 import type { Event, EventStatus, EventWrite, ReviewStatus, SyncEventsResult } from '$lib/core/domain/event';
 
 export class EventsApi {
-  list(status?: EventStatus | 'all'): Promise<Event[]> {
-    const q = status && status !== 'all' ? `?status=${status}` : status === 'all' ? '?status=all' : '';
-    return apiFetch<Event[]>(`/admin/v1/events${q}`);
+  list(status?: EventStatus | 'all', page?: PageParams): Promise<Event[]> {
+    return apiFetch<Event[]>(`/admin/v1/events${pageQuery(status, page)}`);
   }
 
   getById(id: string): Promise<Event> {

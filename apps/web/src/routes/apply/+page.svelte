@@ -1,13 +1,123 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { goto } from "$app/navigation";
-  import { onboardingService } from "$lib/application/onboarding";
-  import { ApiError } from "$lib/adapters/api/client";
+  import { page } from "$app/stores";
+  import { authService, currentUser } from "$lib/application/auth";
+  import { inviteService } from "$lib/composition";
+  import { onboardingService } from "$lib/composition";
+  import { questionnaireService } from "$lib/composition";
+  import { applicantWorksService, workDraftStore } from "$lib/composition";
+  import { isErrorKind } from "$lib/core/domain/errors";
+  import {
+    composeLinkNotes,
+    isValidHandle,
+    normalizeHandle,
+    parseLinkNotes,
+    worksShortfall,
+    workDraftProblem,
+    type ApplicantPortrait,
+    type ApplicantWork,
+    type PortraitDraft,
+    type WorkDraft,
+  } from "$lib/core/domain/onboarding";
+  import QuestionnaireForm from "$lib/components/questionnaire/QuestionnaireForm.svelte";
+  import ApplicantWorks from "$lib/components/onboarding/ApplicantWorks.svelte";
+  import ApplicantPortraitPicker from "$lib/components/onboarding/ApplicantPortraitPicker.svelte";
+  import BlurhashImage from "$lib/components/BlurhashImage.svelte";
+  import SafeHtml from "$lib/components/SafeHtml.svelte";
+  import type { InvitePreview } from "$lib/core/domain/invite";
+  import type { FormQuestion, QuestionnaireForm as QuestionnaireFormData } from "$lib/core/domain/questionnaire";
+  import { answerText, formatFor, isBlankAnswer, linkLabel, safeHttpUrl } from "$lib/utils/answers";
   import { Alert, Button, Field, Input, PageHeader, Textarea } from "$ui";
 
   // Institutions are not onboarded through this form for now.
   const applicantType = "artist" as const;
 
+  // The work an applicant shows (at least five pieces). Chosen pieces stay local drafts, with a local
+  // preview, until the application is submitted; only then are they uploaded. `storedWorks` are ones
+  // already on the server from an earlier, rejected application.
+  let drafts = $state<WorkDraft[]>([]);
+  let storedWorks = $state<ApplicantWork[]>([]);
+  let uploadProgress = $state("");
+  const worksTotal = $derived(storedWorks.length + drafts.length);
+  const worksShort = $derived(worksShortfall(worksTotal));
+  const worksProblem = $derived(drafts.some((d) => workDraftProblem(d)));
+  const worksReady = $derived(worksShort === 0 && !worksProblem);
+
+  // The portrait an artist applies with: chosen locally and uploaded on submit, like the works.
+  // `storedPortrait` is one already on the server from an earlier, rejected application.
+  let portraitDraft = $state<PortraitDraft | null>(null);
+  let storedPortrait = $state<ApplicantPortrait | null>(null);
+  let portraitKept = $state(false);
+  const portraitReady = $derived(portraitDraft !== null || storedPortrait !== null);
+  const artReady = $derived(worksReady && portraitReady);
+
+  // Preview URLs point at files in memory; let them go when the page does.
+  onDestroy(() => {
+    drafts.forEach((d) => URL.revokeObjectURL(d.previewUrl));
+    if (portraitDraft) URL.revokeObjectURL(portraitDraft.previewUrl);
+  });
+
+  // Chosen pieces are also kept in this browser, per account, until submit: a refresh or a closed
+  // tab gives them back instead of losing five or more images. Still nothing is uploaded early.
+  let draftsKept = $state(false);
+  let draftsRestoredFor: string | null = null;
+  let draftsReady = $state(false);
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  $effect(() => {
+    const userId = $currentUser?.id;
+    if (!userId || draftsRestoredFor === userId) return;
+    draftsRestoredFor = userId;
+    draftsReady = false;
+    void workDraftStore.load(userId).then((restored) => {
+      if (draftsRestoredFor !== userId) return;
+      // Anything picked while this was loading stays; restored pieces go first, as they were.
+      drafts = [...restored.filter((r) => !drafts.some((d) => d.key === r.key)), ...drafts];
+      draftsKept = restored.length > 0;
+      draftsReady = true;
+    });
+    void workDraftStore.loadPortrait(userId).then((file) => {
+      // A photo chosen while this was loading wins over the one that was saved.
+      if (draftsRestoredFor !== userId || !file || portraitDraft) return;
+      portraitDraft = { file, previewUrl: URL.createObjectURL(file) };
+      portraitKept = true;
+    });
+  });
+
+  // Keep the chosen portrait in this browser too, so a refresh doesn't lose it.
+  $effect(() => {
+    const userId = $currentUser?.id;
+    const file = portraitDraft?.file ?? null;
+    if (!userId || !draftsReady) return;
+    void workDraftStore.savePortrait(userId, file).then((ok) => (portraitKept = ok && file !== null));
+  });
+
+  // Someone re-applying after a rejection may already have a portrait stored.
+  $effect(() => {
+    if (!reapplying) return;
+    void applicantWorksService
+      .getPortrait()
+      .then((p) => (storedPortrait ??= p))
+      .catch(() => {});
+  });
+
+  $effect(() => {
+    const userId = $currentUser?.id;
+    // Read every field that should trigger a save, so typing a title is kept too.
+    const snapshot = drafts.map((d) => [d.key, d.title, d.medium, d.year, d.workId]);
+    // Before the restore finishes, an empty list would wipe what is stored.
+    if (!userId || !draftsReady) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      const ok = await workDraftStore.save(userId, drafts);
+      draftsKept = ok && snapshot.length > 0;
+    }, 400);
+    return () => clearTimeout(saveTimer);
+  });
+
+  // About you, Your work/answers, Your art, Review.
+  const REVIEW_STEP = 4;
   let step = $state(1);
   let instagram = $state("");
   let website = $state("");
@@ -25,8 +135,44 @@
   let attempted = $state(false);
   let handleTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const normalizedHandle = $derived(requestedHandle.trim().toLowerCase());
-  const validHandle = $derived(/^[a-z0-9_]{3,30}$/.test(normalizedHandle));
+  // The questionnaire replaces the free-text "Your work" step once an admin has published one.
+  // "none" means no questionnaire is published yet (the plain form applies). "error" means we
+  // couldn't find out, and applying on the plain form then would just fail at submit.
+  let form = $state<QuestionnaireFormData | null>(null);
+  let formState = $state<"loading" | "ready" | "none" | "error">("loading");
+  let formRef = $state<ReturnType<typeof QuestionnaireForm>>();
+  let reviewValues = $state<Record<string, string>>({});
+  let savingStep = $state(false);
+
+  // Invites arrive as /apply?invite=TOKEN.
+  const inviteToken = $derived($page.url.searchParams.get("invite"));
+  let invite = $state<InvitePreview | null>(null);
+  let inviteMessage = $state("");
+  let resendState = $state<"idle" | "sending" | "sent" | "failed">("idle");
+
+  const inviteLive = $derived(invite?.status === "live");
+  const emailMatches = $derived(
+    !invite || !$currentUser || invite.email.toLowerCase() === $currentUser.email.toLowerCase(),
+  );
+  const needsVerify = $derived(inviteLive && !!$currentUser && !$currentUser.email_verified);
+  // The invite is only claimed when the signed-in account is the invited one and is verified.
+  const usingInvite = $derived(inviteLive && emailMatches && !needsVerify);
+
+  // Fill gaps from the invite the first time it becomes usable. That can be well after load (for
+  // example once the invitee verifies their email), so this is an effect rather than a one-off.
+  // It never overwrites anything the applicant already has or has typed.
+  let prefilledFromInvite = false;
+  $effect(() => {
+    if (!usingInvite || !invite || prefilledFromInvite) return;
+    prefilledFromInvite = true;
+    if (!displayName.trim()) displayName = invite.display_name ?? "";
+    if (!requestedHandle.trim()) requestedHandle = invite.handle ?? "";
+  });
+
+  const stepLabels = $derived(["About you", formState === "none" ? "Your work" : "Your answers", "Your art", "Review"]);
+
+  const normalizedHandle = $derived(normalizeHandle(requestedHandle));
+  const validHandle = $derived(isValidHandle(normalizedHandle));
 
   $effect(() => {
     const handle = normalizedHandle;
@@ -35,6 +181,11 @@
     handleCheckFailed = false;
     checkingHandle = false;
     if (!validHandle) return;
+    // A live invite reserves its handle for the invitee, so the public check would call it taken.
+    if (usingInvite && invite?.handle === handle) {
+      handleAvailable = true;
+      return;
+    }
 
     handleTimer = setTimeout(async () => {
       checkingHandle = true;
@@ -62,19 +213,57 @@
       (handleAvailable === true || handleCheckFailed),
   );
 
-  const notes = $derived(
-    [
-      instagram.trim() && `Instagram: ${instagram.trim()}`,
-      website.trim() && `Website: ${website.trim()}`,
-      telegram.trim() && `Telegram: ${telegram.trim()}`,
-      about.trim() && `About my practice:\n${about.trim()}`,
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  );
+  const notes = $derived(composeLinkNotes({ instagram, website, telegram, about }));
+
+  const inviteProblems: Record<string, string> = {
+    claimed: "This invitation has already been used. If that was you, check your application status.",
+    expired: "This invitation has expired. Ask the Artiv team for a new link. You can still apply below.",
+    revoked: "This invitation was cancelled. You can still apply below, or ask the team for a new link.",
+  };
+
+  async function loadInvite() {
+    if (!inviteToken) return;
+    try {
+      invite = await inviteService.preview(inviteToken);
+      if (invite.status !== "live") inviteMessage = inviteProblems[invite.status] ?? "";
+    } catch (e) {
+      invite = null;
+      inviteMessage =
+        isErrorKind(e, "not_found")
+          ? "We couldn't find that invitation. Check the link, or apply below."
+          : "We couldn't check your invitation just now. You can still apply below.";
+    }
+  }
+
+  async function loadForm() {
+    formState = "loading";
+    try {
+      form = await questionnaireService.getForm();
+      formState = form ? "ready" : "none";
+    } catch {
+      form = null;
+      formState = "error";
+    }
+  }
+
+  async function resendVerification() {
+    resendState = "sending";
+    try {
+      await authService.resendVerification();
+      resendState = "sent";
+    } catch {
+      resendState = "failed";
+    }
+  }
+
+  async function recheckVerification() {
+    await authService.load();
+  }
 
   // Pre-fill when re-applying after a rejection.
   onMount(async () => {
+    void loadForm();
+    void loadInvite();
     try {
       const previous = await onboardingService.getMyApplication();
       if (previous.status === "pending") {
@@ -84,13 +273,13 @@
       if (previous.status === "rejected") {
         displayName = previous.display_name;
         requestedHandle = previous.requested_handle ?? "";
-        about = previous.notes ?? "";
+        ({ instagram, website, telegram, about } = parseLinkNotes(previous.notes ?? ""));
         reapplying = true;
       }
     } catch (e) {
       // 404 means no earlier application: start fresh. Anything else we can still recover from,
       // but say so instead of silently pretending there is no history.
-      if (!(e instanceof ApiError && e.status === 404)) priorCheckFailed = true;
+      if (!isErrorKind(e, "not_found")) priorCheckFailed = true;
     }
   });
 
@@ -109,27 +298,95 @@
   });
   const workError = $derived(attempted && !hasWork ? "Add at least one link, or a few lines about your work." : undefined);
 
-  function next() {
+  async function next() {
     attempted = true;
     if (step === 1 && !step1Ok) return;
-    if (step === 2 && !hasWork) return;
+    // Don't move past step 2 until we know which form applies.
+    if (step === 2 && (formState === "loading" || formState === "error")) return;
+    if (step === 2 && form) {
+      // Show every problem, then make sure what's on screen is what we've saved.
+      if (!formRef?.validate()) return;
+      savingStep = true;
+      const saved = await formRef.flush();
+      savingStep = false;
+      if (!saved) {
+        error = "We couldn't save your answers just now. Check your connection and try again.";
+        return;
+      }
+      error = "";
+      reviewValues = formRef.current();
+    } else if (step === 2 && !hasWork) {
+      return;
+    }
+    // Step 3: at least five pieces of work.
+    if (step === 3 && !artReady) return;
     attempted = false;
     step += 1;
+  }
+
+  const reviewQuestions = $derived(
+    form ? [...form.revision.questions].sort((a, b) => a.position - b.position) : [],
+  );
+
+  function reviewText(q: FormQuestion): string {
+    const body = reviewValues[q.key] ?? "";
+    return q.type === "choice"
+      ? answerText({ key: q.key, type: q.type, prompt_en: q.prompt_en, options: q.options, body, format: "plain", lang: "en" })
+      : body;
   }
 
   async function submit() {
     submitting = true;
     error = "";
     try {
-      await onboardingService.submit({
-        applicant_type: applicantType,
-        display_name: displayName.trim(),
-        requested_handle: normalizedHandle,
-        notes: notes.trim(),
-      });
+      // The only moment images leave the browser. A failure stops here, before the application is
+      // sent, and a retry only uploads the pieces that are left.
+      try {
+        // The portrait first: it is one image, and an application can't go without it.
+        if (portraitDraft) {
+          uploadProgress = "Uploading your photo…";
+          storedPortrait = await applicantWorksService.uploadPortrait(portraitDraft.file);
+          URL.revokeObjectURL(portraitDraft.previewUrl);
+          portraitDraft = null;
+        }
+        await applicantWorksService.uploadDrafts(drafts, {
+          onProgress: (done, total) => (uploadProgress = `Uploading ${Math.min(done + 1, total)} of ${total}…`),
+        });
+      } catch (e) {
+        error = `We couldn't upload all your pieces (${e instanceof Error ? e.message : "upload failed"}). Your application hasn't been sent. Try again and we'll carry on with the ones that are left.`;
+        return;
+      } finally {
+        uploadProgress = "";
+      }
+      if (usingInvite && inviteToken) {
+        await inviteService.claim({
+          token: inviteToken,
+          display_name: displayName.trim(),
+          requested_handle: normalizedHandle,
+          // Same rule as below: with a questionnaire the answers are the application.
+          notes: form ? "" : notes.trim(),
+        });
+      } else {
+        await onboardingService.submit({
+          applicant_type: applicantType,
+          display_name: displayName.trim(),
+          requested_handle: normalizedHandle,
+          // With a questionnaire the answers are the application; the free-text notes only apply to the plain form.
+          notes: form ? "" : notes.trim(),
+        });
+      }
+      // Sent: the pieces are on the server now, so the copy in this browser can go.
+      if ($currentUser) {
+        await workDraftStore.clear($currentUser.id);
+        await workDraftStore.savePortrait($currentUser.id, null);
+      }
+      drafts.forEach((d) => URL.revokeObjectURL(d.previewUrl));
+      drafts = [];
       await goto("/apply/status");
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
+      if (isErrorKind(e, "forbidden") && usingInvite) {
+        error = "This invitation was sent to a different email address, or your email isn't verified yet.";
+      } else if (isErrorKind(e, "conflict")) {
         error =
           "We couldn't submit this. Either the handle was just taken or you already have an application under review. Check your application status, or try a different handle.";
       } else {
@@ -148,10 +405,38 @@
 <section class="mx-auto max-w-2xl px-6 py-16 md:px-10 md:py-24">
   <PageHeader
     eyebrow="Artist application"
-    lead="Artiv is a home for Ethiopian artists to share their work. Tell us a little about you, and our team will take a look — usually within a few days. You'll get an email when there's a decision, and once approved you can set up your public profile and publish right away."
+    lead="Artiv is a home for Ethiopian artists to share their work. Tell us a little about you, and our team will take a look — usually within a few days. You'll get an email when there's a decision, and once approved your profile and the work you submit go live on Artiv."
   >
     {#if reapplying}Apply <em class="italic">again</em>{:else}Join Artiv as an <em class="italic">artist</em>{/if}
   </PageHeader>
+
+  {#if invite && inviteLive}
+    {#if !emailMatches}
+      <Alert tone="warning" class="mt-6">
+        This invitation was sent to <strong>{invite.email}</strong>, but you're signed in as
+        <strong>{$currentUser?.email}</strong>. Sign in with the invited address to use it, or continue below with a regular application.
+      </Alert>
+    {:else if needsVerify}
+      <Alert tone="warning" class="mt-6">
+        <p>
+          Please verify <strong>{$currentUser?.email}</strong> to use your invitation. We sent a link when you signed up.
+        </p>
+        <p class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <button type="button" class="underline underline-offset-4" onclick={resendVerification} disabled={resendState === "sending"}>
+            {resendState === "sent" ? "Link sent. Check your inbox" : resendState === "failed" ? "Couldn't send. Try again" : "Send the link again"}
+          </button>
+          <button type="button" class="underline underline-offset-4" onclick={recheckVerification}>I've verified</button>
+          <span class="text-muted-foreground">Or continue below as a regular application.</span>
+        </p>
+      </Alert>
+    {:else}
+      <Alert tone="success" class="mt-6">
+        You're invited{invite.display_name ? `, ${invite.display_name}` : ""}. Answer a few questions and our team will review your application as usual.
+      </Alert>
+    {/if}
+  {:else if inviteMessage}
+    <Alert tone="warning" class="mt-6">{inviteMessage}</Alert>
+  {/if}
 
   {#if priorCheckFailed}
     <Alert tone="warning" class="mt-6">
@@ -160,7 +445,7 @@
   {/if}
 
   <ol class="t-eyebrow mt-8 flex items-center gap-3 !text-[10px]" aria-label="Progress">
-    {#each ["About you", "Your work", "Review"] as label, i}
+    {#each stepLabels as label, i}
       <li class="flex items-center gap-3">
         <span
           class="flex h-6 w-6 items-center justify-center rounded-full border {step === i + 1
@@ -183,7 +468,7 @@
     novalidate
     onsubmit={(e) => {
       e.preventDefault();
-      if (step < 3) next();
+      if (step < REVIEW_STEP) void next();
       else void submit();
     }}
   >
@@ -212,7 +497,16 @@
           </div>
         {/snippet}
       </Field>
-    {:else if step === 2}
+    {:else if step === 2 && formState === "loading"}
+      <p class="t-body text-muted-foreground" role="status">Loading the application form…</p>
+    {:else if step === 2 && formState === "error"}
+      <Alert tone="error">
+        <p>We couldn't load the application form. Check your connection and try again.</p>
+        <p class="mt-2">
+          <button type="button" class="underline underline-offset-4" onclick={loadForm}>Try again</button>
+        </p>
+      </Alert>
+    {:else if step === 2 && formState === "none"}
       <p class="t-body text-muted-foreground">
         Help us see your work. Add at least one of the options below — a link to where your art lives is the quickest way to get approved.
       </p>
@@ -230,16 +524,82 @@
           <Textarea {id} {invalid} aria-describedby={describedby} rows={5} placeholder="What do you make? How long have you been at it?" bind:value={about} />
         {/snippet}
       </Field>
-    {:else}
+    {:else if step === 3}
+      <div class="space-y-10">
+        <ApplicantPortraitPicker bind:draft={portraitDraft} bind:stored={storedPortrait} showProblem={attempted} kept={portraitKept} disabled={submitting} />
+        <ApplicantWorks bind:drafts bind:existing={storedWorks} loadExisting={reapplying} showProblems={attempted} kept={draftsKept} />
+      </div>
+    {:else if step === REVIEW_STEP}
       <div class="rounded-sm border border-border/70 bg-card/30 p-6 text-sm">
         <p class="t-eyebrow text-muted-foreground">Review your application</p>
         <p class="mt-3 text-foreground">{displayName}</p>
         <p class="t-meta mt-1 text-accent">@{normalizedHandle}</p>
-        <p class="mt-4 whitespace-pre-wrap text-muted-foreground">{notes}</p>
+        {#if form}
+          <dl class="mt-6 space-y-5" data-testid="apply-review">
+            {#each reviewQuestions as q (q.key)}
+              {@const body = reviewValues[q.key] ?? ""}
+              {#if !isBlankAnswer(body, formatFor(q))}
+                <div>
+                  <dt class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{q.prompt_en}</dt>
+                  <dd class="mt-1 text-foreground">
+                    {#if formatFor(q) === "rich"}
+                      <SafeHtml html={body} />
+                    {:else if q.type === "link" && safeHttpUrl(body)}
+                      <span class="break-all">{linkLabel(safeHttpUrl(body) ?? body)}</span>
+                    {:else}
+                      <span class="whitespace-pre-wrap">{reviewText(q)}</span>
+                    {/if}
+                  </dd>
+                </div>
+              {/if}
+            {/each}
+          </dl>
+        {:else}
+          <p class="mt-4 whitespace-pre-wrap text-muted-foreground">{notes}</p>
+        {/if}
+        <div class="mt-6 flex items-center gap-4 border-t border-border/60 pt-5" data-testid="apply-review-portrait">
+          <div class="h-16 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+            {#if portraitDraft}
+              <img src={portraitDraft.previewUrl} alt="Portrait of you" class="h-full w-full object-cover" />
+            {:else if storedPortrait}
+              <BlurhashImage src={storedPortrait.url} alt="Portrait of you" blurhash={storedPortrait.blurhash} width={64} class="h-full w-full object-cover" />
+            {/if}
+          </div>
+          <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your photo</p>
+        </div>
+        <div class="mt-6 border-t border-border/60 pt-5" data-testid="apply-review-works">
+          <p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your art · {worksTotal} pieces</p>
+          <ul class="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+            {#each storedWorks as work (work.id)}
+              <li>
+                <div class="aspect-[4/5] overflow-hidden rounded-sm bg-muted">
+                  <BlurhashImage src={work.url} alt={work.title} blurhash={work.blurhash} width={200} class="h-full w-full object-cover" />
+                </div>
+                <p class="mt-1 truncate text-xs text-foreground">{work.title}</p>
+              </li>
+            {/each}
+            {#each drafts as draft (draft.key)}
+              <li>
+                <div class="aspect-[4/5] overflow-hidden rounded-sm bg-muted">
+                  <!-- Local preview: not uploaded until you submit. -->
+                  <img src={draft.previewUrl} alt={draft.title} class="h-full w-full object-cover" />
+                </div>
+                <p class="mt-1 truncate text-xs text-foreground">{draft.title}</p>
+              </li>
+            {/each}
+          </ul>
+          <p class="mt-3 text-xs text-muted-foreground">These are previews from your device. They're uploaded when you press Submit.</p>
+        </div>
       </div>
       <p class="text-xs text-muted-foreground">
         By submitting you confirm this information is accurate. After review you'll get an email, and you can check progress any time on your application status page.
       </p>
+    {/if}
+
+    {#if form}
+      <div class:hidden={step !== 2}>
+        <QuestionnaireForm bind:this={formRef} {form} />
+      </div>
     {/if}
 
     {#if error}<Alert tone="error">{error}</Alert>{/if}
@@ -248,8 +608,12 @@
       {#if step > 1}
         <Button variant="ghost" onclick={() => (step -= 1)}>Back</Button>
       {/if}
-      <Button type="submit" loading={submitting}>
-        {step < 3 ? "Continue" : submitting ? "Submitting…" : "Submit application"}
+      <Button
+        type="submit"
+        loading={submitting || savingStep}
+        disabled={(step === 2 && (formState === "loading" || formState === "error")) || (step === 3 && !artReady)}
+      >
+        {step < REVIEW_STEP ? (savingStep ? "Saving…" : "Continue") : submitting ? (uploadProgress || "Submitting…") : "Submit application"}
       </Button>
     </div>
   </form>

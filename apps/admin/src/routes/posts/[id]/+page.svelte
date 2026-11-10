@@ -14,7 +14,8 @@
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
-  import { Textarea } from '$lib/components/ui/textarea';
+  import RichTextEditor from '$lib/components/RichTextEditor.svelte';
+  import { htmlText } from '$lib/utils/richText';
 
   let { data } = $props();
   let post = $state(data.post);
@@ -204,7 +205,7 @@
           </div>
           <div class="space-y-2">
             <Label for="description">Description</Label>
-            <Textarea id="description" rows={4} bind:value={description} />
+            <RichTextEditor value={description} label="Description" onchange={(html) => (description = html)} />
           </div>
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-2">
@@ -311,7 +312,7 @@
               {/if}
             </p>
             <p class="line-clamp-3 text-sm text-muted-foreground">
-              {artist.tagline || artist.bio || 'No bio.'}
+              {artist.tagline || htmlText(artist.bio ?? '') || 'No bio.'}
             </p>
             <div class="flex flex-wrap gap-1.5 pt-1">
               {#if artist.status}<StatusBadge status={artist.status} />{/if}

@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -61,5 +62,55 @@ func TestCompleteUploadRejectsUnsafeMetadata(t *testing.T) {
 		if _, err := svc.CompleteUpload(context.Background(), uuid.New(), completion); err == nil {
 			t.Errorf("case %d: expected error", i)
 		}
+	}
+}
+
+type deliveryStub struct{}
+
+func (deliveryStub) ThumbnailURL(publicID string) (string, error) {
+	return "https://res.cloudinary.com/cloud/image/upload/w_64/" + publicID, nil
+}
+
+type hasherStub struct {
+	hash string
+	err  error
+	got  string
+}
+
+func (h *hasherStub) EncodeURL(_ context.Context, url string) (string, error) {
+	h.got = url
+	return h.hash, h.err
+}
+
+var completion = domain.Completion{
+	PublicID: "mq/abc", SecureURL: "https://res.cloudinary.com/cloud/image/upload/v1/mq/abc.webp",
+	ResourceType: "image", Format: "webp", Width: 100, Height: 200, Bytes: 1024,
+}
+
+func TestCompleteUploadStoresTheBlurhashOfTheThumbnail(t *testing.T) {
+	hasher := &hasherStub{hash: "LEHV6nWB2yk8pyo0adR*.7kCMdnj"}
+	repo := &repoStub{}
+	svc := NewService(signerStub{}, storageStub{}, repo, "mq", WithBlurhash(deliveryStub{}, hasher))
+	asset, err := svc.CompleteUpload(context.Background(), uuid.New(), completion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asset.Blurhash != "LEHV6nWB2yk8pyo0adR*.7kCMdnj" || repo.saved.Blurhash != asset.Blurhash {
+		t.Fatalf("blur hash not stored: %q", asset.Blurhash)
+	}
+	if hasher.got != "https://res.cloudinary.com/cloud/image/upload/w_64/mq/abc" {
+		t.Fatalf("the hash should come from the tiny rendition, not the original: %s", hasher.got)
+	}
+}
+
+func TestCompleteUploadSucceedsWithoutABlurhashWhenItCannotBeComputed(t *testing.T) {
+	repo := &repoStub{}
+	svc := NewService(signerStub{}, storageStub{}, repo, "mq", WithBlurhash(deliveryStub{}, &hasherStub{err: errors.New("cloudinary is slow")}))
+	asset, err := svc.CompleteUpload(context.Background(), uuid.New(), completion)
+	if err != nil {
+		t.Fatalf("an upload must not fail over a placeholder: %v", err)
+	}
+	if asset.Blurhash != "" || repo.saved == nil {
+		t.Fatalf("expected an asset saved with an empty hash for the backfill, got %q", asset.Blurhash)
 	}
 }

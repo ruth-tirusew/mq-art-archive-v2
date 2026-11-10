@@ -11,7 +11,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function apiResponse(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
 
   // Universal +page.ts loaders run on the server without browser cookie jar.
@@ -41,8 +41,30 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     }
     throw new ApiError(message, response.status);
   }
+  return response;
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await apiResponse(path, init);
   if (response.status === 204) {
     return undefined as T;
   }
   return (await response.json()) as T;
+}
+
+/** A list endpoint that reports the full match count in X-Total-Count. */
+export async function apiFetchPage<T>(path: string, init?: RequestInit): Promise<{ items: T[]; total: number }> {
+  const response = await apiResponse(path, init);
+  const items = (await response.json()) as T[];
+  const total = Number(response.headers.get('X-Total-Count'));
+  return { items, total: Number.isFinite(total) && total >= items.length ? total : items.length };
+}
+
+/** RequestInit for a JSON body. The API requires application/json on every request that has a body. */
+export function jsonRequest(method: 'POST' | 'PUT' | 'PATCH', body?: unknown): RequestInit {
+  return {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  };
 }

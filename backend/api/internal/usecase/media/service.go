@@ -15,14 +15,45 @@ import (
 )
 
 type Service struct {
-	signer  outbound.MediaSigner
-	storage outbound.MediaStorage
-	assets  outbound.MediaAssetRepository
-	folder  string
+	signer   outbound.MediaSigner
+	storage  outbound.MediaStorage
+	assets   outbound.MediaAssetRepository
+	folder   string
+	delivery outbound.MediaDelivery
+	hasher   outbound.BlurhashEncoder
 }
 
-func NewService(signer outbound.MediaSigner, storage outbound.MediaStorage, assets outbound.MediaAssetRepository, folder string) inbound.MediaService {
-	return &Service{signer: signer, storage: storage, assets: assets, folder: strings.Trim(folder, "/")}
+type Option func(*Service)
+
+// WithBlurhash makes completed uploads carry a blur hash, computed from a tiny rendition of the
+// image. Without it assets are stored with an empty hash for the backfill command to fill in.
+func WithBlurhash(delivery outbound.MediaDelivery, hasher outbound.BlurhashEncoder) Option {
+	return func(s *Service) { s.delivery, s.hasher = delivery, hasher }
+}
+
+func NewService(signer outbound.MediaSigner, storage outbound.MediaStorage, assets outbound.MediaAssetRepository, folder string, opts ...Option) inbound.MediaService {
+	s := &Service{signer: signer, storage: storage, assets: assets, folder: strings.Trim(folder, "/")}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+// blurhash is best-effort: an upload must not fail because the hash couldn't be computed (a
+// slow rendition, a Cloudinary hiccup). The asset is saved without one and the backfill adds it.
+func (s *Service) blurhash(ctx context.Context, publicID string) string {
+	if s.delivery == nil || s.hasher == nil {
+		return ""
+	}
+	thumb, err := s.delivery.ThumbnailURL(publicID)
+	if err != nil {
+		return ""
+	}
+	hash, err := s.hasher.EncodeURL(ctx, thumb)
+	if err != nil {
+		return ""
+	}
+	return hash
 }
 
 func (s *Service) SignForUser(ctx context.Context, _ uuid.UUID) (*domain.UploadSignature, error) {
@@ -51,7 +82,7 @@ func (s *Service) CompleteUpload(ctx context.Context, userID uuid.UUID, in domai
 	asset := domain.Asset{
 		ID: uuid.New(), OwnerUserID: userID, PublicID: in.PublicID, SecureURL: in.SecureURL,
 		ResourceType: "image", Width: &in.Width, Height: &in.Height, Bytes: &in.Bytes,
-		Folder: s.folder, CreatedAt: now, UpdatedAt: now,
+		Folder: s.folder, Blurhash: s.blurhash(ctx, in.PublicID), CreatedAt: now, UpdatedAt: now,
 	}
 	return s.assets.Create(ctx, asset)
 }

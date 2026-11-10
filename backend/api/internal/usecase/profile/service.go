@@ -16,17 +16,50 @@ import (
 )
 
 type Service struct {
-	profiles outbound.ProfileRepository
-	users    outbound.UserRepository
-	posts    outbound.ArtPostRepository
+	profiles  outbound.ProfileRepository
+	users     outbound.UserRepository
+	posts     outbound.ArtPostRepository
+	sanitizer outbound.RichTextSanitizer
+}
+
+// Option customises optional collaborators of the profile Service.
+type Option func(*Service)
+
+// WithRichText makes the service clean every bio it saves. The bio is rich text shown to visitors
+// with {@html}, so production wiring must always pass this; without it a bio is stored as given.
+func WithRichText(s outbound.RichTextSanitizer) Option {
+	return func(svc *Service) { svc.sanitizer = s }
 }
 
 func NewService(
 	profiles outbound.ProfileRepository,
 	users outbound.UserRepository,
 	posts outbound.ArtPostRepository,
+	opts ...Option,
 ) inbound.ProfileService {
-	return &Service{profiles: profiles, users: users, posts: posts}
+	svc := &Service{profiles: profiles, users: users, posts: posts}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+// maxBioText bounds what a reader sees (markup does not count); maxBioHTML bounds what is stored.
+const (
+	maxBioText = 5000
+	maxBioHTML = 30000
+)
+
+// cleanBio returns the bio as safe HTML, or "" for a blank one. ErrValidation if it is too long.
+func (s *Service) cleanBio(in string) (string, error) {
+	if s.sanitizer == nil {
+		return in, nil
+	}
+	clean, text := s.sanitizer.Sanitize(in)
+	if len([]rune(text)) > maxBioText || len(clean) > maxBioHTML {
+		return "", fmt.Errorf("%w: the bio must be %d characters or fewer", apperrors.ErrValidation, maxBioText)
+	}
+	return clean, nil
 }
 
 func (s *Service) GetArtistBySlug(ctx context.Context, slug string) (*domain.ArtistProfile, error) {
@@ -96,7 +129,11 @@ func (s *Service) UpdateOwnProfile(ctx context.Context, userID uuid.UUID, update
 	if strings.TrimSpace(update.Handle) != "" {
 		updated.Handle = slugify(update.Handle)
 	}
-	updated.Bio = update.Bio
+	bio, err := s.cleanBio(update.Bio)
+	if err != nil {
+		return nil, err
+	}
+	updated.Bio = bio
 	updated.Born = update.Born
 	updated.Discipline = update.Discipline
 	updated.Tagline = update.Tagline
@@ -257,7 +294,11 @@ func (s *Service) applyAdminWrite(ctx context.Context, current *domain.ArtistPro
 	} else if updated.Handle == "" {
 		updated.Handle = updated.Slug
 	}
-	updated.Bio = write.Bio
+	bio, err := s.cleanBio(write.Bio)
+	if err != nil {
+		return nil, err
+	}
+	updated.Bio = bio
 	updated.Born = write.Born
 	updated.Discipline = write.Discipline
 	updated.Tagline = write.Tagline

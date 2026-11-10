@@ -23,8 +23,8 @@ func (h *ProfileHandler) ListArtistsAdmin(c *gin.Context) {
 		s := profile.ProfileStatus(raw)
 		status = &s
 	}
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit := queryLimit(c, 50) // capped
+	offset := queryOffset(c)
 
 	profiles, err := h.profiles.ListAll(c.Request.Context(), status, limit, offset)
 	if err != nil {
@@ -124,8 +124,8 @@ func (h *ArtHandler) ListPostsAdmin(c *gin.Context) {
 		s := art.ArtStatus(raw)
 		status = &s
 	}
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit := queryLimit(c, 50) // capped
+	offset := queryOffset(c)
 
 	posts, err := h.art.ListAll(c.Request.Context(), status, limit, offset)
 	if err != nil {
@@ -230,8 +230,8 @@ func (h *ArticleHandler) ListArticlesAdmin(c *gin.Context) {
 		s := content.ArticleStatus(raw)
 		status = &s
 	}
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit := queryLimit(c, 50) // capped
+	offset := queryOffset(c)
 
 	articles, err := h.content.AdminList(c.Request.Context(), status, limit, offset)
 	if err != nil {
@@ -306,8 +306,8 @@ func (h *ArticleHandler) ListArticleRevisionsAdmin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid id"})
 		return
 	}
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit := queryLimit(c, 50) // capped
+	offset := queryOffset(c)
 	revs, err := h.content.AdminListRevisions(c.Request.Context(), id, limit, offset)
 	if err != nil {
 		writeError(c, err)

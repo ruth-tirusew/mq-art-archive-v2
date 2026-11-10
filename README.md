@@ -123,7 +123,7 @@ cd backend/api && go run ./cmd/scraper
 
 ### Cloudinary (pilot)
 
-Enable with `CLOUDINARY_ENABLED=true` and set cloud name, API key/secret, and folder. Studio and admin use signed direct uploads (JPEG/PNG/WebP, 10 MB max).
+Cloudinary is required in every environment: set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` and `CLOUDINARY_FOLDER` (a free Cloudinary account is enough for development). The API will not start without them. Studio and admin use signed direct uploads (JPEG/PNG/WebP, 10 MB max); originals are kept as uploaded and images are delivered as lossless WebP via Cloudinary's Go SDK.
 
 ## Testing & quality gates
 

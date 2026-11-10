@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"net/mail"
 	"net/url"
 	"strings"
@@ -225,7 +226,9 @@ func (s *Service) CompleteOAuthLink(ctx context.Context, provider, code, state s
 	// If the provider's verified email is the account's own email, that also proves ownership.
 	if s.verifiedUsers != nil {
 		if user, err := s.users.GetByID(ctx, actorID); err == nil && user.EmailVerifiedAt == nil && strings.EqualFold(user.Email, info.Email) {
-			_ = s.verifiedUsers.MarkEmailVerified(ctx, actorID, time.Now().UTC())
+			if err := s.verifiedUsers.MarkEmailVerified(ctx, actorID, time.Now().UTC()); err != nil {
+				log.Printf("auth: user %s linked a matching Google account but could not be marked verified: %v", actorID, err)
+			}
 		}
 	}
 	return returnTo, nil
@@ -245,6 +248,20 @@ func (s *Service) UnlinkOAuth(ctx context.Context, userID uuid.UUID, provider st
 }
 
 func (s *Service) Register(ctx context.Context, email, password string) (string, *identity.User, error) {
+	return s.register(ctx, email, password, false)
+}
+
+// RegisterInvited creates a password account whose email is already verified, and signs it in.
+//
+// It exists for artist invites: the invite link was delivered only to that address, so holding the
+// token proves control of the inbox and a separate verification email adds nothing. The caller MUST
+// have taken the email from a live invite on the server; it must never be reachable with an email
+// the requester typed.
+func (s *Service) RegisterInvited(ctx context.Context, email, password string) (string, *identity.User, error) {
+	return s.register(ctx, email, password, true)
+}
+
+func (s *Service) register(ctx context.Context, email, password string, verified bool) (string, *identity.User, error) {
 	normalized, err := normalizeEmail(email)
 	if err != nil {
 		return "", nil, err
@@ -271,11 +288,22 @@ func (s *Service) Register(ctx context.Context, email, password string) (string,
 		Email: normalized,
 		Role:  identity.RolePublic,
 	}
+	if verified {
+		// Created verified in the same write, so there is no window (and no failure mode) in which
+		// the account exists unverified and the invite it came from can't be claimed.
+		now := time.Now().UTC()
+		user.EmailVerifiedAt = &now
+	}
 	if err := s.users.CreateWithPassword(ctx, user, hash); err != nil {
 		return "", nil, err
 	}
-	if err := s.sendEmailVerification(ctx, user); err != nil {
-		return "", nil, err
+	if !verified {
+		// The account already exists at this point, so a mail failure must not fail the signup:
+		// the person would see an error, retry, and be told the email is taken. They can resend
+		// the verification email once signed in.
+		if err := s.sendEmailVerification(ctx, user); err != nil {
+			log.Printf("auth: user %s registered but verification email not sent: %v", user.ID, err)
+		}
 	}
 
 	token, err := s.tokens.Issue(ctx, &user)
@@ -401,7 +429,11 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) error {
 
 	resetURL := s.webAppURL + "/reset-password?token=" + url.QueryEscape(raw)
 	body := "Reset your Artiv password using this link (expires in 1 hour):\n\n" + resetURL + "\n"
-	_ = s.mailer.Send(ctx, user.Email, "Reset your Artiv password", body)
+	// Still nil on failure: the response must not reveal whether the address has an account.
+	// The link is a login, so only the user id goes to the log, never the body.
+	if err := s.mailer.Send(ctx, user.Email, "Reset your Artiv password", body); err != nil {
+		log.Printf("auth: password reset email for user %s not sent: %v", user.ID, err)
+	}
 	return nil
 }
 
@@ -539,7 +571,9 @@ func (s *Service) ChangeEmail(ctx context.Context, userID uuid.UUID, newEmail, c
 		return nil, err
 	}
 	// The new address is unverified (the repository clears the flag): ask the owner to confirm it.
-	_ = s.ResendEmailVerification(ctx, userID)
+	if err := s.ResendEmailVerification(ctx, userID); err != nil {
+		log.Printf("auth: user %s changed email but verification email not sent: %v", userID, err)
+	}
 	return s.GetMe(ctx, userID)
 }
 

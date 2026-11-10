@@ -25,6 +25,8 @@ export interface ArtistProfile {
   tagline?: string;
   years_active?: string;
   portrait_url?: string;
+  /** Compact placeholder shown while the portrait loads. */
+  portrait_blurhash?: string;
   featured?: boolean;
   influences?: string[];
   in_residence?: boolean;

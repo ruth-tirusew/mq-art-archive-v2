@@ -155,10 +155,10 @@ func (r *UserRepository) insertUser(ctx context.Context, user identity.User, pas
 	}
 
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO users (id, email, role, display_name, avatar_url, created_at, updated_at, password_hash)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO users (id, email, role, display_name, avatar_url, created_at, updated_at, password_hash, email_verified_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, user.ID, user.Email, string(user.Role), emptyToNil(user.DisplayName), emptyToNil(user.AvatarURL),
-		user.CreatedAt, user.UpdatedAt, passwordHash)
+		user.CreatedAt, user.UpdatedAt, passwordHash, user.EmailVerifiedAt)
 	if err != nil {
 		return fmt.Errorf("create user: %w", err)
 	}

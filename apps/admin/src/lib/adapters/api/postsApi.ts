@@ -1,10 +1,10 @@
 import { apiFetch } from '$lib/adapters/api/client';
+import { pageQuery, type PageParams } from '$lib/adapters/api/pageQuery';
 import type { ArtPost, ArtPostCreate, ArtPostWrite, ArtStatus } from '$lib/core/domain/art';
 
 export class PostsApi {
-  list(status?: ArtStatus): Promise<ArtPost[]> {
-    const q = status ? `?status=${status}` : '';
-    return apiFetch<ArtPost[]>(`/admin/v1/posts${q}`);
+  list(status?: ArtStatus, page?: PageParams): Promise<ArtPost[]> {
+    return apiFetch<ArtPost[]>(`/admin/v1/posts${pageQuery(status, page)}`);
   }
 
   getById(id: string): Promise<ArtPost> {

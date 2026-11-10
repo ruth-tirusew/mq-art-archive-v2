@@ -2,7 +2,7 @@
 
 ## Production configuration
 
-Set `APP_ENV=production`, disable `AUTH_DEV_MODE`, use a non-default `JWT_SECRET`, a production `DATABASE_URL`, and HTTPS-only CORS origins. If `CLOUDINARY_ENABLED=true`, all `CLOUDINARY_*` variables and a fixed `CLOUDINARY_FOLDER` are mandatory. Startup fails before connecting to the database when these checks fail.
+Set `APP_ENV=production`, disable `AUTH_DEV_MODE`, use a non-default `JWT_SECRET`, a production `DATABASE_URL`, and HTTPS-only CORS origins. All `CLOUDINARY_*` variables (cloud name, API key, API secret, folder) are mandatory in every environment, not just production. Startup fails before connecting to the database when these checks fail.
 
 `ERROR_MONITOR_DSN` is optional. When set, recovered HTTP panics are captured by the log monitor with the request ID; when empty, the no-op monitor is used. Replace the log adapter with a hosted provider adapter without changing middleware or use cases.
 
@@ -33,7 +33,7 @@ The `digest` service (`cmd/digest`) is a long-lived process, like `scraper` — 
 
 - `DIGEST_WEEKDAY` (default `monday`) and `DIGEST_HOUR` (default `9`, UTC, 0–23) set the fixed weekly send time. This is deliberately not a `SCRAPE_INTERVAL`-style duration: a plain ticker fires immediately on every process restart and drifts from a wall-clock target over time, both wrong for a "every Monday at 9am" expectation. Changing these env vars takes effect on the next process restart, computed fresh each cycle — there's no admin-UI override the way scrape settings have one.
 - A send is idempotent per recipient per channel, tracked in `digest_runs`/`digest_deliveries`: if the process crashes mid-send, the next scheduled trigger resumes the same incomplete run (same run ID) instead of starting a new one, so recipients already delivered to aren't sent to twice. This only self-heals on the *next* scheduled trigger, not immediately on restart — an interruption shortly after send time means the affected recipients wait up to a week for the retry.
-- Uses the same `RESEND_API_KEY`/`MAIL_FROM` as the rest of the API, and `TELEGRAM_BOT_TOKEN` from the section above for the Telegram side. Both are optional independently: with no bot token, Telegram-linked recipients are simply skipped; with no `RESEND_API_KEY`, email falls back to the log mailer (nothing actually sent — fine for local dev, not for production).
+- Uses the same mail settings as the rest of the API (`SMTP_*` or `RESEND_API_KEY`, and `MAIL_FROM`), and `TELEGRAM_BOT_TOKEN` from the section above for the Telegram side. Both are optional independently: with no bot token, Telegram-linked recipients are simply skipped; with no `RESEND_API_KEY`, email falls back to the log mailer (nothing actually sent — fine for local dev, not for production).
 - `WEB_APP_URL` and `PUBLIC_API_URL` are used to build the links inside the digest (event/article/artist pages point at `WEB_APP_URL`; the unsubscribe link points at `PUBLIC_API_URL`, since that's served by the API, not the frontend).
 
 ## Migrations
@@ -110,5 +110,6 @@ Other behaviour worth knowing:
 - **Account linking:** signing in with Google never attaches to an existing account by email. Users link Google explicitly from Account settings while signed in.
 - **Profile takedown:** an editor taking a live artist profile down sets `moderation_hold`; the artist cannot re-publish it until an editor approves it again.
 - **Scraper:** sources must be http(s) URLs and the fetcher refuses private, loopback and link-local addresses.
-- **Mail without a provider:** with no `RESEND_API_KEY`, one-time links are only logged when `APP_ENV=development`.
+- **Mail provider:** set `SMTP_HOST` (plus `SMTP_PORT`, default 587 STARTTLS; 465 is implicit TLS; `SMTP_USERNAME`, `SMTP_PASSWORD`, `MAIL_FROM`; `SMTP_USER`/`SMTP_PASS` also work, and the sender defaults to the username when it is an email address) to send over SMTP; it takes precedence over `RESEND_API_KEY`. For Gmail use `smtp.gmail.com:587`, your address as the username and `MAIL_FROM`, and an app password (needs 2-step verification). The API refuses to send over a non-local connection that cannot be upgraded to TLS.
+- **Mail without a provider:** with neither `SMTP_HOST` nor `RESEND_API_KEY`, one-time links are only logged when `APP_ENV=development`.
 - **Frontends:** both apps send a Content-Security-Policy (production builds), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` and HSTS.

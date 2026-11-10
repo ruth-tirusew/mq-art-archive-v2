@@ -4,6 +4,7 @@
 	import SearchProvider from '$lib/components/SearchProvider.svelte';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
+	import SessionExpiredBanner from '$lib/components/SessionExpiredBanner.svelte';
 	import { page } from '$app/stores';
 	import { authService } from '$lib/application/auth';
 	import { BrandLoader, ErrorBoundary, NavProgress, Toaster } from '$ui';
@@ -29,6 +30,7 @@
 <BrandLoader />
 <NavProgress />
 <Toaster />
+<SessionExpiredBanner />
 
 <SearchProvider>
 	<div class="page-enter min-h-screen bg-background">

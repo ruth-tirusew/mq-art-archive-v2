@@ -54,7 +54,7 @@ func TestLoad_fromEnv(t *testing.T) {
 func TestValidateProduction(t *testing.T) {
 	valid := Config{
 		AppEnv: "production", DatabaseURL: "postgres://db/prod", JWTSecret: "a-real-secret",
-		CORSOrigins: []string{"https://artiv.example"}, CloudinaryEnabled: true,
+		CORSOrigins:         []string{"https://artiv.example"},
 		CloudinaryCloudName: "cloud", CloudinaryAPIKey: "key", CloudinaryAPISecret: "secret", CloudinaryFolder: "mq",
 	}
 	if err := valid.Validate(); err != nil {
@@ -77,5 +77,28 @@ func TestLoad_devModeAuthIsOffByDefault(t *testing.T) {
 	t.Setenv("AUTH_DEV_MODE", "")
 	if Load().AuthDevMode {
 		t.Fatal("AUTH_DEV_MODE must default to false so X-User-ID auth is opt-in")
+	}
+}
+
+func TestValidateRequiresCloudinaryEverywhere(t *testing.T) {
+	dev := Config{AppEnv: "development", DatabaseURL: "postgres://db/dev"}
+	if err := dev.Validate(); err == nil {
+		t.Fatal("a development config without Cloudinary settings must not start")
+	}
+	for name, mutate := range map[string]func(*Config){
+		"cloud name": func(c *Config) { c.CloudinaryCloudName = "" },
+		"api key":    func(c *Config) { c.CloudinaryAPIKey = "" },
+		"api secret": func(c *Config) { c.CloudinaryAPISecret = "" },
+		"folder":     func(c *Config) { c.CloudinaryFolder = "" },
+	} {
+		cfg := Config{AppEnv: "development", CloudinaryCloudName: "c", CloudinaryAPIKey: "k", CloudinaryAPISecret: "s", CloudinaryFolder: "mq"}
+		mutate(&cfg)
+		if err := cfg.Validate(); err == nil {
+			t.Errorf("missing %s should fail validation", name)
+		}
+	}
+	ok := Config{AppEnv: "development", CloudinaryCloudName: "c", CloudinaryAPIKey: "k", CloudinaryAPISecret: "s", CloudinaryFolder: "mq"}
+	if err := ok.Validate(); err != nil {
+		t.Fatalf("complete development config should start: %v", err)
 	}
 }

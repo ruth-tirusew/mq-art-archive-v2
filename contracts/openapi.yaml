@@ -37,6 +37,8 @@ tags:
     description: Direct Cloudinary uploads
   - name: analytics
     description: Privacy-preserving visitor counts
+  - name: questionnaire
+    description: Admin-editable artist questionnaire, answers and nudges
 
 paths:
   /health:
@@ -650,20 +652,46 @@ paths:
   /admin/v1/applications:
     get:
       tags: [onboarding]
-      summary: List pending onboarding applications
-      operationId: listPendingApplications
+      summary: List onboarding applications (the pending queue by default)
+      operationId: listApplications
       security:
         - bearerAuth: []
         - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: >-
+            Which applications to list. Omitted means pending, the review queue (oldest first).
+            Decided applications are newest decision first.
+          schema:
+            type: string
+            enum: [pending, approved, rejected, all]
+            default: pending
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
       responses:
         "200":
-          description: Pending applications
+          description: A page of applications
+          headers:
+            X-Total-Count:
+              description: Number of applications matching the status, across all pages
+              schema: { type: integer }
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: "#/components/schemas/OnboardingApplication"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -728,6 +756,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -948,6 +978,9 @@ paths:
       tags: [onboarding]
       summary: Submit an artist or institution onboarding application
       operationId: submitApplication
+      description: |
+        Artist applications must have all required questionnaire answers saved first, once a questionnaire is
+        published (400 names the missing questions). Institutions do not answer the artist questionnaire.
       security:
         - bearerAuth: []
         - cookieAuth: []
@@ -1692,6 +1725,94 @@ paths:
       responses:
         "201": {description: Persisted asset, content: {application/json: {schema: {$ref: "#/components/schemas/MediaAsset"}}}}
         "429": {description: Rate limited}
+  /api/v1/me/application/works:
+    get:
+      tags: [onboarding]
+      summary: List the work the signed-in applicant has uploaded for their application
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Works in order, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/ApplicantWork"}}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    post:
+      tags: [onboarding]
+      summary: Add a piece of work to the application
+      description: |
+        An artist needs at least five works to apply. The image must have been uploaded by the same user
+        through `/me/application/media/sign` and `/complete`. Works are locked (409) while the application is
+        under review.
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AddApplicantWorkRequest"}}}}
+      responses:
+        "201": {description: The stored work, content: {application/json: {schema: {$ref: "#/components/schemas/ApplicantWork"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: The image does not exist or is not the caller's}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {description: Rate limited}
+  /api/v1/me/application/works/{id}:
+    delete:
+      tags: [onboarding]
+      summary: Remove a piece of work from the application
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "204": {description: Removed}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: Not one of the caller's works}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/me/application/portrait:
+    get:
+      tags: [onboarding]
+      summary: The applicant's portrait
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: The portrait, content: {application/json: {schema: {$ref: "#/components/schemas/ApplicantPortrait"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: No portrait added yet}
+    put:
+      tags: [onboarding]
+      summary: Set the applicant's portrait, replacing any earlier one
+      description: |
+        An artist needs a portrait to apply. It is not one of the five works, and is never published as an
+        artwork; on approval it becomes the profile photo unless the artist already has one. The image must
+        have been uploaded by the same user through `/me/application/media/sign` and `/complete`. Locked
+        (409) while the application is under review.
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetApplicantPortraitRequest"}}}}
+      responses:
+        "200": {description: The stored portrait, content: {application/json: {schema: {$ref: "#/components/schemas/ApplicantPortrait"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: The image does not exist or is not the caller's}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {description: Rate limited}
+    delete:
+      tags: [onboarding]
+      summary: Remove the applicant's portrait
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "204": {description: Removed}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {description: No portrait to remove}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v1/me/application/media/sign:
+    post:
+      tags: [media]
+      summary: Sign an image upload for the signed-in applicant (any role)
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      responses:
+        "200": {description: Upload signature, content: {application/json: {schema: {$ref: "#/components/schemas/MediaUploadSignature"}}}}
+        "429": {description: Rate limited}
+  /api/v1/me/application/media/complete:
+    post:
+      tags: [media]
+      summary: Validate and persist an applicant's completed upload
+      security: [{bearerAuth: []}, {cookieAuth: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MediaCompletion"}}}}
+      responses:
+        "201": {description: Persisted asset, content: {application/json: {schema: {$ref: "#/components/schemas/MediaAsset"}}}}
+        "429": {description: Rate limited}
   /admin/v1/media/sign:
     post:
       tags: [media]
@@ -1972,6 +2093,689 @@ paths:
         "200":
           description: Updated user
           content: {application/json: {schema: {$ref: "#/components/schemas/User"}}}
+
+  /api/v1/me/questionnaire:
+    get:
+      tags: [questionnaire]
+      summary: Get the questionnaire form and my answers so far
+      operationId: getMyQuestionnaire
+      description: |
+        Latest published revision plus the caller's answers. Available to any signed-in user (applicants answer before approval).
+        404 until the first revision is published; clients then fall back to the plain application form.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Form
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireForm"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /api/v1/me/questionnaire/answers:
+    put:
+      tags: [questionnaire]
+      summary: Autosave answers
+      operationId: saveMyQuestionnaireAnswers
+      description: |
+        Saves a partial form; required questions are only enforced when submitting an application.
+        Rich answers (`format: rich`, long_text only) are sanitised server-side to a small HTML allowlist.
+        All answers in the request are saved or none are. 409 while an application is under review.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveAnswersRequest"
+      responses:
+        "204":
+          description: Saved
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /api/v1/me/questionnaire/nudge:
+    get:
+      tags: [questionnaire]
+      summary: Get my pending nudge
+      operationId: getMyQuestionnaireNudge
+      description: |
+        An optional invitation to answer questions added in a newer revision. 404 when there is none.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Nudge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireNudge"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /api/v1/me/questionnaire/nudges/{revisionId}/dismiss:
+    post:
+      tags: [questionnaire]
+      summary: Dismiss a nudge
+      operationId: dismissQuestionnaireNudge
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: revisionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Dismissed
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /api/v1/artists/{slug}/answers:
+    get:
+      tags: [questionnaire]
+      summary: List an artist's public answers
+      operationId: listArtistAnswers
+      description: |
+        Only answers to public questions in the current revision. 404 unless the profile is public.
+        `body` is sanitised HTML when `format` is `rich`, and must be rendered as text when `plain`.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public answers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicAnswer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /api/v1/invites/preview:
+    post:
+      tags: [onboarding]
+      summary: Preview an artist invite
+      operationId: previewInvite
+      description: |
+        Public so the claim page can show who an invite is for. The token is sent in the body, never the URL. Rate limited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitePreviewRequest"
+      responses:
+        "200":
+          description: Invite
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitePreview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /api/v1/invites/register:
+    post:
+      tags: [onboarding]
+      summary: Create an account from an artist invite
+      operationId: registerFromInvite
+      description: |
+        Lets someone with no account join straight from their invite link. Public; rate limited like
+        registration. The request carries only the invite token and a password. The account's email is
+        taken from the invite on the server, never from the request (any `email` sent is ignored).
+
+        Because the link was delivered only to that address, the account is created **already verified**
+        and signed in (sets the auth cookie). The role stays `public`: the application the invitee then
+        submits is still approved by an admin.
+
+        409 if the invite was already used, revoked or has expired, or if that email already has an account
+        (the invite never verifies or takes over an existing account; the person should sign in instead).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteRegisterRequest"
+      responses:
+        "201":
+          description: Account created and signed in; sets auth cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/applications/invite:
+    post:
+      tags: [onboarding]
+      summary: Claim an invite and submit an application
+      operationId: claimInvite
+      description: |
+        Claims the invite and submits the application in one step; the application is still reviewed by an admin.
+        Requires a **verified** email that matches the invite (accounts created through `registerFromInvite` already are). The invite is only consumed if the application is accepted
+        (e.g. 400 if required questions are unanswered, 409 if the invite is used, expired or revoked, 403 for the wrong or unverified email).
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimInviteRequest"
+      responses:
+        "201":
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingApplication"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/applications/{id}/answers:
+    get:
+      tags: [onboarding]
+      summary: Get an application's questionnaire answers
+      operationId: getApplicationAnswers
+      description: |
+        Every answer, private ones included, shown against the revision the applicant answered. 404 if no questionnaire exists.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Review view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireReviewView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/invites:
+    get:
+      tags: [onboarding]
+      summary: List artist invites
+      operationId: listInvites
+      description: |
+        Admin only, newest first. Without `status` every invite is returned. The total number of matches
+        is in the `X-Total-Count` header.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [live, claimed, revoked, expired, all]
+            default: all
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+        - name: offset
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
+      responses:
+        "200":
+          description: Invites
+          headers:
+            X-Total-Count:
+              description: Number of invites matching the filter, ignoring limit and offset.
+              schema: {type: integer}
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invite"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    post:
+      tags: [onboarding]
+      summary: Create an artist invite
+      operationId: createInvite
+      description: |
+        Emails the invitee (best effort) and returns the one-time token and link, which cannot be retrieved again.
+        The optional handle is reserved while the invite is live.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInviteRequest"
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/invites/{id}:
+    delete:
+      tags: [onboarding]
+      summary: Revoke an invite
+      operationId: revokeInvite
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Revoked
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/invites/{id}/resend:
+    post:
+      tags: [onboarding]
+      summary: Resend an invite with a new link
+      operationId: resendInvite
+      description: |
+        Revokes the old link and issues a new one with the same details.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: New invite
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/questionnaire/draft:
+    get:
+      tags: [questionnaire]
+      summary: Get the questionnaire draft
+      operationId: getQuestionnaireDraft
+      description: |
+        Admin only. State-changing requests must be sent as `application/json` from an allowed origin (CSRF protection).
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireRevision"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    post:
+      tags: [questionnaire]
+      summary: Start a draft
+      operationId: startQuestionnaireDraft
+      description: |
+        Returns the existing draft, or creates one cloned from the latest published revision.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireRevision"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    put:
+      tags: [questionnaire]
+      summary: Save the draft
+      operationId: saveQuestionnaireDraft
+      description: |
+        Replaces the draft's whole question list (order = position). A published key cannot change its type; use a new key.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveDraftRequest"
+      responses:
+        "200":
+          description: Draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireRevision"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      tags: [questionnaire]
+      summary: Discard the draft
+      operationId: discardQuestionnaireDraft
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "204":
+          description: Discarded
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/questionnaire/draft/publish:
+    post:
+      tags: [questionnaire]
+      summary: Publish the draft as the next revision
+      operationId: publishQuestionnaire
+      description: |
+        Validates, numbers and freezes the draft. Published revisions are immutable.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireRevision"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/questionnaire/revisions:
+    get:
+      tags: [questionnaire]
+      summary: List published revisions (without questions)
+      operationId: listQuestionnaireRevisions
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Revisions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QuestionnaireRevision"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/questionnaire/revisions/{id}:
+    get:
+      tags: [questionnaire]
+      summary: Get a revision with its questions
+      operationId: getQuestionnaireRevision
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Revision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireRevision"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+
+  /admin/v1/questionnaire/nudge:
+    get:
+      tags: [questionnaire]
+      summary: Preview a nudge
+      operationId: previewQuestionnaireNudge
+      description: |
+        How many approved artists have unanswered questions in the latest revision, and whether a nudge can be sent (substantive revisions only).
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuestionnaireNudgePreview"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    post:
+      tags: [questionnaire]
+      summary: Send a nudge
+      operationId: sendQuestionnaireNudge
+      description: |
+        Emails approved artists who have unanswered questions, once per artist per revision. Optional for artists: nothing about their profile changes.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendNudgeResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
 
 components:
   securitySchemes:
@@ -2254,6 +3058,9 @@ components:
           type: string
         portrait_url:
           type: string
+        portrait_blurhash:
+          type: string
+          description: Blur hash placeholder for the portrait. Empty until computed.
         featured:
           type: boolean
         influences:
@@ -2602,12 +3409,61 @@ components:
           type: string
           format: date-time
           nullable: true
+        questionnaire_revision_id:
+          type: string
+          format: uuid
+          description: The questionnaire revision the applicant answered, if any.
+        invite_id:
+          type: string
+          format: uuid
+          description: Set when the applicant arrived through an invite.
+        works:
+          type: array
+          description: The work submitted with the application, as it was at submission.
+          items:
+            $ref: "#/components/schemas/ApplicantWork"
+        portrait:
+          $ref: "#/components/schemas/ApplicantPortrait"
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+
+    ApplicantWork:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        media_asset_id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        blurhash: {type: string, description: Placeholder to show while the image loads}
+        title: {type: string}
+        medium: {type: string}
+        year: {type: integer, nullable: true}
+        position: {type: integer}
+
+    ApplicantPortrait:
+      type: object
+      properties:
+        media_asset_id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        blurhash: {type: string, description: Placeholder to show while the image loads}
+
+    SetApplicantPortraitRequest:
+      type: object
+      required: [media_asset_id]
+      properties:
+        media_asset_id: {type: string, format: uuid}
+
+    AddApplicantWorkRequest:
+      type: object
+      required: [media_asset_id, title]
+      properties:
+        media_asset_id: {type: string, format: uuid}
+        title: {type: string, maxLength: 200}
+        medium: {type: string, maxLength: 100}
+        year: {type: integer, nullable: true}
 
     SubmitApplicationRequest:
       type: object
@@ -2674,6 +3530,9 @@ components:
         height: {type: integer, nullable: true}
         bytes: {type: integer, nullable: true}
         folder: {type: string}
+        blurhash:
+          type: string
+          description: Compact placeholder (https://blurha.sh) to show while the image loads. Empty until computed.
     WikiSubmissionInput:
       type: object
       required: [title, body]
@@ -2761,3 +3620,259 @@ components:
       properties:
         entity_type: {type: string, enum: [artist, post, article]}
         entity_id: {type: string, format: uuid}
+
+    QuestionnaireOption:
+      type: object
+      required: [value, label_en]
+      properties:
+        value: {type: string, maxLength: 100}
+        label_en: {type: string, maxLength: 200}
+        label_am: {type: string, maxLength: 200}
+
+    QuestionnaireQuestion:
+      type: object
+      properties:
+        key:
+          type: string
+          pattern: "^[a-z0-9_]{1,64}$"
+          description: Stable identity across revisions. Answers attach to it.
+        position: {type: integer}
+        type: {type: string, enum: [short_text, long_text, choice, link]}
+        prompt_en: {type: string}
+        prompt_am: {type: string}
+        help_en: {type: string}
+        help_am: {type: string}
+        required: {type: boolean}
+        is_public:
+          type: boolean
+          description: Private answers are visible to admins only.
+        max_length:
+          type: integer
+          description: Visible characters (not bytes), so Amharic is not penalised.
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestionnaireOption"
+
+    QuestionnaireRevision:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        number: {type: integer, description: Assigned on publish.}
+        status: {type: string, enum: [draft, published]}
+        change_kind:
+          type: string
+          enum: [minor, substantive]
+          description: Only substantive revisions can be nudged.
+        note: {type: string}
+        published_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestionnaireQuestion"
+
+    QuestionRequest:
+      type: object
+      required: [key, type, prompt_en]
+      properties:
+        key: {type: string, maxLength: 64}
+        type: {type: string, enum: [short_text, long_text, choice, link]}
+        prompt_en: {type: string, maxLength: 500}
+        prompt_am: {type: string, maxLength: 500}
+        help_en: {type: string, maxLength: 1000}
+        help_am: {type: string, maxLength: 1000}
+        required: {type: boolean}
+        is_public: {type: boolean}
+        max_length: {type: integer, minimum: 0, maximum: 20000, description: 0 means the default for the type.}
+        options:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/QuestionnaireOption"
+
+    SaveDraftRequest:
+      type: object
+      required: [change_kind, questions]
+      properties:
+        change_kind: {type: string, enum: [minor, substantive]}
+        note: {type: string, maxLength: 1000}
+        expected_updated_at:
+          type: string
+          format: date-time
+          description: >
+            The draft's updated_at when the editor loaded it. If the draft has been saved by someone
+            else since, the request is refused with 409 instead of overwriting their changes.
+        questions:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/QuestionRequest"
+
+    QuestionnaireAnswer:
+      type: object
+      properties:
+        key: {type: string}
+        body:
+          type: string
+          description: HTML (sanitised) when format is rich; plain text otherwise.
+        format: {type: string, enum: [plain, rich]}
+        lang: {type: string, enum: [en, am, mixed]}
+        updated_at: {type: string, format: date-time}
+
+    SaveAnswersRequest:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [key]
+            properties:
+              key: {type: string, maxLength: 64}
+              body: {type: string, maxLength: 100000, description: An empty body clears the answer.}
+              format: {type: string, enum: [plain, rich], default: plain, description: rich is only valid for long_text questions.}
+              lang: {type: string, enum: [en, am, mixed], default: en}
+
+    QuestionnaireForm:
+      type: object
+      properties:
+        revision:
+          $ref: "#/components/schemas/QuestionnaireRevision"
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestionnaireAnswer"
+        locked:
+          type: boolean
+          description: True while an application is under review; answers cannot change.
+
+    PublicAnswer:
+      type: object
+      properties:
+        key: {type: string}
+        type: {type: string}
+        prompt_en: {type: string}
+        prompt_am: {type: string}
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuestionnaireOption"
+        body: {type: string}
+        format: {type: string, enum: [plain, rich]}
+        lang: {type: string, enum: [en, am, mixed]}
+
+    QuestionnaireReviewView:
+      type: object
+      properties:
+        revision:
+          $ref: "#/components/schemas/QuestionnaireRevision"
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              question:
+                $ref: "#/components/schemas/QuestionnaireQuestion"
+              answer:
+                nullable: true
+                allOf:
+                  - $ref: "#/components/schemas/QuestionnaireAnswer"
+        other:
+          type: array
+          description: Answers to questions that are not in this revision (added later, or since removed).
+          items:
+            $ref: "#/components/schemas/QuestionnaireAnswer"
+
+    QuestionnaireNudge:
+      type: object
+      properties:
+        revision_id: {type: string, format: uuid}
+        sent_at: {type: string, format: date-time}
+        questions:
+          type: array
+          description: Still-unanswered questions in the latest revision.
+          items:
+            $ref: "#/components/schemas/QuestionnaireQuestion"
+
+    QuestionnaireNudgePreview:
+      type: object
+      properties:
+        revision_id: {type: string, format: uuid}
+        revision_number: {type: integer}
+        change_kind: {type: string, enum: [minor, substantive]}
+        eligible: {type: integer}
+        can_send: {type: boolean}
+
+    SendNudgeResult:
+      type: object
+      properties:
+        sent: {type: integer, description: Artists newly nudged; 0 if everyone eligible was already nudged.}
+
+    Invite:
+      type: object
+      description: Never includes the token or its hash.
+      properties:
+        id: {type: string, format: uuid}
+        email: {type: string}
+        display_name: {type: string}
+        requested_handle: {type: string}
+        status: {type: string, enum: [live, claimed, revoked, expired]}
+        expires_at: {type: string, format: date-time}
+        claimed_at: {type: string, format: date-time}
+        revoked_at: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+
+    InviteCreated:
+      type: object
+      description: The only response that ever contains the raw token and link. They cannot be retrieved again.
+      properties:
+        invite:
+          $ref: "#/components/schemas/Invite"
+        token: {type: string}
+        link: {type: string}
+
+    CreateInviteRequest:
+      type: object
+      required: [email]
+      properties:
+        email: {type: string, maxLength: 254}
+        display_name: {type: string, maxLength: 100}
+        handle: {type: string, pattern: "^[a-z0-9_]{3,30}$"}
+        ttl_days: {type: integer, minimum: 0, maximum: 60, description: 0 means the default of 14 days.}
+
+    InvitePreviewRequest:
+      type: object
+      required: [token]
+      properties:
+        token: {type: string, maxLength: 200}
+
+    InvitePreview:
+      type: object
+      properties:
+        email: {type: string}
+        display_name: {type: string}
+        handle: {type: string}
+        status: {type: string, enum: [live, claimed, revoked, expired]}
+
+    ClaimInviteRequest:
+      type: object
+      required: [token]
+      properties:
+        token: {type: string, maxLength: 200}
+        display_name: {type: string, maxLength: 100, description: Defaults to the invite's name.}
+        requested_handle: {type: string, pattern: "^[a-z0-9_]{3,30}$", description: Defaults to the invite's reserved handle.}
+        notes: {type: string, maxLength: 5000}
+
+    InviteRegisterRequest:
+      type: object
+      required: [token, password]
+      description: No email field on purpose. The address comes from the invite.
+      properties:
+        token: {type: string, maxLength: 200}
+        password: {type: string, minLength: 8, maxLength: 200}

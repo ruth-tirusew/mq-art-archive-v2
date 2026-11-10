@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { Input, ListFooter, createPager } from '$ui';
+  import { PAGE_SIZE } from '$lib/utils/paging';
+  import { articlesService } from '$lib/application/articles';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -14,6 +17,23 @@
   } from '$lib/components/ui/table';
 
   let { data } = $props();
+
+  const pager = createPager({
+    initial: data.articles,
+    pageSize: PAGE_SIZE,
+    fetchPage: (offset, limit) => articlesService.list(data.status === 'all' ? undefined : (data.status as never), { limit, offset })
+  });
+  // The status filter lives in the URL, so a new filter arrives as new loader data.
+  $effect(() => pager.reset(data.articles));
+
+  let query = $state('');
+  const visible = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return pager.items;
+    return pager.items.filter((article) =>
+      [article.title, article.category].some((field) => (field ?? '').toString().toLowerCase().includes(q))
+    );
+  });
 
   function formatDate(value?: string) {
     if (!value) return '—';
@@ -40,7 +60,7 @@
   <Button href="/wiki/new" class="mt-1 shrink-0">New article</Button>
 </div>
 
-{#if data.articles.length === 0}
+{#if pager.items.length === 0}
   <EmptyState
     title="No articles in this view"
     description="Write a handbook entry, or review community submissions."
@@ -48,6 +68,9 @@
     actionHref="/wiki/new"
   />
 {:else}
+  <div class="mb-3 max-w-sm">
+    <Input type="search" bind:value={query} placeholder="Search by title or category" aria-label="Search articles" />
+  </div>
   <Table>
     <TableHeader>
       <TableRow>
@@ -58,7 +81,7 @@
       </TableRow>
     </TableHeader>
     <TableBody>
-      {#each data.articles as article}
+      {#each visible as article}
         <TableRow data-testid="admin-article-row">
           <TableCell>
             <a
@@ -78,4 +101,17 @@
       {/each}
     </TableBody>
   </Table>
+  {#if visible.length === 0}
+    <p class="mt-6 text-sm text-muted-foreground">No loaded articles match “{query}”.</p>
+  {/if}
+  <ListFooter
+    shown={visible.length}
+    loaded={pager.items.length}
+    hasMore={pager.hasMore}
+    loading={pager.loading}
+    error={pager.error}
+    searching={query.trim() !== ''}
+    noun="articles"
+    onmore={() => pager.loadMore()}
+  />
 {/if}

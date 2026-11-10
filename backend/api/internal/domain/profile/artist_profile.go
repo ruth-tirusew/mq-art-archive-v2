@@ -28,17 +28,19 @@ type SocialLinks struct {
 }
 
 type ArtistProfile struct {
-	ID                uuid.UUID
-	UserID            uuid.UUID
-	Slug              string
-	Handle            string
-	DisplayName       string
-	Bio               string
-	Born              string
-	Discipline        string
-	Tagline           string
-	YearsActive       string
-	PortraitURL       string
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Slug        string
+	Handle      string
+	DisplayName string
+	Bio         string
+	Born        string
+	Discipline  string
+	Tagline     string
+	YearsActive string
+	PortraitURL string
+	// PortraitBlurhash is read-only: the repository fills it from the uploaded asset with this URL.
+	PortraitBlurhash  string
 	Featured          bool
 	Influences        []string
 	InResidence       bool

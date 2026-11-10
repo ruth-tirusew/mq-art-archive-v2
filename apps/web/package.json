@@ -19,6 +19,7 @@
 		"test:e2e:smoke": "playwright test --grep @smoke"
 	},
 	"devDependencies": {
+		"@fontsource/noto-sans-ethiopic": "^5.2.5",
 		"@playwright/test": "^1.61.1",
 		"@sveltejs/adapter-vercel": "^6.3.4",
 		"@sveltejs/kit": "^2.63.0",
@@ -26,6 +27,9 @@
 		"@tailwindcss/vite": "^4.3.2",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/svelte": "^5.4.2",
+		"@tiptap/core": "^3.32.2",
+		"@tiptap/pm": "^3.32.2",
+		"@tiptap/starter-kit": "^3.32.2",
 		"@vitest/coverage-v8": "^3.2.7",
 		"happy-dom": "^17.6.3",
 		"msw": "^2.15.0",
@@ -38,6 +42,7 @@
 		"vitest": "^3.2.7"
 	},
 	"dependencies": {
+		"blurhash": "^2.0.5",
 		"clsx": "^2.1.1",
 		"tailwind-merge": "^3.6.0"
 	}

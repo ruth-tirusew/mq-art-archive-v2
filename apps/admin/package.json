@@ -20,6 +20,7 @@
     "test:e2e:smoke": "playwright test --grep @smoke"
   },
   "devDependencies": {
+    "@fontsource/noto-sans-ethiopic": "^5.2.5",
     "@playwright/test": "^1.61.1",
     "@sveltejs/adapter-vercel": "^6.3.4",
     "@sveltejs/kit": "^2.16.0",
@@ -41,5 +42,10 @@
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
     "vitest": "^3.2.7"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.33.0",
+    "@tiptap/pm": "^3.33.0",
+    "@tiptap/starter-kit": "^3.33.0"
   }
 }

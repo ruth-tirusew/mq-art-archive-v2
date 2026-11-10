@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { PasswordInput } from '$ui';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { authService } from '$lib/application/auth';
@@ -59,24 +60,24 @@
 		<form class="mt-8 space-y-4" onsubmit={handleSubmit}>
 			<label class="block">
 				<span class="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">New password</span>
-				<input
-					type="password"
+				<PasswordInput
 					required
-					minlength="8"
+					minlength={8}
 					autocomplete="new-password"
 					bind:value={password}
-					class="mt-2 w-full rounded-sm border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground/40"
+					wrapperClass="mt-2"
+					class="w-full rounded-sm border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground/40"
 				/>
 			</label>
 			<label class="block">
 				<span class="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Confirm password</span>
-				<input
-					type="password"
+				<PasswordInput
 					required
-					minlength="8"
+					minlength={8}
 					autocomplete="new-password"
 					bind:value={confirm}
-					class="mt-2 w-full rounded-sm border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground/40"
+					wrapperClass="mt-2"
+					class="w-full rounded-sm border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground/40"
 				/>
 			</label>
 			{#if error}

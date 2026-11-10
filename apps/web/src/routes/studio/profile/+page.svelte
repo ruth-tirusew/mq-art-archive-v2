@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { onMount } from 'svelte';
+	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 	import ShareableProfile from '$lib/components/ShareableProfile.svelte';
 	import MediaUploader from '$lib/components/MediaUploader.svelte';
 	import { profileService } from '$lib/application/profiles';
@@ -225,8 +226,10 @@
 				<Field label="Tagline">
 					{#snippet children({ id })}<Input {id} bind:value={tagline} />{/snippet}
 				</Field>
-				<Field label="Bio">
-					{#snippet children({ id })}<Textarea {id} rows={5} bind:value={bio} />{/snippet}
+				<Field label="Bio" hint="Tell visitors about you and your work. You can use headings, lists and links.">
+					{#snippet children()}
+						<RichTextEditor value={bio} label="Bio" onchange={(html) => (bio = html)} />
+					{/snippet}
 				</Field>
 				<div class="grid gap-4 sm:grid-cols-2">
 					<Field label="Discipline">

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -27,14 +28,19 @@ type Config struct {
 	TrustedProxies []string
 	ResendAPIKey   string
 	MailFrom       string
-	WebAppURL      string
+	// SMTP, when SMTPHost is set, takes precedence over Resend. SMTPPort defaults to 587
+	// (STARTTLS); 465 uses implicit TLS.
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	WebAppURL    string
 	// PublicAPIURL is this API's own externally-reachable base URL — needed for links the
 	// API embeds in outbound content that point back at itself, like a digest email's
 	// unsubscribe link (GET {PublicAPIURL}/unsubscribe), as opposed to WebAppURL, which
 	// points at the SvelteKit frontend.
 	PublicAPIURL        string
 	ErrorMonitorDSN     string
-	CloudinaryEnabled   bool
 	CloudinaryCloudName string
 	CloudinaryAPIKey    string
 	CloudinaryAPISecret string
@@ -77,6 +83,19 @@ func Load() Config {
 		fetchLimit = 50
 	}
 
+	smtpPort, err := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	if err != nil || smtpPort <= 0 || smtpPort > 65535 {
+		smtpPort = 587
+	}
+
+	smtpUser := getEnv("SMTP_USERNAME", getEnv("SMTP_USER", ""))
+	// Most SMTP providers only accept mail from the logged-in account's own address, so that is
+	// the sensible sender when MAIL_FROM is not set.
+	mailFrom := getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>")
+	if os.Getenv("MAIL_FROM") == "" && strings.Contains(smtpUser, "@") {
+		mailFrom = "Artiv <" + smtpUser + ">"
+	}
+
 	webAppURL := getEnv("WEB_APP_URL", "http://localhost:5173")
 	corsOrigins := mergeCORSOrigins(splitCSV(getEnv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174")), webAppURL)
 
@@ -100,15 +119,18 @@ func Load() Config {
 		AuthDevMode:         getEnv("AUTH_DEV_MODE", "false") == "true",
 		TrustedProxies:      parseTrustedProxies(getEnv("TRUSTED_PROXIES", "")),
 		ResendAPIKey:        getEnv("RESEND_API_KEY", ""),
-		MailFrom:            getEnv("MAIL_FROM", "Artiv <noreply@artiv.local>"),
+		MailFrom:            mailFrom,
+		SMTPHost:            getEnv("SMTP_HOST", ""),
+		SMTPPort:            smtpPort,
+		SMTPUsername:        smtpUser,
+		SMTPPassword:        getEnv("SMTP_PASSWORD", getEnv("SMTP_PASS", "")),
 		WebAppURL:           webAppURL,
 		PublicAPIURL:        getEnv("PUBLIC_API_URL", fmt.Sprintf("http://localhost:%d", port)),
 		ErrorMonitorDSN:     getEnv("ERROR_MONITOR_DSN", ""),
-		CloudinaryEnabled:   getEnv("CLOUDINARY_ENABLED", "false") == "true",
 		CloudinaryCloudName: getEnv("CLOUDINARY_CLOUD_NAME", ""),
 		CloudinaryAPIKey:    getEnv("CLOUDINARY_API_KEY", ""),
 		CloudinaryAPISecret: getEnv("CLOUDINARY_API_SECRET", ""),
-		CloudinaryFolder:    getEnv("CLOUDINARY_FOLDER", ""),
+		CloudinaryFolder:    getEnv("CLOUDINARY_FOLDER", "mq"),
 
 		ScrapeEnabled:   getEnv("SCRAPE_ENABLED", "false") == "true",
 		ScrapeSources:   splitCSV(getEnv("SCRAPE_SOURCES", "")),
@@ -133,6 +155,11 @@ func Load() Config {
 }
 
 func (c Config) Validate() error {
+	// Images live in Cloudinary in every environment, so a missing setting stops the API at start
+	// instead of surfacing later as a broken upload.
+	if c.CloudinaryCloudName == "" || c.CloudinaryAPIKey == "" || c.CloudinaryAPISecret == "" || c.CloudinaryFolder == "" {
+		return fmt.Errorf("CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET and CLOUDINARY_FOLDER are required")
+	}
 	if strings.ToLower(c.AppEnv) != "production" {
 		return nil
 	}
@@ -147,11 +174,6 @@ func (c Config) Validate() error {
 		lower := strings.ToLower(origin)
 		if origin == "*" || strings.Contains(lower, "localhost") || strings.Contains(lower, "127.0.0.1") {
 			return fmt.Errorf("unsafe CORS origin %q in production", origin)
-		}
-	}
-	if c.CloudinaryEnabled {
-		if c.CloudinaryCloudName == "" || c.CloudinaryAPIKey == "" || c.CloudinaryAPISecret == "" || c.CloudinaryFolder == "" {
-			return fmt.Errorf("all CLOUDINARY_* settings are required when enabled in production")
 		}
 	}
 	if c.AuthDevMode {

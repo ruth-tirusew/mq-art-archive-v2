@@ -402,10 +402,16 @@ func (h *AuthHandler) clearOAuthStateCookie(c *gin.Context) {
 }
 
 func (h *AuthHandler) setAuthCookie(c *gin.Context, token string) {
+	writeAuthCookie(c, h.cookieName, token)
+}
+
+// writeAuthCookie sets the HttpOnly session cookie. Shared so every way of signing in issues an
+// identical cookie.
+func writeAuthCookie(c *gin.Context, name, token string) {
 	sameSite := authCookieSameSite()
 	secure := authCookieSecure(sameSite)
 	c.SetSameSite(sameSite)
-	c.SetCookie(h.cookieName, token, 0, "/", "", secure, true)
+	c.SetCookie(name, token, 0, "/", "", secure, true)
 }
 
 func (h *AuthHandler) clearAuthCookie(c *gin.Context) {

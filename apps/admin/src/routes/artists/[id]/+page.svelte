@@ -14,7 +14,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
   import { Label } from '$lib/components/ui/label';
-  import { Textarea } from '$lib/components/ui/textarea';
+  import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 
   let { data } = $props();
   let artist = $state(data.artist);
@@ -245,7 +245,7 @@
         </div>
         <div class="space-y-2">
           <Label for="bio">Bio</Label>
-          <Textarea id="bio" rows={5} bind:value={bio} />
+          <RichTextEditor value={bio} label="Bio" onchange={(html) => (bio = html)} />
         </div>
         <div class="space-y-2">
           <MediaUploader onUploaded={(media) => (portraitUrl = media.secure_url)} />

@@ -6,6 +6,7 @@
 	import { artPostService } from '$lib/application/artPosts';
 	import MediaUploader from '$lib/components/MediaUploader.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
+	import RichTextEditor from '$lib/components/RichTextEditor.svelte';
 	import { Alert, Badge, Button, ConfirmDialog, createConfirm, ErrorState, Field, Input, PageHeader, Textarea, toast } from '$ui';
 
 	const id = $derived(($page.params.id ?? '') as string);
@@ -196,8 +197,10 @@
 					<Input {id} aria-describedby={describedby} {invalid} bind:value={title} />
 				{/snippet}
 			</Field>
-			<Field label="Description">
-				{#snippet children({ id })}<Textarea {id} rows={4} bind:value={description} />{/snippet}
+			<Field label="Description" hint="Optional. Tell the story behind this piece. Visitors see it with the work.">
+				{#snippet children()}
+					<RichTextEditor value={description} label="Description" onchange={(html) => (description = html)} />
+				{/snippet}
 			</Field>
 			<div class="grid gap-5 sm:grid-cols-2">
 				<Field label="Medium">{#snippet children({ id })}<Input {id} bind:value={medium} placeholder="Oil on canvas" />{/snippet}</Field>

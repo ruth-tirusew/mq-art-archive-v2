@@ -6,7 +6,7 @@
   import { onMount } from 'svelte';
   import { artistsService } from '$lib/application/artists';
   import { postsService } from '$lib/application/posts';
-  import { onboardingService } from '$lib/application/onboarding';
+  import { onboardingService } from '$lib/composition';
   import { eventsService } from '$lib/application/events';
   import { getAnalyticsSummary, type AnalyticsSummary } from '$lib/application/analytics';
   import { plural } from '$lib/utils/plural';
@@ -43,8 +43,8 @@
     loading = true;
     try {
       const [artistList, postList, apps, evts, viewSummary] = await Promise.all([
-        artistsService.list(),
-        postsService.list(),
+        artistsService.listAll(),
+        postsService.listAll(),
         onboardingService.listPending(),
         eventsService.listPending(),
         getAnalyticsSummary().catch(() => null)

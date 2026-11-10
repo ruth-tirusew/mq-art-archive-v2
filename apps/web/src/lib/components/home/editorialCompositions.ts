@@ -134,14 +134,30 @@ function shuffle<T>(items: T[], seed: number): T[] {
 	return out;
 }
 
+/** Enough works to fill one spread: a feature plus three supporting. */
+const MIN_POOL = 4;
+
+/**
+ * One work per artist, so a spread shows a range of people. When there are too few artists to
+ * fill a spread, their other works are added after, so the spreads still have something to
+ * rearrange instead of repeating the same single work on every load.
+ */
 function uniqueByArtist(posts: ArtPost[]): ArtPost[] {
 	const seen = new Set<string>();
 	const out: ArtPost[] = [];
+	const rest: ArtPost[] = [];
 	for (const post of posts) {
 		if (!hasImage(post)) continue;
 		const key = artistKey(post);
-		if (seen.has(key)) continue;
+		if (seen.has(key)) {
+			rest.push(post);
+			continue;
+		}
 		seen.add(key);
+		out.push(post);
+	}
+	for (const post of rest) {
+		if (out.length >= MIN_POOL) break;
 		out.push(post);
 	}
 	return out;
@@ -166,6 +182,27 @@ function pickNote(articles: Article[], seed: number, index: number): CuratorModu
 	return CURATOR_FALLBACKS[(seed + index) % CURATOR_FALLBACKS.length]!;
 }
 
+/** A work made at least this long ago may be labelled "From the archive". */
+const ARCHIVE_AGE_YEARS = 10;
+/** A work published on Artiv this recently may be labelled "New on Artiv". */
+const NEW_WITHIN_DAYS = 60;
+
+export function isArchiveWork(post: ArtPost, now: Date): boolean {
+	return typeof post.year === 'number' && now.getFullYear() - post.year >= ARCHIVE_AGE_YEARS;
+}
+
+export function isNewWork(post: ArtPost, now: Date): boolean {
+	const published = Date.parse(post.published_at ?? '');
+	if (!Number.isFinite(published) || published > now.getTime()) return false;
+	return now.getTime() - published <= NEW_WITHIN_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/** Takes the first post that matches out of `list` (or simply the first), so slots don't repeat. */
+function takeFirst(list: ArtPost[], match: (p: ArtPost) => boolean): ArtPost | undefined {
+	const i = Math.max(0, list.findIndex(match));
+	return list.splice(i, 1)[0];
+}
+
 /**
  * Build curated homepage spreads from the artist pool + optional essays.
  * Layout geometry rotates; content roles stay stable.
@@ -178,8 +215,13 @@ export function buildEditorialSpreads(
 		featuredArtist?: ArtistProfile | null;
 		featuredPosts?: ArtPost[];
 		articles?: Article[];
+		now?: Date;
 	}
 ): EditorialSpread[] {
+	const now = opts?.now ?? new Date();
+	const featuredIds = new Set((opts?.featuredPosts ?? []).map((p) => p.id));
+	// A badge is a claim about the work, so it is only shown when the data backs it.
+	const isFeatured = (p: ArtPost) => Boolean(p.featured_acquisition) || featuredIds.has(p.id);
 	const pool = uniqueByArtist([
 		...(opts?.featuredPosts ?? []),
 		...posts.filter((p) => p.featured_acquisition),
@@ -207,25 +249,29 @@ export function buildEditorialSpreads(
 				? 'editorial-a'
 				: EDITORIAL_LAYOUT_IDS[(seed + i) % EDITORIAL_LAYOUT_IDS.length]!;
 
+		// The lead is a work that is actually featured when there is one. Otherwise it avoids the
+		// old and the newly published works, so those can go where their label is true.
 		const featurePost =
 			(featuredWorks.length > 0 ? featuredWorks[i % featuredWorks.length] : undefined) ??
 			(featuredSlug ? rotated.find((p) => p.artist_slug === featuredSlug) : undefined) ??
+			rotated.find(isFeatured) ??
+			rotated.find((p) => !isArchiveWork(p, now) && !isNewWork(p, now)) ??
 			rotated[0]!;
 
 		const rest = rotated.filter((p) => p.id !== featurePost.id);
-		while (rest.length < 3) {
-			rest.push(featurePost);
-		}
-
-		const [supportPost, archivePost, emergingPost] = rest;
+		// Each slot prefers a work its label is true of: an old one for the archive slot, a newly
+		// published one for the "new" slot. Without one, the slot still fills but goes unlabelled.
+		const archivePost = takeFirst(rest, (p) => isArchiveWork(p, now)) ?? featurePost;
+		const newPost = takeFirst(rest, (p) => isNewWork(p, now)) ?? featurePost;
+		const supportPost = takeFirst(rest, () => true) ?? featurePost;
 
 		spreads.push({
 			layoutId,
 			intro: { ...INTRO },
-			feature: { post: featurePost, badge: 'Featured' },
-			support: { post: supportPost!, badge: undefined },
-			archive: { post: archivePost!, badge: 'From the archive' },
-			emerging: { post: emergingPost!, badge: 'Emerging voice' },
+			feature: { post: featurePost, badge: isFeatured(featurePost) ? 'Featured' : undefined },
+			support: { post: supportPost, badge: undefined },
+			archive: { post: archivePost, badge: isArchiveWork(archivePost, now) ? 'From the archive' : undefined },
+			emerging: { post: newPost, badge: isNewWork(newPost, now) ? 'New on Artiv' : undefined },
 			note: pickNote(articles, seed, i)
 		});
 	}

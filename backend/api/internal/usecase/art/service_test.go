@@ -2,9 +2,11 @@ package art
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/mq/api/internal/domain/apperrors"
 	domain "github.com/mq/api/internal/domain/art"
 	"github.com/mq/api/internal/testutil/assist"
 )
@@ -209,4 +211,60 @@ func TestService_UpdateOwned_preservesMediaIDForUnchangedURL(t *testing.T) {
 	assist.Equal(t, keptID, captured.Media[0].ID)
 	assist.NotEqual(t, uuid.Nil, captured.Media[1].ID)
 	assist.NotEqual(t, keptID, captured.Media[1].ID)
+}
+
+type stubSanitizer struct{ text func(string) string }
+
+func (s stubSanitizer) Sanitize(in string) (string, string) {
+	if strings.TrimSpace(in) == "" || in == "<p></p>" {
+		return "", ""
+	}
+	return "CLEAN(" + in + ")", s.text(in)
+}
+
+func TestService_Descriptions_areCleanedOnEveryWritePath(t *testing.T) {
+	artistID := uuid.New()
+	var captured domain.ArtPost
+	repo := &mockArtPostRepo{
+		create: func(_ context.Context, p domain.ArtPost) (*domain.ArtPost, error) { captured = p; return &p, nil },
+		update: func(_ context.Context, p domain.ArtPost) (*domain.ArtPost, error) { captured = p; return &p, nil },
+		getByID: func(_ context.Context, id uuid.UUID) (*domain.ArtPost, error) {
+			return &domain.ArtPost{ID: id, ArtistID: artistID, Title: "Old"}, nil
+		},
+	}
+	svc := NewService(repo, WithRichText(stubSanitizer{text: func(s string) string { return s }}))
+	write := domain.ArtPostWrite{Title: "Sunset", Description: "<p>Over Addis</p><script>x</script>"}
+	want := "CLEAN(<p>Over Addis</p><script>x</script>)"
+
+	_, err := svc.CreateDraft(context.Background(), artistID, write)
+	assist.NoError(t, err)
+	assist.Equal(t, want, captured.Description)
+
+	_, err = svc.UpdateOwned(context.Background(), artistID, uuid.New(), write)
+	assist.NoError(t, err)
+	assist.Equal(t, want, captured.Description)
+
+	_, err = svc.AdminCreate(context.Background(), artistID, write, nil)
+	assist.NoError(t, err)
+	assist.Equal(t, want, captured.Description)
+
+	_, err = svc.AdminUpdateContent(context.Background(), uuid.New(), write)
+	assist.NoError(t, err)
+	assist.Equal(t, want, captured.Description)
+
+	// Empty markup is a blank description.
+	_, err = svc.CreateDraft(context.Background(), artistID, domain.ArtPostWrite{Title: "T", Description: "<p></p>"})
+	assist.NoError(t, err)
+	assist.Equal(t, "", captured.Description)
+}
+
+func TestService_Descriptions_areBoundedByVisibleText(t *testing.T) {
+	repo := &mockArtPostRepo{create: func(_ context.Context, p domain.ArtPost) (*domain.ArtPost, error) { return &p, nil }}
+	ok := NewService(repo, WithRichText(stubSanitizer{text: func(string) string { return strings.Repeat("ሰ", maxDescriptionText) }}))
+	_, err := ok.CreateDraft(context.Background(), uuid.New(), domain.ArtPostWrite{Title: "T", Description: "<p>x</p>"})
+	assist.NoError(t, err)
+
+	long := NewService(repo, WithRichText(stubSanitizer{text: func(string) string { return strings.Repeat("ሰ", maxDescriptionText+1) }}))
+	_, err = long.CreateDraft(context.Background(), uuid.New(), domain.ArtPostWrite{Title: "T", Description: "<p>x</p>"})
+	assist.ErrorIs(t, err, apperrors.ErrValidation)
 }

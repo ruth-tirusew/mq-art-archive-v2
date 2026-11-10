@@ -1,12 +1,18 @@
 <script lang="ts">
   import { uploadImage, validateImageFile } from '$lib/application/media';
-  import type { UploadedMedia } from '$lib/core/domain/media';
+  import type { MediaScope, UploadedMedia } from '$lib/core/domain/media';
 
   let {
     admin = false,
+    scope,
+    label = 'Upload image',
+    showPreview = true,
     onUploaded
   }: {
     admin?: boolean;
+    scope?: MediaScope;
+    label?: string;
+    showPreview?: boolean;
     onUploaded: (media: UploadedMedia) => void;
   } = $props();
 
@@ -31,6 +37,7 @@
     try {
       const uploaded = await uploadImage(file, {
         admin,
+        scope,
         signal: controller.signal,
         onProgress: (value) => (progress = value)
       });
@@ -53,7 +60,7 @@
 <div class="space-y-3">
   <label class="block">
     <span class="mb-2 block font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-      Upload image
+      {label}
     </span>
     <input
       type="file"
@@ -82,7 +89,7 @@
     <p class="text-sm text-destructive" role="alert">{error}</p>
   {/if}
 
-  {#if previewUrl}
+  {#if previewUrl && showPreview}
     <img src={previewUrl} alt="Uploaded preview" class="h-32 w-32 rounded-sm object-cover" />
   {/if}
 </div>

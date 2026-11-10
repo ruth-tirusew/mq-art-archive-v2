@@ -1,10 +1,17 @@
-import { apiFetch } from '$lib/adapters/api/client';
-import type { ApprovalStatus, OnboardingApplication } from '$lib/core/domain/onboarding';
+import { apiFetch, apiFetchPage } from '$lib/adapters/api/client';
+import type {
+  ApplicationPage,
+  ApplicationStatusFilter,
+  ApprovalStatus,
+  OnboardingApplication
+} from '$lib/core/domain/onboarding';
 import type { OnboardingPort } from '$lib/core/ports/onboarding';
 
 export class OnboardingApi implements OnboardingPort {
-  listPending(): Promise<OnboardingApplication[]> {
-    return apiFetch<OnboardingApplication[]>('/admin/v1/applications');
+  list(status: ApplicationStatusFilter, { limit, offset }: { limit: number; offset: number }): Promise<ApplicationPage> {
+    return apiFetchPage<OnboardingApplication>(
+      `/admin/v1/applications?status=${encodeURIComponent(status)}&limit=${limit}&offset=${offset}`
+    );
   }
 
   getById(id: string): Promise<OnboardingApplication> {

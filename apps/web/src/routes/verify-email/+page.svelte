@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { apiFetch } from '$lib/adapters/api/client';
+	import { authService } from '$lib/application/auth';
 	import { onMount } from 'svelte';
 
 	let status = $state<'working' | 'success' | 'error'>('working');
@@ -12,11 +12,7 @@
 			return;
 		}
 		try {
-			await apiFetch('/api/v1/auth/verify-email', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ token })
-			});
+			await authService.verifyEmail(token);
 			status = 'success';
 		} catch {
 			status = 'error';

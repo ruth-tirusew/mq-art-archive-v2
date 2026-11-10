@@ -2,17 +2,96 @@ package inbound
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/mq/api/internal/domain/identity"
 	"github.com/mq/api/internal/domain/onboarding"
 )
 
 type OnboardingService interface {
-	ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error)
+	// List returns one page of applications and the total number of matches.
+	List(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error)
 	GetMyApplication(ctx context.Context, applicantID uuid.UUID) (*onboarding.OnboardingApplication, error)
 	Submit(ctx context.Context, applicantID uuid.UUID, applicantType onboarding.ApplicantType, displayName, notes string) (*onboarding.OnboardingApplication, error)
 	SubmitWithHandle(ctx context.Context, applicantID uuid.UUID, applicantType onboarding.ApplicantType, displayName, requestedHandle, notes string) (*onboarding.OnboardingApplication, error)
 	CheckHandleAvailable(ctx context.Context, handle string) (bool, error)
 	Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID, status onboarding.ApprovalStatus, notes string) (*onboarding.OnboardingApplication, error)
+}
+
+type CreateInviteInput struct {
+	Email       string
+	DisplayName string
+	Handle      string        // optional; reserved for the invitee while the invite is live
+	TTL         time.Duration // 0 means the default (14 days)
+}
+
+// InviteWithToken carries the raw token, which exists only at creation or resend: it is not stored
+// and cannot be recovered later, so the admin UI should show the link once.
+type InviteWithToken struct {
+	Invite onboarding.Invite
+	Token  string
+}
+
+// InvitePreview is what the claim page shows before the invitee signs in.
+type InvitePreview struct {
+	Email       string
+	DisplayName string
+	Handle      string
+	Status      onboarding.InviteStatus
+}
+
+// RegisteredInvitee is a freshly created invitee account and its session token.
+type RegisteredInvitee struct {
+	AccessToken string
+	User        *identity.User
+}
+
+// AddWorkInput is what an applicant says about an image they have uploaded.
+type AddWorkInput struct {
+	MediaAssetID uuid.UUID
+	Title        string
+	Medium       string
+	Year         *int
+}
+
+// ApplicantWorksService is the work an applicant uploads to show with their application. An artist
+// must have at least onboarding.MinApplicationWorks of them to apply.
+type ApplicantWorksService interface {
+	// ListWorks returns the applicant's works in order.
+	ListWorks(ctx context.Context, userID uuid.UUID) ([]onboarding.ApplicantWork, error)
+	// AddWork adds one. ErrValidation for a bad title/medium/year or when the limit is reached,
+	// ErrNotFound if the image isn't theirs, ErrConflict if it is already one of their works or the
+	// application is under review (works are locked until it is decided).
+	AddWork(ctx context.Context, userID uuid.UUID, in AddWorkInput) (*onboarding.ApplicantWork, error)
+	// RemoveWork deletes one of the applicant's works, with the same locking as AddWork.
+	RemoveWork(ctx context.Context, userID, workID uuid.UUID) error
+	// GetPortrait returns the applicant's portrait, or ErrNotFound if they have not added one.
+	GetPortrait(ctx context.Context, userID uuid.UUID) (*onboarding.ApplicantPortrait, error)
+	// SetPortrait makes an uploaded image their portrait, replacing any earlier one. ErrNotFound if
+	// the image isn't theirs; ErrConflict if it is already one of their works or the application is
+	// under review.
+	SetPortrait(ctx context.Context, userID, mediaAssetID uuid.UUID) (*onboarding.ApplicantPortrait, error)
+	// RemovePortrait deletes the applicant's portrait, with the same locking as AddWork.
+	RemovePortrait(ctx context.Context, userID uuid.UUID) error
+}
+
+type InviteService interface {
+	CreateInvite(ctx context.Context, adminID uuid.UUID, in CreateInviteInput) (*InviteWithToken, error)
+	// ResendInvite revokes the invite and issues a fresh link with the same details.
+	ResendInvite(ctx context.Context, adminID, inviteID uuid.UUID) (*InviteWithToken, error)
+	RevokeInvite(ctx context.Context, inviteID uuid.UUID) error
+	// ListInvites returns one page of invites and the total number of matches.
+	ListInvites(ctx context.Context, filter onboarding.InviteListFilter) ([]onboarding.Invite, int, error)
+	// PreviewInvite looks an invite up by its raw token. ErrNotFound for an unknown token.
+	PreviewInvite(ctx context.Context, rawToken string) (*InvitePreview, error)
+	// RegisterWithInvite creates the invitee's verified account and signs them in. The email is
+	// read from the live invite, never taken from the request, so it cannot be used to create a
+	// verified account for an address the requester merely typed. ErrNotFound for an unknown token,
+	// ErrConflict if the invite was used, revoked or expired, or the address already has an account.
+	RegisterWithInvite(ctx context.Context, rawToken, password string) (*RegisteredInvitee, error)
+	// SubmitWithInvite claims the invite and submits the application in one step. The signed-in
+	// user's verified email must match the invite's.
+	SubmitWithInvite(ctx context.Context, applicantID uuid.UUID, rawToken, displayName, requestedHandle, notes string) (*onboarding.OnboardingApplication, error)
 }

@@ -3,3 +3,26 @@
 @source "../../../packages/ui/src";
 @import 'tw-animate-css';
 @import '../../../packages/ui/src/styles/theme.css';
+
+/*
+ * Amharic (Ethiopic) glyphs for questionnaire answers. Only the Ethiopic subset is declared, with
+ * its unicode-range, so the file is downloaded only when a page actually contains Ethiopic text.
+ * (The package's default CSS also declares Latin faces, which the browser fetches for ordinary text
+ * whenever the first font in the stack is unavailable.)
+ */
+@font-face {
+  font-family: 'Noto Sans Ethiopic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../node_modules/@fontsource/noto-sans-ethiopic/files/noto-sans-ethiopic-ethiopic-400-normal.woff2') format('woff2');
+  unicode-range: U+030E,U+1200-1399,U+2D80-2DDE,U+AB01-AB2E,U+1E7E0-1E7E6,U+1E7E8-1E7EB,U+1E7ED-1E7EE,U+1E7F0-1E7FE;
+}
+@font-face {
+  font-family: 'Noto Sans Ethiopic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../node_modules/@fontsource/noto-sans-ethiopic/files/noto-sans-ethiopic-ethiopic-600-normal.woff2') format('woff2');
+  unicode-range: U+030E,U+1200-1399,U+2D80-2DDE,U+AB01-AB2E,U+1E7E0-1E7E6,U+1E7E8-1E7EB,U+1E7ED-1E7EE,U+1E7F0-1E7FE;
+}

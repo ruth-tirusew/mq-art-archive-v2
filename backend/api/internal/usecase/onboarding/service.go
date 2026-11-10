@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -16,12 +17,18 @@ import (
 )
 
 type Service struct {
-	applications outbound.OnboardingRepository
-	users        outbound.UserRepository
-	profiles     outbound.ProfileRepository
-	institutions outbound.InstitutionRepository
-	mailer       outbound.Mailer
-	webAppURL    string
+	applications  outbound.OnboardingRepository
+	users         outbound.UserRepository
+	profiles      outbound.ProfileRepository
+	institutions  outbound.InstitutionRepository
+	mailer        outbound.Mailer
+	webAppURL     string
+	invites       outbound.InviteRepository
+	questionnaire inbound.ApplicationQuestionnaireGate
+	registrar     inbound.InvitedRegistrar
+	works         outbound.ApplicantWorkRepository
+	provisioner   outbound.ArtistProvisioner
+	now           func() time.Time
 }
 
 // Option customises optional collaborators of the onboarding Service.
@@ -35,18 +42,49 @@ func WithMailer(mailer outbound.Mailer, webAppURL string) Option {
 	}
 }
 
+// WithInvites enables artist invite links, and makes handle checks respect handles that
+// live invites have reserved.
+func WithInvites(invites outbound.InviteRepository) Option {
+	return func(s *Service) { s.invites = invites }
+}
+
+// WithInvitedRegistrar enables creating an invitee's account straight from their invite.
+func WithInvitedRegistrar(r inbound.InvitedRegistrar) Option {
+	return func(s *Service) { s.registrar = r }
+}
+
+// WithQuestionnaire requires artist applicants to have completed the published questionnaire
+// before they can apply. Without it (or before a questionnaire is published) applying works as before.
+func WithQuestionnaire(gate inbound.ApplicationQuestionnaireGate) Option {
+	return func(s *Service) { s.questionnaire = gate }
+}
+
+// WithArtistProvisioner makes approving an artist application publish them: a public profile and a
+// published artwork for each submitted work. Without it approval creates a private draft profile
+// the artist publishes themselves.
+func WithArtistProvisioner(p outbound.ArtistProvisioner) Option {
+	return func(s *Service) { s.provisioner = p }
+}
+
+// WithApplicantWorks requires artist applicants to have uploaded at least MinApplicationWorks
+// works before they can apply, and freezes those works onto the application. Without it nothing is required.
+func WithApplicantWorks(works outbound.ApplicantWorkRepository) Option {
+	return func(s *Service) { s.works = works }
+}
+
 func NewService(
 	applications outbound.OnboardingRepository,
 	users outbound.UserRepository,
 	profiles outbound.ProfileRepository,
 	institutions outbound.InstitutionRepository,
 	opts ...Option,
-) inbound.OnboardingService {
+) *Service {
 	s := &Service{
 		applications: applications,
 		users:        users,
 		profiles:     profiles,
 		institutions: institutions,
+		now:          func() time.Time { return time.Now().UTC() },
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -54,8 +92,14 @@ func NewService(
 	return s
 }
 
-func (s *Service) ListPending(ctx context.Context) ([]domain.OnboardingApplication, error) {
-	return s.applications.ListPending(ctx)
+func (s *Service) List(ctx context.Context, filter domain.ListFilter) ([]domain.OnboardingApplication, int, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 50
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	return s.applications.List(ctx, filter)
 }
 
 func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error) {
@@ -79,6 +123,23 @@ func (s *Service) SubmitWithHandle(
 	applicantID uuid.UUID,
 	applicantType domain.ApplicantType,
 	displayName, requestedHandle, notes string,
+) (*domain.OnboardingApplication, error) {
+	app, err := s.prepareApplication(ctx, applicantID, applicantType, displayName, requestedHandle, notes, nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.applications.Save(ctx, *app)
+}
+
+// prepareApplication validates a submission and builds the pending application without saving it.
+// exceptInvite, when set, is the invite the applicant is claiming: the handle it reserved counts
+// as available to them.
+func (s *Service) prepareApplication(
+	ctx context.Context,
+	applicantID uuid.UUID,
+	applicantType domain.ApplicantType,
+	displayName, requestedHandle, notes string,
+	exceptInvite *uuid.UUID,
 ) (*domain.OnboardingApplication, error) {
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
@@ -110,7 +171,7 @@ func (s *Service) SubmitWithHandle(
 		return nil, apperrors.ErrConflict
 	}
 	if applicantType == domain.ApplicantTypeArtist {
-		available, err := s.CheckHandleAvailable(ctx, requestedHandle)
+		available, err := s.handleAvailable(ctx, requestedHandle, exceptInvite)
 		if err != nil {
 			return nil, err
 		}
@@ -119,25 +180,69 @@ func (s *Service) SubmitWithHandle(
 		}
 	}
 
-	now := time.Now().UTC()
-	app := domain.OnboardingApplication{
-		ID:              uuid.New(),
-		ApplicantID:     applicantID,
-		ApplicantType:   applicantType,
-		DisplayName:     displayName,
-		RequestedHandle: requestedHandle,
-		Notes:           notes,
-		Status:          domain.ApprovalStatusPending,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+	var submitted *inbound.SubmittedQuestionnaire
+	if applicantType == domain.ApplicantTypeArtist && s.questionnaire != nil {
+		submitted, err = s.questionnaire.CheckComplete(ctx, applicantID)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return s.applications.Save(ctx, app)
+	var revisionID *uuid.UUID
+	var answers []byte
+	if submitted != nil {
+		revisionID, answers = &submitted.RevisionID, submitted.Answers
+	}
+
+	var works []domain.ApplicantWork
+	var portrait *domain.ApplicantPortrait
+	if applicantType == domain.ApplicantTypeArtist && s.works != nil {
+		works, err = s.works.ListByUser(ctx, applicantID)
+		if err != nil {
+			return nil, err
+		}
+		if short := domain.WorksShortfall(len(works)); short > 0 {
+			return nil, fmt.Errorf("%w: add at least %d works to apply (you have %d, add %d more)",
+				apperrors.ErrValidation, domain.MinApplicationWorks, len(works), short)
+		}
+		// A profile needs a face on it, and approval publishes straight away, so the portrait is
+		// collected here instead of leaving the artist to add it afterwards.
+		portrait, err = s.works.GetPortrait(ctx, applicantID)
+		if errors.Is(err, apperrors.ErrNotFound) {
+			return nil, fmt.Errorf("%w: add a portrait photo of yourself to apply", apperrors.ErrValidation)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	now := s.now()
+	return &domain.OnboardingApplication{
+		ID:                      uuid.New(),
+		ApplicantID:             applicantID,
+		ApplicantType:           applicantType,
+		DisplayName:             displayName,
+		RequestedHandle:         requestedHandle,
+		Notes:                   notes,
+		Status:                  domain.ApprovalStatusPending,
+		QuestionnaireRevisionID: revisionID,
+		QuestionnaireAnswers:    answers,
+		Works:                   works,
+		Portrait:                portrait,
+		CreatedAt:               now,
+		UpdatedAt:               now,
+	}, nil
 }
 
 func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID, status domain.ApprovalStatus, notes string) (*domain.OnboardingApplication, error) {
+	if status != domain.ApprovalStatusApproved && status != domain.ApprovalStatusRejected {
+		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "status must be approved or rejected")
+	}
 	app, err := s.applications.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if app.Status != domain.ApprovalStatusPending {
+		return nil, fmt.Errorf("%w: this application was already %s", apperrors.ErrConflict, app.Status)
 	}
 
 	reviewNotes := strings.TrimSpace(notes)
@@ -145,46 +250,60 @@ func (s *Service) Review(ctx context.Context, id uuid.UUID, reviewerID uuid.UUID
 		return nil, fmt.Errorf("%w: %s", apperrors.ErrValidation, "a reason is required when rejecting an application")
 	}
 
-	now := time.Now().UTC()
-	app.Status = status
-	app.ReviewNotes = reviewNotes
-	app.ReviewedBy = &reviewerID
-	app.ReviewedAt = &now
-	app.UpdatedAt = now
+	now := s.now()
+	decided := *app
+	decided.Status = status
+	decided.ReviewNotes = reviewNotes
+	decided.ReviewedBy = &reviewerID
+	decided.ReviewedAt = &now
+	decided.UpdatedAt = now
 
-	if status == domain.ApprovalStatusApproved {
-		switch app.ApplicantType {
-		case domain.ApplicantTypeArtist:
-			if err := s.provisionArtist(ctx, app); err != nil {
-				return nil, err
-			}
-		case domain.ApplicantTypeInstitution:
-			if err := s.provisionInstitution(ctx, app); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	saved, err := s.applications.Save(ctx, *app)
+	// Take the decision first, conditioned on the application still being pending. Of two admins
+	// deciding at once only one gets past this point, so only one provisions.
+	saved, err := s.applications.Transition(ctx, decided, domain.ApprovalStatusPending)
 	if err != nil {
 		return nil, err
 	}
+
+	if status == domain.ApprovalStatusApproved {
+		var provisionErr error
+		switch app.ApplicantType {
+		case domain.ApplicantTypeArtist:
+			provisionErr = s.provisionArtist(ctx, app)
+		case domain.ApplicantTypeInstitution:
+			provisionErr = s.provisionInstitution(ctx, app)
+		}
+		if provisionErr != nil {
+			// Put the application back to pending so the admin can retry; provisioning is safe to repeat.
+			revert := *app
+			revert.Status = domain.ApprovalStatusPending
+			revert.UpdatedAt = s.now()
+			if _, revErr := s.applications.Transition(context.WithoutCancel(ctx), revert, domain.ApprovalStatusApproved); revErr != nil {
+				return nil, errors.Join(provisionErr, fmt.Errorf("reopen application after failed approval: %w", revErr))
+			}
+			return nil, provisionErr
+		}
+	}
+
 	s.notifyDecision(ctx, saved)
 	return saved, nil
 }
 
-// notifyDecision emails the applicant about the outcome. Failures are ignored: the
-// review itself has already been saved and must not fail because of a mail outage.
 func (s *Service) notifyDecision(ctx context.Context, app *domain.OnboardingApplication) {
 	if s.mailer == nil {
 		return
 	}
+	// Best-effort: the decision is already saved and shows on the status page. But an applicant
+	// who never hears back is the failure that matters here, so every miss is logged.
 	user, err := s.users.GetByID(ctx, app.ApplicantID)
 	if err != nil || user == nil || user.Email == "" {
+		log.Printf("onboarding: application %s %s, but no decision email (applicant %s not found or has no email): %v", app.ID, app.Status, app.ApplicantID, err)
 		return
 	}
 	subject, body := decisionEmail(app, s.webAppURL)
-	_ = s.mailer.Send(ctx, user.Email, subject, body)
+	if err := s.mailer.Send(ctx, user.Email, subject, body); err != nil {
+		log.Printf("onboarding: application %s %s, but the decision email to %s was not sent: %v", app.ID, app.Status, user.Email, err)
+	}
 }
 
 func decisionEmail(app *domain.OnboardingApplication, webAppURL string) (string, string) {
@@ -195,7 +314,12 @@ func decisionEmail(app *domain.OnboardingApplication, webAppURL string) (string,
 		if app.ReviewNotes != "" {
 			fmt.Fprintf(&b, "A note from the team:\n%s\n\n", app.ReviewNotes)
 		}
-		fmt.Fprintf(&b, "Next, open your studio, add a portrait and a short bio, and publish your profile:\n%s/studio\n", webAppURL)
+		if len(app.Works) > 0 && app.RequestedHandle != "" {
+			fmt.Fprintf(&b, "Your profile and your %d works are now live on Artiv:\n%s/artists/%s\n\n", len(app.Works), webAppURL, app.RequestedHandle)
+			fmt.Fprintf(&b, "Next, open your studio to add a portrait and a short bio:\n%s/studio\n", webAppURL)
+		} else {
+			fmt.Fprintf(&b, "Next, open your studio, add a portrait and a short bio, and publish your profile:\n%s/studio\n", webAppURL)
+		}
 		return "Welcome to Artiv — your application was approved", b.String()
 	}
 	b.WriteString("Thanks for applying to Artiv. We couldn't approve your application this time.\n\n")
@@ -206,27 +330,31 @@ func decisionEmail(app *domain.OnboardingApplication, webAppURL string) (string,
 	return "Update on your Artiv application", b.String()
 }
 
+// provisionArtist is safe to repeat: a retry after a partial failure finishes the remaining steps,
+// including applying the requested handle to a draft profile an earlier attempt already created.
+// The role is promoted last so a failure never leaves an artist without their profile.
 func (s *Service) provisionArtist(ctx context.Context, app *domain.OnboardingApplication) error {
-	if err := s.users.PromoteToArtist(ctx, app.ApplicantID); err != nil {
-		return err
+	if s.provisioner != nil {
+		if err := s.provisioner.ProvisionApproved(ctx, *app); err != nil {
+			return err
+		}
+		return s.users.PromoteToArtist(ctx, app.ApplicantID)
 	}
-
-	if _, err := s.profiles.GetArtistByUserID(ctx, app.ApplicantID); err == nil {
-		return nil
-	} else if !errors.Is(err, apperrors.ErrNotFound) {
-		return err
+	draft, err := s.profiles.GetArtistByUserID(ctx, app.ApplicantID)
+	if errors.Is(err, apperrors.ErrNotFound) {
+		draft, err = s.profiles.CreateDraftForUser(ctx, app.ApplicantID, app.DisplayName)
 	}
-
-	draft, err := s.profiles.CreateDraftForUser(ctx, app.ApplicantID, app.DisplayName)
 	if err != nil {
 		return err
 	}
-	if app.RequestedHandle != "" {
+	if app.RequestedHandle != "" && draft.Handle != app.RequestedHandle {
 		draft.Handle = app.RequestedHandle
 		draft.Slug = app.RequestedHandle
-		_, err = s.profiles.SaveArtist(ctx, *draft)
+		if _, err := s.profiles.SaveArtist(ctx, *draft); err != nil {
+			return err
+		}
 	}
-	return err
+	return s.users.PromoteToArtist(ctx, app.ApplicantID)
 }
 
 func (s *Service) provisionInstitution(ctx context.Context, app *domain.OnboardingApplication) error {
@@ -249,6 +377,10 @@ var handlePattern = regexp.MustCompile(`^[a-z0-9_]{3,30}$`)
 func validHandle(handle string) bool { return handlePattern.MatchString(handle) }
 
 func (s *Service) CheckHandleAvailable(ctx context.Context, handle string) (bool, error) {
+	return s.handleAvailable(ctx, handle, nil)
+}
+
+func (s *Service) handleAvailable(ctx context.Context, handle string, exceptInvite *uuid.UUID) (bool, error) {
 	handle = strings.ToLower(strings.TrimSpace(handle))
 	if !validHandle(handle) {
 		return false, nil
@@ -265,6 +397,17 @@ func (s *Service) CheckHandleAvailable(ctx context.Context, handle string) (bool
 	for _, app := range pending {
 		if strings.EqualFold(app.RequestedHandle, handle) {
 			return false, nil
+		}
+	}
+	if s.invites != nil {
+		held, err := s.invites.GetLiveByHandle(ctx, handle, s.now())
+		switch {
+		case err == nil:
+			if exceptInvite == nil || held.ID != *exceptInvite {
+				return false, nil
+			}
+		case !errors.Is(err, apperrors.ErrNotFound):
+			return false, err
 		}
 	}
 	return true, nil

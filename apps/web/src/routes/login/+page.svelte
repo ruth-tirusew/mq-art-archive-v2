@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { PasswordInput } from '$ui';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { googleLoginUrl, safeReturnPath } from '$lib/core/domain/auth';
 	import { authService, postLoginPath } from '$lib/application/auth';
-	import { ApiError } from '$lib/adapters/api/client';
+	import { DomainError } from '$lib/core/domain/errors';
 
 	type Mode = 'signin' | 'signup';
 
@@ -23,8 +24,10 @@
 	);
 	const loginHref = $derived(googleLoginUrl(returnTo, $page.url.origin));
 
-	let mode = $state<Mode>('signin');
-	let email = $state('');
+	// ?mode=signup opens straight on account creation (the home page's "Join the community").
+	let mode = $state<Mode>($page.url.searchParams.get('mode') === 'signup' ? 'signup' : 'signin');
+	// Pre-filled by invite links so the invitee signs in with the address the invite was sent to.
+	let email = $state($page.url.searchParams.get('email') ?? '');
 	let password = $state('');
 	let submitting = $state(false);
 	let error = $state('');
@@ -40,10 +43,10 @@
 					: await authService.login(email, password);
 			await goto(postLoginPath(user, returnTo));
 		} catch (err) {
-			if (err instanceof ApiError) {
-				if (err.status === 409) {
+			if (err instanceof DomainError) {
+				if (err.kind === 'conflict') {
 					error = 'An account with this email already exists.';
-				} else if (err.status === 401) {
+				} else if (err.kind === 'unauthorized') {
 					error = 'Invalid email or password.';
 				} else {
 					error = err.message;
@@ -141,13 +144,13 @@
 			<span class="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground"
 				>Password</span
 			>
-			<input
-				type="password"
+			<PasswordInput
 				required
-				minlength="8"
+				minlength={8}
 				autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
 				bind:value={password}
-				class="mt-2 w-full rounded-sm border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground/40"
+				wrapperClass="mt-2"
+				class="w-full rounded-sm border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition focus:border-foreground/40"
 			/>
 		</label>
 

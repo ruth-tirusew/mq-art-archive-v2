@@ -78,7 +78,8 @@ Built as an `engagement` domain shared across the `content` context:
 
 - Public artist profiles by slug/handle; studio view for the artist to manage their own profile (`/me/profile`).
 - Artwork posts with a publish lifecycle (draft → published), managed from studio, moderated by admin.
-- Cloudinary-backed signed direct uploads for media, gated behind `CLOUDINARY_ENABLED`.
+- The bio and each artwork's description are rich text (headings, bold, italic, underline, strikethrough, lists, quotes, links), written with the same editor as questionnaire answers in both the studio and the admin app. The server sanitises them to a fixed allowlist on every write and bounds them by visible characters (5,000); the artist page shows the full bio and each work's description.
+- Cloudinary-backed signed direct uploads for all media (required in every environment). Originals are stored untouched and delivered losslessly (WebP, quality 100); every image carries a blur hash for placeholders.
 
 ### 5.5 Events
 

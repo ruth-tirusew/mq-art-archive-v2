@@ -19,6 +19,8 @@ import (
 	mediaadapter "github.com/mq/api/internal/adapter/driven/media"
 	oauthadapter "github.com/mq/api/internal/adapter/driven/oauth"
 	"github.com/mq/api/internal/adapter/driven/persistence/postgres"
+	provisioningadapter "github.com/mq/api/internal/adapter/driven/provisioning"
+	richtextadapter "github.com/mq/api/internal/adapter/driven/richtext"
 	telegramadapter "github.com/mq/api/internal/adapter/driven/telegram"
 	httpadapter "github.com/mq/api/internal/adapter/driving/http"
 	"github.com/mq/api/internal/adapter/driving/http/handler"
@@ -37,6 +39,7 @@ import (
 	mediauc "github.com/mq/api/internal/usecase/media"
 	onboardinguc "github.com/mq/api/internal/usecase/onboarding"
 	profileuc "github.com/mq/api/internal/usecase/profile"
+	questionnaireuc "github.com/mq/api/internal/usecase/questionnaire"
 	searchuc "github.com/mq/api/internal/usecase/search"
 	settingsuc "github.com/mq/api/internal/usecase/settings"
 	wikiuc "github.com/mq/api/internal/usecase/wiki"
@@ -116,23 +119,64 @@ func main() {
 
 	// Use cases
 	contentSvc := contentuc.NewService(articleRepo)
-	artSvc := artuc.NewService(artPostRepo)
-	profileSvc := profileuc.NewService(profileRepo, userRepo, artPostRepo)
+	artSvc := artuc.NewService(artPostRepo, artuc.WithRichText(richtextadapter.NewSanitizer()))
+	profileSvc := profileuc.NewService(profileRepo, userRepo, artPostRepo, profileuc.WithRichText(richtextadapter.NewSanitizer()))
 	institutionSvc := institutionuc.NewService(institutionRepo)
 	searchSvc := searchuc.NewService(articleRepo, eventRepo, profileRepo, artPostRepo)
 	identitySvc := identityuc.NewService(userRepo)
 	settingsSvc := settingsuc.NewService(scrapeSettingsRepo, eventReloader, cfg.TelegramSessionPath)
-	cloudinary := mediaadapter.NewCloudinary(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret, cfg.CloudinaryFolder, 5*time.Minute)
-	mediaSvc := mediauc.NewService(cloudinary, cloudinary, mediaAssetRepo, cfg.CloudinaryFolder)
+	cloudinary, err := mediaadapter.NewCloudinary(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret, cfg.CloudinaryFolder, 5*time.Minute)
+	if err != nil {
+		log.Fatalf("media: %v", err)
+	}
+	mediaSvc := mediauc.NewService(cloudinary, cloudinary, mediaAssetRepo, cfg.CloudinaryFolder,
+		mediauc.WithBlurhash(cloudinary, mediaadapter.NewBlurhasher()))
 	wikiSvc := wikiuc.NewService(wikiSubmissionRepo, contentSvc)
 	engagementSvc := engagementuc.NewService(favoriteRepo, highlightRepo, commentRepo, contentSvc, identitySvc)
 	analyticsSvc := analyticsuc.NewService(analyticsRepo)
 	passwordHasher := auth.NewBcryptPasswordHasher()
 	var mailer outbound.Mailer = maileradapter.NewLogMailer(strings.EqualFold(cfg.AppEnv, "development"))
-	if cfg.ResendAPIKey != "" {
+	switch {
+	case cfg.SMTPHost != "":
+		smtpMailer, err := maileradapter.NewSMTPMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.MailFrom)
+		if err != nil {
+			log.Fatalf("mailer: %v", err)
+		}
+		mailer = smtpMailer
+	case cfg.ResendAPIKey != "":
 		mailer = maileradapter.NewResendMailer(cfg.ResendAPIKey, cfg.MailFrom)
 	}
-	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo, onboardinguc.WithMailer(mailer, cfg.WebAppURL))
+	questionnaireSvc := questionnaireuc.NewService(
+		postgres.NewQuestionnaireRepository(pool),
+		postgres.NewQuestionnaireAnswerRepository(pool),
+		postgres.NewQuestionnaireNudgeRepository(pool),
+		richtextadapter.NewSanitizer(),
+		userRepo,
+		questionnaireuc.WithMailer(mailer, cfg.WebAppURL),
+		questionnaireuc.WithLookups(profileRepo, onboardingRepo),
+	)
+	authSvc := authuc.NewService(
+		userRepo,
+		oauthAccountRepo,
+		tokenSvc,
+		passwordHasher,
+		stateSvc,
+		oauthProviders,
+		cfg.CORSOrigins,
+		mailer,
+		passwordResetRepo,
+		notifPrefsRepo,
+		cfg.WebAppURL,
+		emailVerificationRepo,
+	)
+	onboardingSvc := onboardinguc.NewService(onboardingRepo, userRepo, profileRepo, institutionRepo,
+		onboardinguc.WithMailer(mailer, cfg.WebAppURL),
+		onboardinguc.WithInvites(postgres.NewInviteRepository(pool)),
+		onboardinguc.WithQuestionnaire(questionnaireSvc),
+		onboardinguc.WithInvitedRegistrar(authSvc),
+		onboardinguc.WithApplicantWorks(postgres.NewApplicantWorkRepository(pool)),
+		onboardinguc.WithArtistProvisioner(provisioningadapter.NewArtistProvisioner(profileRepo, artPostRepo)),
+	)
 	// telegramBot is kept as its concrete type (not just outbound.TelegramNotifier) so the
 	// polling goroutine below can reuse this same instance rather than constructing a
 	// second one. telegramNotifier stays a nil interface when the bot isn't configured,
@@ -150,20 +194,6 @@ func main() {
 		notifPrefsRepo, telegramLinkRepo, cfg.JWTSecret,
 		mailer, telegramNotifier, cfg.WebAppURL, cfg.PublicAPIURL,
 	)
-	authSvc := authuc.NewService(
-		userRepo,
-		oauthAccountRepo,
-		tokenSvc,
-		passwordHasher,
-		stateSvc,
-		oauthProviders,
-		cfg.CORSOrigins,
-		mailer,
-		passwordResetRepo,
-		notifPrefsRepo,
-		cfg.WebAppURL,
-		emailVerificationRepo,
-	)
 
 	authCfg := middleware.AuthConfig{
 		Verifier:   tokenSvc,
@@ -178,22 +208,25 @@ func main() {
 
 	// HTTP handlers (driving adapters)
 	handlers := httpadapter.Handlers{
-		Health:      handler.NewHealthHandler(),
-		Article:     handler.NewArticleHandler(contentSvc),
-		Profile:     handler.NewProfileHandler(profileSvc),
-		Institution: handler.NewInstitutionHandler(institutionSvc),
-		Art:         handler.NewArtHandler(artSvc, profileSvc),
-		Event:       handler.NewEventHandler(eventsSvc),
-		Search:      handler.NewSearchHandler(searchSvc),
-		Onboarding:  handler.NewOnboardingHandler(onboardingSvc),
-		Auth:        handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
-		Settings:    handler.NewSettingsHandler(settingsSvc),
-		Media:       handler.NewMediaHandler(mediaSvc),
-		Wiki:        handler.NewWikiHandler(wikiSvc),
-		Engagement:  handler.NewEngagementHandler(engagementSvc),
-		Analytics:   handler.NewAnalyticsHandler(analyticsSvc),
-		UserAdmin:   handler.NewUserAdminHandler(authSvc),
-		Digest:      handler.NewDigestHandler(digestSvc, cfg.TelegramBotUsername),
+		Health:        handler.NewHealthHandler(),
+		Article:       handler.NewArticleHandler(contentSvc),
+		Profile:       handler.NewProfileHandler(profileSvc),
+		Institution:   handler.NewInstitutionHandler(institutionSvc),
+		Art:           handler.NewArtHandler(artSvc, profileSvc),
+		Event:         handler.NewEventHandler(eventsSvc),
+		Search:        handler.NewSearchHandler(searchSvc),
+		Onboarding:    handler.NewOnboardingHandler(onboardingSvc),
+		Questionnaire: handler.NewQuestionnaireHandler(questionnaireSvc, questionnaireSvc),
+		Invite:        handler.NewInviteHandler(onboardingSvc, cfg.AuthCookieName, cfg.WebAppURL),
+		Works:         handler.NewApplicantWorksHandler(onboardingSvc),
+		Auth:          handler.NewAuthHandler(authSvc, cfg.AuthCookieName),
+		Settings:      handler.NewSettingsHandler(settingsSvc),
+		Media:         handler.NewMediaHandler(mediaSvc),
+		Wiki:          handler.NewWikiHandler(wikiSvc),
+		Engagement:    handler.NewEngagementHandler(engagementSvc),
+		Analytics:     handler.NewAnalyticsHandler(analyticsSvc),
+		UserAdmin:     handler.NewUserAdminHandler(authSvc),
+		Digest:        handler.NewDigestHandler(digestSvc, cfg.TelegramBotUsername),
 	}
 
 	router := httpadapter.NewRouter(cfg, handlers, httpadapter.RouterDeps{

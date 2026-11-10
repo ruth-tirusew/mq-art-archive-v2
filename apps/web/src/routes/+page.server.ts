@@ -66,6 +66,9 @@ export const load: PageServerLoad = async ({ fetch }) => {
 	let acquisitions =
 		acquisitionsResult.status === 'fulfilled' ? acquisitionsResult.value : [...emptyPosts];
 
+	// When editors haven't featured anything, the section shows the latest works instead, and
+	// must not call them featured.
+	const acquisitionsFeatured = acquisitions.length > 0;
 	if (acquisitions.length === 0) {
 		acquisitions = await loadPosts(() => artPostService.list({ limit: 12 })).catch(
 			() => [...emptyPosts]
@@ -120,6 +123,7 @@ export const load: PageServerLoad = async ({ fetch }) => {
 		featuredArtist,
 		featuredPosts,
 		acquisitions,
+		acquisitionsFeatured,
 		artists,
 		editorialSpreads,
 		editorialSpreadsPayload,

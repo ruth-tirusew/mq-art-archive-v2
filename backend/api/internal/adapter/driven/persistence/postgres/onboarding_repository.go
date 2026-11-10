@@ -2,11 +2,13 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mq/api/internal/domain/onboarding"
 	"github.com/mq/api/internal/port/outbound"
 )
@@ -21,7 +23,8 @@ func NewOnboardingRepository(pool *Pool) outbound.OnboardingRepository {
 
 const onboardingColumns = `
 	id, applicant_id, applicant_type, display_name, COALESCE(requested_handle, ''), notes, review_notes,
-	status, reviewed_by, reviewed_at, created_at, updated_at
+	status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id,
+	questionnaire_answers, works, portrait
 `
 
 func (r *OnboardingRepository) ListPending(ctx context.Context) ([]onboarding.OnboardingApplication, error) {
@@ -51,6 +54,49 @@ func (r *OnboardingRepository) ListPending(ctx context.Context) ([]onboarding.On
 		apps = []onboarding.OnboardingApplication{}
 	}
 	return apps, nil
+}
+
+func (r *OnboardingRepository) List(ctx context.Context, filter onboarding.ListFilter) ([]onboarding.OnboardingApplication, int, error) {
+	var status any
+	order := "COALESCE(reviewed_at, created_at) DESC, id"
+	if filter.Status != nil {
+		status = string(*filter.Status)
+		if *filter.Status == onboarding.ApprovalStatusPending {
+			order = "created_at ASC, id"
+		}
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT count(*) FROM onboarding_applications WHERE ($1::text IS NULL OR status = $1)
+	`, status).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count applications: %w", err)
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT `+onboardingColumns+`
+		FROM onboarding_applications
+		WHERE ($1::text IS NULL OR status = $1)
+		ORDER BY `+order+`
+		LIMIT $2 OFFSET $3
+	`, status, filter.Limit, filter.Offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list applications: %w", err)
+	}
+	defer rows.Close()
+
+	apps := []onboarding.OnboardingApplication{}
+	for rows.Next() {
+		app, err := scanOnboardingApplication(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		apps = append(apps, app)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("list applications: %w", err)
+	}
+	return apps, total, nil
 }
 
 func (r *OnboardingRepository) GetByID(ctx context.Context, id uuid.UUID) (*onboarding.OnboardingApplication, error) {
@@ -90,11 +136,28 @@ func (r *OnboardingRepository) GetLatestByApplicantID(ctx context.Context, appli
 }
 
 func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.OnboardingApplication) (*onboarding.OnboardingApplication, error) {
+	var worksJSON []byte
+	if len(app.Works) > 0 {
+		encoded, err := json.Marshal(app.Works)
+		if err != nil {
+			return nil, fmt.Errorf("save onboarding application: encode works: %w", err)
+		}
+		worksJSON = encoded
+	}
+	var portraitJSON []byte
+	if app.Portrait != nil {
+		encoded, err := json.Marshal(app.Portrait)
+		if err != nil {
+			return nil, fmt.Errorf("save onboarding application: encode portrait: %w", err)
+		}
+		portraitJSON = encoded
+	}
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO onboarding_applications (
 			id, applicant_id, applicant_type, display_name, requested_handle, notes, review_notes,
-			status, reviewed_by, reviewed_at, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+			status, reviewed_by, reviewed_at, created_at, updated_at, questionnaire_revision_id, invite_id,
+			questionnaire_answers, works, portrait
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 		ON CONFLICT (id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
 			requested_handle = EXCLUDED.requested_handle,
@@ -103,15 +166,50 @@ func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.Onboardi
 			status = EXCLUDED.status,
 			reviewed_by = EXCLUDED.reviewed_by,
 			reviewed_at = EXCLUDED.reviewed_at,
-			updated_at = EXCLUDED.updated_at
+			updated_at = EXCLUDED.updated_at,
+			questionnaire_revision_id = EXCLUDED.questionnaire_revision_id,
+			invite_id = EXCLUDED.invite_id,
+			questionnaire_answers = EXCLUDED.questionnaire_answers,
+			works = EXCLUDED.works,
+			portrait = EXCLUDED.portrait
 		RETURNING `+onboardingColumns,
 		app.ID, app.ApplicantID, string(app.ApplicantType), app.DisplayName, nullableString(app.RequestedHandle), app.Notes, app.ReviewNotes,
 		string(app.Status), app.ReviewedBy, app.ReviewedAt, app.CreatedAt, app.UpdatedAt,
+		app.QuestionnaireRevisionID, app.InviteID, app.QuestionnaireAnswers, worksJSON, portraitJSON,
 	)
 
 	saved, err := scanOnboardingApplication(row)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, fmt.Errorf("save onboarding application: %w", ErrConflict)
+		}
 		return nil, fmt.Errorf("save onboarding application: %w", err)
+	}
+	return &saved, nil
+}
+
+func (r *OnboardingRepository) Transition(ctx context.Context, app onboarding.OnboardingApplication, from onboarding.ApprovalStatus) (*onboarding.OnboardingApplication, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE onboarding_applications SET
+			status = $3, review_notes = $4, reviewed_by = $5, reviewed_at = $6, updated_at = $7
+		WHERE id = $1 AND status = $2
+		RETURNING `+onboardingColumns,
+		app.ID, string(from), string(app.Status), app.ReviewNotes, app.ReviewedBy, app.ReviewedAt, app.UpdatedAt,
+	)
+	saved, err := scanOnboardingApplication(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			if _, getErr := r.GetByID(ctx, app.ID); getErr != nil {
+				return nil, getErr
+			}
+			return nil, fmt.Errorf("transition onboarding application: %w", ErrConflict)
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, fmt.Errorf("transition onboarding application: %w", ErrConflict)
+		}
+		return nil, fmt.Errorf("transition onboarding application: %w", err)
 	}
 	return &saved, nil
 }
@@ -119,12 +217,24 @@ func (r *OnboardingRepository) Save(ctx context.Context, app onboarding.Onboardi
 func scanOnboardingApplication(row scannable) (onboarding.OnboardingApplication, error) {
 	var app onboarding.OnboardingApplication
 	var applicantType, status string
+	var worksJSON, portraitJSON []byte
 	err := row.Scan(
 		&app.ID, &app.ApplicantID, &applicantType, &app.DisplayName, &app.RequestedHandle, &app.Notes, &app.ReviewNotes,
 		&status, &app.ReviewedBy, &app.ReviewedAt, &app.CreatedAt, &app.UpdatedAt,
+		&app.QuestionnaireRevisionID, &app.InviteID, &app.QuestionnaireAnswers, &worksJSON, &portraitJSON,
 	)
 	if err != nil {
 		return onboarding.OnboardingApplication{}, err
+	}
+	if len(worksJSON) > 0 {
+		if err := json.Unmarshal(worksJSON, &app.Works); err != nil {
+			return onboarding.OnboardingApplication{}, fmt.Errorf("decode application works: %w", err)
+		}
+	}
+	if len(portraitJSON) > 0 {
+		if err := json.Unmarshal(portraitJSON, &app.Portrait); err != nil {
+			return onboarding.OnboardingApplication{}, fmt.Errorf("decode application portrait: %w", err)
+		}
 	}
 	app.ApplicantType = onboarding.ApplicantType(applicantType)
 	app.Status = onboarding.ApprovalStatus(status)

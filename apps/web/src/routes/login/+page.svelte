@@ -214,13 +214,19 @@
 				Sign in
 			</button>
 		{/if}
-	</p>
+	</p>	
+	<!-- <div class="my-8 flex items-center gap-4">
+	 -->
+		<!-- <div class="h-px flex-1 bg-border"></div>
+		<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">or</span>
+		<div class="h-px flex-1 bg-border"></div>
+	</div> -->
 
-	<div class="my-8 flex items-center gap-4">
+	<!-- <div class="my-8 flex items-center gap-4">
 		<div class="h-px flex-1 bg-border"></div>
 		<span class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">or</span>
 		<div class="h-px flex-1 bg-border"></div>
-	</div>
+	</div> -->
 
 	<!-- <a
 		href={loginHref}

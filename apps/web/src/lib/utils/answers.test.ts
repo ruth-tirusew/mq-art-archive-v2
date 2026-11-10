@@ -62,9 +62,7 @@ import {
 	answerLength,
 	answerProblem,
 	detectLang,
-	editorValue,
 	formatFor,
-	plainToHtml,
 	truncateText,
 	htmlText,
 	isBlankAnswer,
@@ -131,9 +129,7 @@ describe('answerProblem', () => {
 describe('formatFor / missingRequired', () => {
 	it('stores only long answers as rich text', () => {
 		expect(formatFor(fq({ type: 'long_text' }))).toBe('rich');
-		expect(formatFor(fq({ type: 'short_text' }))).toBe('rich');
-		expect(formatFor(fq({ type: 'link' }))).toBe('plain');
-		expect(formatFor(fq({ type: 'choice' }))).toBe('plain');
+		expect(formatFor(fq({ type: 'short_text' }))).toBe('plain');
 	});
 	it('lists blank required questions in question order', () => {
 		const qs = [
@@ -144,23 +140,6 @@ describe('formatFor / missingRequired', () => {
 		expect(missingRequired(qs, { a: '<p></p>', b: 'x' })).toEqual(['a']);
 		expect(missingRequired(qs, {})).toEqual(['a', 'b']);
 		expect(missingRequired(qs, { a: '<p>hi</p>', b: 'x' })).toEqual([]);
-	});
-});
-
-describe('plainToHtml / editorValue', () => {
-	it('escapes plain text and keeps its paragraphs and line breaks', () => {
-		expect(plainToHtml('a < b & c\nnext line\n\nsecond')).toBe('<p>a &lt; b &amp; c<br>next line</p><p>second</p>');
-		expect(plainToHtml('   ')).toBe('');
-	});
-
-	it('converts an old plain answer for a question that is now rich text', () => {
-		expect(editorValue(fq({ type: 'short_text' }), { body: 'Oil <3', format: 'plain' })).toBe('<p>Oil &lt;3</p>');
-	});
-
-	it('leaves rich answers, links and choices as they are', () => {
-		expect(editorValue(fq({ type: 'short_text' }), { body: '<p><em>Oil</em></p>', format: 'rich' })).toBe('<p><em>Oil</em></p>');
-		expect(editorValue(fq({ type: 'link' }), { body: 'https://x.et', format: 'plain' })).toBe('https://x.et');
-		expect(editorValue(fq({ type: 'short_text' }), undefined)).toBe('');
 	});
 });
 

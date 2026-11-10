@@ -85,17 +85,16 @@ export function answerLength(body: string, format: AnswerFormat): number {
 }
 
 /** The format an answer to this kind of question is stored in. */
-/** Every free-text answer is rich text; a choice is an option value and a link is a URL. */
 export function formatFor(question: FormQuestion): AnswerFormat {
-	return question.type === 'long_text' || question.type === 'short_text' ? 'rich' : 'plain';
+	return question.type === 'long_text' ? 'rich' : 'plain';
 }
 
 const escapeHtml = (s: string) =>
 	s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
- * Plain text as the editor's HTML: blank-line-separated paragraphs, single newlines as <br>, and
- * everything escaped, so "a < b" stays text instead of being read as markup.
+ * Plain text as HTML: blank-line-separated paragraphs, single newlines as <br>, and everything
+ * escaped, so "a < b" stays text instead of being read as markup.
  */
 export function plainToHtml(text: string): string {
 	return text
@@ -104,15 +103,6 @@ export function plainToHtml(text: string): string {
 		.filter(Boolean)
 		.map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
 		.join('');
-}
-
-/**
- * The value to put in a question's input. Answers saved before a question became rich text are
- * plain, so they are converted rather than handed to the editor as if they were HTML.
- */
-export function editorValue(question: FormQuestion, answer: { body: string; format: AnswerFormat } | undefined): string {
-	if (!answer) return '';
-	return formatFor(question) === 'rich' && answer.format !== 'rich' ? plainToHtml(answer.body) : answer.body;
 }
 
 /**

@@ -20,7 +20,7 @@ const (
 )
 
 // Invite brings a pre-vetted artist into the normal application flow with a prefilled name and
-// reserved handle. It does not bypass review. Only TokenHash is persisted; the raw token exists
+// reserved handle. The application it produces is approved automatically on submit. Only TokenHash is persisted; the raw token exists
 // only in the link that is emailed.
 type Invite struct {
 	ID              uuid.UUID

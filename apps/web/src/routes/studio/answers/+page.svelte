@@ -34,7 +34,7 @@
 	<title>Your questions — Artiv studio</title>
 </svelte:head>
 
-<section class="mx-auto max-w-2xl px-6 py-16 md:px-10 md:py-20">
+<section class="mx-auto px-6 py-16 md:px-10 md:py-20">
 	<PageHeader
 		eyebrow="Studio"
 		lead="Your answers help people get to know you. They appear on your public profile, except any marked as only for our team. Changes save automatically and go live right away."

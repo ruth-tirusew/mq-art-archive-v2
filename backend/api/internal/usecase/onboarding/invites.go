@@ -249,7 +249,16 @@ func (s *Service) SubmitWithInvite(
 		}
 		return nil, err
 	}
-	return saved, nil
+	// The invite was issued by an admin to a pre-vetted artist, so there is nothing left to
+	// review: approve now, crediting the admin who invited them.
+	approved, err := s.review(ctx, saved.ID, inv.CreatedBy, domain.ApprovalStatusApproved, "")
+	if err != nil {
+		// Provisioning failed and review reopened the application, so it stays pending for an
+		// admin to approve by hand. The invite is spent and the submission stands.
+		log.Printf("invite %s: auto-approval of application %s failed, left pending: %v", inv.ID, saved.ID, err)
+		return saved, nil
+	}
+	return approved, nil
 }
 
 // sendInviteEmail is best-effort, like decision emails: the admin also gets the link back from
@@ -265,7 +274,7 @@ func (s *Service) sendInviteEmail(ctx context.Context, inv *domain.Invite, token
 	}
 	fmt.Fprintf(&b, "Hi %s,\n\nYou've been invited to join Artiv as an artist.\n\n", name)
 	fmt.Fprintf(&b, "Open this link to create your account and tell us about your work:\n%s/apply?invite=%s\n\n", s.webAppURL, token)
-	fmt.Fprintf(&b, "You'll set a password for %s, answer a few questions, and our team will review your application.\n\n", inv.Email)
+	fmt.Fprintf(&b, "You'll set a password for %s, answer a few questions, and your profile will be approved automatically.\n\n", inv.Email)
 	fmt.Fprintf(&b, "The link works once and expires on %s.\n", inv.ExpiresAt.UTC().Format("2 January 2006"))
 	// The invite exists either way and an admin can resend it, so a failed send is logged, not
 	// returned. The error never contains the message body, so the link stays out of the log.

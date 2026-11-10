@@ -180,6 +180,15 @@ func newInviteEnv(t *testing.T, gate inbound.ApplicationQuestionnaireGate) *invi
 		now:       time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC),
 	}
 	apps := &mockOnboardingRepo{
+		getByID: func(ctx context.Context, id uuid.UUID) (*domain.OnboardingApplication, error) {
+			for i := len(env.saved) - 1; i >= 0; i-- {
+				if env.saved[i].ID == id {
+					app := env.saved[i]
+					return &app, nil
+				}
+			}
+			return nil, apperrors.ErrNotFound
+		},
 		save: func(ctx context.Context, app domain.OnboardingApplication) (*domain.OnboardingApplication, error) {
 			if env.saveErr != nil {
 				return nil, env.saveErr
@@ -268,9 +277,9 @@ func TestSubmitWithInvite_happyPath(t *testing.T) {
 
 	app, err := env.svc.SubmitWithInvite(context.Background(), env.user.ID, inv.Token, "", "", "")
 	assist.NoError(t, err)
-	assist.Equal(t, "Ada Lovelace", app.DisplayName)          // defaulted from the invite
-	assist.Equal(t, "ada_1", app.RequestedHandle)             // its own reservation doesn't block it
-	assist.Equal(t, domain.ApprovalStatusPending, app.Status) // an invite never skips review
+	assist.Equal(t, "Ada Lovelace", app.DisplayName)           // defaulted from the invite
+	assist.Equal(t, "ada_1", app.RequestedHandle)              // its own reservation doesn't block it
+	assist.Equal(t, domain.ApprovalStatusApproved, app.Status) // invited artists are approved on submit
 	assist.NotNil(t, app.InviteID)
 	assist.Equal(t, inv.Invite.ID, *app.InviteID)
 	assist.NotNil(t, app.QuestionnaireRevisionID)

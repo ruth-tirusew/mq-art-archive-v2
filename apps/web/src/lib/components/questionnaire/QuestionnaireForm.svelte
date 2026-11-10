@@ -9,7 +9,6 @@
 		answerLength,
 		answerProblem,
 		detectLang,
-		editorValue,
 		formatFor,
 		htmlText,
 		isBlankAnswer,
@@ -37,12 +36,7 @@
 
 	// Editing state is seeded once from the saved answers; the form owns it from then on.
 	// svelte-ignore state_referenced_locally
-	// svelte-ignore state_referenced_locally
-	const savedByKey = new Map(form.answers.map((a) => [a.key, a]));
-	// svelte-ignore state_referenced_locally
-	let values = $state<Record<string, string>>(
-		Object.fromEntries(form.revision.questions.filter((q) => savedByKey.has(q.key)).map((q) => [q.key, editorValue(q, savedByKey.get(q.key))]))
-	);
+	let values = $state<Record<string, string>>(Object.fromEntries(form.answers.map((a) => [a.key, a.body])));
 	let touched = $state<Record<string, boolean>>({});
 	let showAll = $state(false);
 	let status = $state<SaveStatus>('idle');
@@ -209,12 +203,12 @@
 	{#each questions as q (q.key)}
 		{@const error = errorFor(q)}
 		<div id="q-{q.key}" class="scroll-mt-24 space-y-3" data-question={q.key}>
-			{#if q.type === 'link'}
+			{#if q.type === 'short_text' || q.type === 'link'}
 				{@render heading(q, `f-${q.key}`)}
 				<Input
 					id="f-{q.key}"
-					type="url"
-					placeholder="https://"
+					type={q.type === 'link' ? 'url' : 'text'}
+					placeholder={q.type === 'link' ? 'https://' : undefined}
 					autocomplete="off"
 					invalid={!!error}
 					aria-describedby={error ? `q-${q.key}-error` : undefined}
@@ -224,10 +218,9 @@
 					oninput={(e) => change(q, e.currentTarget.value)}
 					onblur={() => (touched[q.key] = true)}
 				/>
-			{:else if q.type === 'long_text' || q.type === 'short_text'}
+			{:else if q.type === 'long_text'}
 				{@render heading(q, null)}
 				<RichTextEditor
-					compact={q.type === 'short_text'}
 					value={values[q.key] ?? ''}
 					label={q.prompt_en}
 					invalid={!!error}

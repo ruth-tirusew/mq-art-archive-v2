@@ -3,18 +3,19 @@
 	import type { PageData } from './$types';
 	import { recordPageView } from '$lib/application/analytics';
 	import ArtistAnswers from '$lib/components/artist/ArtistAnswers.svelte';
+	import ArtworkCard from '$lib/components/art/ArtworkCard.svelte';
 	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
 	import SafeHtml from '$lib/components/SafeHtml.svelte';
 	import {
 		acquisitionBlurhash,
 		acquisitionImage,
-		acquisitionTitle,
 		artistDiscipline,
 		artistHandle,
 		artistName,
 		artistPortrait,
 		artistPortraitBlurhash
 	} from '$lib/utils/fields';
+	import { truncateText } from '$lib/utils/answers';
 	import { HEADER_ANSWER_KEYS, summarizeArtist } from '$lib/utils/artistSummary';
 
 	let { data }: { data: PageData } = $props();
@@ -39,7 +40,7 @@
 
 <svelte:head>
 	<title>{artistName(artist)} — Artiv</title>
-	<meta name="description" content={summary.tagline.slice(0, 160)} />
+	<meta name="description" content={summary.tagline || truncateText(summary.bio, 160)} />
 </svelte:head>
 
 <section class="relative overflow-hidden border-b border-border/60 bg-ink text-cream">
@@ -53,7 +54,9 @@
 				<br />
 				<em class="not-italic text-cream/90">{artistName(artist).split(' ').slice(1).join(' ')}</em>
 			</h1>
-			<p class="mt-8 max-w-xl text-balance text-lg leading-relaxed text-cream/85">{summary.tagline}</p>
+			{#if summary.tagline}
+				<p class="mt-8 max-w-xl text-balance text-lg leading-relaxed text-cream/85">{summary.tagline}</p>
+			{/if}
 			<div class="mt-6">
 				<a
 					href="/@{handle}"
@@ -117,27 +120,12 @@
 	<div class="mx-auto max-w-[1600px] px-6 py-16 md:px-10 md:py-24">
 		<p class="font-mono text-[10px] uppercase tracking-[0.3em] text-accent">Works</p>
 		{#if galleryItems.length > 0}
-			<ul class="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6">
+			<ul class="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 md:gap-x-6">
 				{#each galleryItems as item (item.id)}
 					{@const image = acquisitionImage(item)}
 					<li>
-						<div class="grain aspect-[4/5] overflow-hidden rounded-sm bg-card">
-							{#if image}
-								<BlurhashImage
-									src={image}
-									alt={acquisitionTitle(item)}
-									blurhash={acquisitionBlurhash(item)}
-									loading="lazy"
-									class="h-full w-full object-cover"
-								/>
-							{/if}
-						</div>
-						<p class="mt-3 font-display text-base italic text-foreground">{acquisitionTitle(item)}</p>
-						{#if item.medium || item.year}
-							<p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-								{[item.medium, item.year].filter(Boolean).join(' · ')}
-							</p>
-						{/if}
+						<!-- The same card as the archive. Here the artist is obvious, so the hover panel adds year, medium, size, place, palette and a few words of the description instead. A click opens the full-size image. -->
+						<ArtworkCard {item} href={image} external detailed />
 						{#if item.description}
 							<div class="mt-2 text-sm leading-relaxed text-foreground/80" data-testid="work-description">
 								<SafeHtml html={item.description} />

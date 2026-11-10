@@ -145,3 +145,19 @@ export function missingRequired(
 		.filter((q) => q.required && isBlankAnswer(current[q.key] ?? '', formatFor(q)))
 		.map((q) => q.key);
 }
+
+/**
+ * A short excerpt for cards and previews: whitespace collapsed, cut at a word boundary within `max`
+ * characters, "…" added only when something was cut. Counts characters, not bytes, so Amharic is fine.
+ */
+export function truncateText(text: string, max = 140): string {
+	const clean = text.replace(/\s+/g, ' ').trim();
+	const chars = Array.from(clean);
+	if (chars.length <= max) return clean;
+	const cut = chars.slice(0, max).join('');
+	const lastSpace = cut.lastIndexOf(' ');
+	// Back up to the last whole word, unless that would throw away most of the excerpt.
+	const body = lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut;
+	return `${body.replace(/[\s,.;:!?-]+$/, '')}…`;
+}
+

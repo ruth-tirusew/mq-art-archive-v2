@@ -65,6 +65,7 @@ import {
 	editorValue,
 	formatFor,
 	plainToHtml,
+	truncateText,
 	htmlText,
 	isBlankAnswer,
 	missingRequired
@@ -162,3 +163,26 @@ describe('plainToHtml / editorValue', () => {
 		expect(editorValue(fq({ type: 'short_text' }), undefined)).toBe('');
 	});
 });
+
+describe('truncateText', () => {
+	it('leaves short text alone and collapses stray whitespace', () => {
+		expect(truncateText('  A  short\n bio. ', 140)).toBe('A short bio.');
+	});
+
+	it('cuts at a word boundary and marks the cut', () => {
+		const out = truncateText('I paint light and memory in the highlands of Ethiopia every morning', 30);
+		expect(out).toBe('I paint light and memory in…');
+		expect(Array.from(out).length).toBeLessThanOrEqual(31);
+	});
+
+	it('never leaves dangling punctuation before the ellipsis', () => {
+		expect(truncateText('Painter, sculptor, and teacher, based in Addis', 24)).toBe('Painter, sculptor, and…');
+	});
+
+	it('counts characters, not bytes, so Amharic is not cut early', () => {
+		const am = 'ሰላም '.repeat(10).trim(); // 39 characters, 3 bytes each
+		expect(truncateText(am, 40)).toBe(am);
+		expect(truncateText(am, 20).endsWith('…')).toBe(true);
+	});
+});
+

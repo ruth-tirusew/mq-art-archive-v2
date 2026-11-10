@@ -13,6 +13,7 @@
 		artistName,
 		artistPortrait,
 		artistPortraitBlurhash,
+		artistBioExcerpt,
 		artistTagline,
 		artistYearsActive
 	} from '$lib/utils/fields';
@@ -201,6 +202,8 @@
 					<p class="mt-3 max-w-lg text-balance font-display text-lg italic text-cream/85 md:text-xl">
 						"{artistTagline(featured)}"
 					</p>
+				{:else if artistBioExcerpt(featured, 160)}
+					<p class="mt-3 max-w-lg text-balance text-base leading-relaxed text-cream/75">{artistBioExcerpt(featured, 160)}</p>
 				{/if}
 			</div>
 			<div class="mt-5 flex flex-wrap items-end justify-between gap-4">
@@ -336,6 +339,8 @@
 							<p class="border-t border-border/60 px-3 py-2 font-display text-sm italic text-foreground/75">
 								"{artistTagline(a)}"
 							</p>
+						{:else if isLarge && artistBioExcerpt(a)}
+							<p class="line-clamp-3 border-t border-border/60 px-3 py-2 text-sm leading-relaxed text-foreground/75">{artistBioExcerpt(a)}</p>
 						{/if}
 					</a>
 					<div class="border-t border-border/60 px-3 py-1.5">

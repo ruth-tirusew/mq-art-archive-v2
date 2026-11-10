@@ -1,15 +1,8 @@
 <script lang="ts">
-	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
+	import ArtworkCard from '$lib/components/art/ArtworkCard.svelte';
 	import SectionHeader from '$lib/components/home/SectionHeader.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
-	import {
-		acquisitionArtistName,
-		acquisitionArtistSlug,
-		acquisitionBlurhash,
-		acquisitionImage,
-		acquisitionMedium,
-		acquisitionYear
-	} from '$lib/utils/fields';
+	import { acquisitionArtistSlug, acquisitionImage } from '$lib/utils/fields';
 
 	type Props = {
 		works: ArtPost[];
@@ -41,29 +34,14 @@
 			</SectionHeader>
 
 			<div class="-mx-6 flex snap-x scroll-px-6 gap-6 overflow-x-auto px-6 pb-2 md:-mx-10 md:scroll-px-10 md:px-10 [scrollbar-width:none]">
-				{#each items as { work, src } (work.id)}
-					<a
+				{#each items as { work } (work.id)}
+					<ArtworkCard
+						item={work}
 						href={acquisitionArtistSlug(work) ? `/artists/${acquisitionArtistSlug(work)}` : '/archive'}
-						class="group flex w-[72vw] shrink-0 snap-start flex-col gap-4 sm:w-[44vw] lg:w-[calc((100%-4.5rem)/4)]"
-					>
-						<div class="aspect-[4/5] overflow-hidden rounded-sm bg-muted">
-							<BlurhashImage
-								{src}
-								alt={work.title}
-								blurhash={acquisitionBlurhash(work)}
-								loading="lazy"
-								onerror={() => (failed = [...failed, work.id])}
-								class="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.03]"
-							/>
-						</div>
-						<div class="flex flex-col gap-1">
-							<p class="t-h3 truncate text-foreground group-hover:text-accent">{work.title}</p>
-							<p class="text-sm text-muted-foreground">{acquisitionArtistName(work, 'Unknown artist')}</p>
-							<p class="t-eyebrow text-muted-foreground">
-								{[acquisitionMedium(work), acquisitionYear(work)].filter(Boolean).join(' · ')}
-							</p>
-						</div>
-					</a>
+						showArtist
+						onerror={() => (failed = [...failed, work.id])}
+						class="w-[72vw] shrink-0 snap-start sm:w-[44vw] lg:w-[calc((100%-4.5rem)/4)]"
+					/>
 				{/each}
 			</div>
 		</div>

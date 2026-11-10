@@ -34,6 +34,21 @@ describe('summarizeArtist', () => {
 		const s = summarizeArtist({ ...artist, bio: '<h2>About</h2><p>I paint <strong>light</strong> &amp; shadow.</p>' }, []);
 		expect(s.bio).toBe('About I paint light & shadow.');
 		expect(s.bioHtml).toBe('<h2>About</h2><p>I paint <strong>light</strong> &amp; shadow.</p>');
-		expect(s.tagline).toBe('About I paint light & shadow.'); // the bio stands in for a missing tagline
+		expect(s.tagline).toBe(''); // the bio is shown once, in About, so it never doubles as a tagline
+	});
+
+	it('shows the short-bio answer in About when the artist has not written a profile bio', () => {
+		const rich = summarizeArtist(artist, [answer('short_bio', '<p>From <em>Harar</em>.</p>', 'rich')]);
+		expect(rich.bioHtml).toBe('<p>From <em>Harar</em>.</p>');
+		expect(rich.tagline).toBe(''); // and it is not repeated as a tagline either
+
+		const plain = summarizeArtist(artist, [answer('short_bio', 'Born in <Harar>\nPaints.')]);
+		expect(plain.bioHtml).toBe('<p>Born in &lt;Harar&gt;<br>Paints.</p>'); // escaped, never read as markup
+	});
+
+	it('prefers the profile bio over the short-bio answer', () => {
+		const s = summarizeArtist({ ...artist, bio: '<p>Mine</p>' }, [answer('short_bio', 'Theirs')]);
+		expect(s.bioHtml).toBe('<p>Mine</p>');
 	});
 });
+

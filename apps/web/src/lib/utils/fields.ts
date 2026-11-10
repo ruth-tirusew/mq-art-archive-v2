@@ -1,6 +1,6 @@
 import type { ArtPost } from '$lib/core/domain/art';
 import type { ArtistProfile } from '$lib/core/domain/profile';
-import { htmlText } from '$lib/utils/answers';
+import { htmlText, truncateText } from '$lib/utils/answers';
 import { postBlurhash, postImageUrl, splitDisplayName } from '$lib/utils/display';
 
 export { postImageUrl, splitDisplayName };
@@ -21,9 +21,17 @@ export function artistLocation(artist: ArtistProfile): string {
 	return artist.contact?.location ?? '';
 }
 
+/** The artist's own one-line tagline, or '' if they have none. Never the bio. */
 export function artistTagline(artist: ArtistProfile): string {
-	// The bio is rich text (HTML); as a stand-in for a tagline only its words are wanted.
-	return artist.tagline ?? (artist.bio ? htmlText(artist.bio) : '');
+	return artist.tagline ?? '';
+}
+
+/**
+ * A short plain-text excerpt of the bio for cards and previews. The bio is rich text (HTML), so
+ * this is its words only, trimmed: the full bio lives on the artist's own page.
+ */
+export function artistBioExcerpt(artist: ArtistProfile, max = 140): string {
+	return artist.bio ? truncateText(htmlText(artist.bio), max) : '';
 }
 
 export function artistBorn(artist: ArtistProfile): string | undefined {

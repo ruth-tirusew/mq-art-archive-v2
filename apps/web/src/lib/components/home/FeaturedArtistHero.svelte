@@ -10,6 +10,7 @@
 		artistName,
 		artistPortrait,
 		artistSlug,
+		artistBioExcerpt,
 		artistTagline,
 		artistYearsActive,
 		postImageUrl
@@ -78,8 +79,8 @@
 				<h2 id="featured-artist-name" class="t-h2">
 					<a {href} class="transition-colors hover:text-ochre">{artistName(artist)}</a>
 				</h2>
-				{#if artistTagline(artist)}
-					<p class="t-lead text-cream/75">{artistTagline(artist)}</p>
+				{#if artistTagline(artist) || artistBioExcerpt(artist, 180)}
+					<p class="t-lead text-cream/75">{artistTagline(artist) || artistBioExcerpt(artist, 180)}</p>
 				{/if}
 			</div>
 

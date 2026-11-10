@@ -1,14 +1,7 @@
 <script lang="ts">
-	import BlurhashImage from '$lib/components/BlurhashImage.svelte';
+	import ArtworkCard from '$lib/components/art/ArtworkCard.svelte';
 	import type { ArtPost } from '$lib/core/domain/art';
-	import {
-		acquisitionArtistName,
-		acquisitionArtistSlug,
-		acquisitionBlurhash,
-		acquisitionImage,
-		acquisitionPalette,
-		acquisitionTitle
-	} from '$lib/utils/fields';
+	import { acquisitionArtistSlug } from '$lib/utils/fields';
 	import { Button, EmptyState, PageHeader } from '$ui';
 	import type { PageData } from './$types';
 
@@ -42,10 +35,6 @@
 	);
 
 	const hasFilters = $derived(Object.keys(active).length > 0);
-
-	function meta(w: ArtPost): string {
-		return [w.medium, w.year].filter(Boolean).join(' · ');
-	}
 
 	function toggle(key: FilterKey, value: string) {
 		const next = { ...active };
@@ -121,51 +110,8 @@
 	</p>
 
 	<div class="mt-8 grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-		{#each filtered as w}
-			{@const image = acquisitionImage(w)}
-			<a href="/artists/{acquisitionArtistSlug(w)}" class="group">
-				<div class="grain relative aspect-[4/5] overflow-hidden rounded-sm bg-card">
-					{#if image}
-						<BlurhashImage
-							src={image}
-							alt={acquisitionTitle(w)}
-							blurhash={acquisitionBlurhash(w)}
-							loading="lazy"
-							class="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.06]"
-						/>
-					{/if}
-					<div class="absolute inset-0 bg-ink/0 transition duration-500 group-hover:bg-ink/25"></div>
-					<div
-						class="absolute inset-x-0 bottom-0 translate-y-3 p-4 opacity-0 transition duration-500 group-hover:translate-y-0 group-hover:opacity-100"
-					>
-						<div class="bg-gradient-to-t from-ink/95 via-ink/75 to-transparent p-4">
-							<p class="font-display text-lg italic text-cream">{acquisitionTitle(w)}</p>
-							<p class="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-cream/80">
-								{acquisitionArtistName(w)}
-							</p>
-							<p class="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-cream/60">
-								{meta(w)}
-							</p>
-							<span class="mt-2 inline-block font-mono text-[10px] uppercase tracking-[0.2em] text-accent">
-								View →
-							</span>
-						</div>
-					</div>
-				</div>
-				<div class="mt-4 flex items-start justify-between gap-4 transition group-hover:opacity-0">
-					<div>
-						<p class="font-display text-lg italic text-foreground">{acquisitionTitle(w)}</p>
-						<p class="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-							{[acquisitionArtistName(w), w.year].filter(Boolean).join(' · ')}
-						</p>
-					</div>
-					<div class="flex gap-1 pt-1">
-						{#each acquisitionPalette(w) as c}
-							<span class="h-5 w-1.5" style:background={c}></span>
-						{/each}
-					</div>
-				</div>
-			</a>
+		{#each filtered as w (w.id)}
+			<ArtworkCard item={w} href="/artists/{acquisitionArtistSlug(w)}" showArtist />
 		{/each}
 	</div>
 
